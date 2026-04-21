@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div class="page-eyebrow">📅 Programação</div>
+  <h2 class="page-title">Programação do Dia</h2>
+  <p class="page-desc">Horários e atividades especiais de hoje</p>
+</div>
+
+<div class="stack">
+  {% for ev in eventos %}
+  <div class="event-card">
+    <div class="event-time-col">
+      <span class="event-time-value">{{ ev.horario }}</span>
+      <span class="event-time-label">Hoje</span>
+    </div>
+    <div class="event-content">
+      <div class="event-name">{{ ev.evento }}</div>
+      <div class="event-location">📍 {{ ev.local }}</div>
+      {% if ev.descricao %}<p style="font-size:13px;color:var(--text-soft);margin-top:6px;">{{ ev.descricao }}</p>{% endif %}
+    </div>
+  </div>
+  {% else %}
+  <p class="muted" style="text-align:center;padding:40px 0;">Nenhum evento programado para hoje.</p>
+  {% endfor %}
+</div>
+{% endblock %}

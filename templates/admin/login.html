@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login · FlexMedia Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body>
+
+<div class="login-page">
+  <div class="login-box">
+    <div class="login-logo">Flex<span>Media</span></div>
+    <p class="login-tagline">Painel Administrativo White Label</p>
+
+    {% if error %}
+    <div class="login-error">{{ error }}</div>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+      <div class="login-error" style="{% if cat == 'info' %}background:var(--a-card);border-color:var(--a-border);color:var(--a-text);{% endif %}">
+        {{ msg }}
+      </div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="post" action="{{ url_for('auth.login') }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label">E-mail</label>
+        <input class="form-control" type="email" name="email"
+               placeholder="seu@email.com" autofocus autocomplete="email"
+               required>
+      </div>
+
+      <div class="form-group" style="margin-bottom:20px;">
+        <label class="form-label">Senha</label>
+        <input class="form-control" type="password" name="password"
+               placeholder="••••••••••" autocomplete="current-password"
+               required>
+      </div>
+
+      <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center;">
+        Entrar
+      </button>
+    </form>
+
+    <p style="text-align:center;margin-top:20px;font-size:12px;color:var(--a-muted);">
+      <a href="{{ url_for('auth.forgot_password') }}" style="color:var(--a-muted);">
+        Esqueci minha senha
+      </a>
+    </p>
+  </div>
+</div>
+
+</body>
+</html>

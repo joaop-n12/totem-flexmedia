@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block content %}
+
+{# ── Modal de consentimento LGPD ──────────────────────────────────────────────
+   Exibido uma unica vez por navegador (localStorage). O visitante precisa
+   aceitar antes de usar microfone/chat. O aviso deixa claro que a pergunta
+   eh enviada a OpenAI para gerar a resposta. #}
+<div id="lgpdModal"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10000;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#111;border:1px solid #333;border-radius:20px;max-width:520px;width:100%;padding:28px;color:#f0f0f0;">
+    <h2 style="margin:0 0 12px;font-size:22px;">Antes de começar</h2>
+    <p style="line-height:1.5;color:#ccc;">
+      Suas perguntas são enviadas de forma criptografada à <strong>OpenAI</strong>
+      para gerar a resposta. Mantemos a transcrição por no máximo
+      <strong>{{ config.INTERACTION_LOG_RETENTION_DAYS or 90 }} dias</strong>
+      e não coletamos dados pessoais.
+      <a href="{{ url_for('core.privacidade', slug=institution.slug) }}"
+         style="color:var(--accent,#3b82f6);">Ler aviso completo</a>.
+    </p>
+    <div style="display:flex;gap:12px;margin-top:20px;flex-wrap:wrap;">
+      <button id="lgpdAccept"
+              style="flex:1;min-width:140px;padding:14px 20px;border:0;border-radius:999px;background:var(--accent,#3b82f6);color:#fff;font-size:15px;cursor:pointer;">
+        Aceito e continuar
+      </button>
+      <button id="lgpdDecline"
+              onclick="history.back()"
+              style="flex:1;min-width:140px;padding:14px 20px;border:1px solid #444;border-radius:999px;background:transparent;color:#ccc;font-size:15px;cursor:pointer;">
+        Não, obrigado
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const KEY = "lgpd_consent_v1";
+    const modal = document.getElementById("lgpdModal");
+    if (!localStorage.getItem(KEY)) {
+      modal.style.display = "flex";
+    }
+    document.getElementById("lgpdAccept").addEventListener("click", () => {
+      localStorage.setItem(KEY, new Date().toISOString());
+      modal.style.display = "none";
+    });
+  })();
+</script>
+
+<div class="voice-page">
+
+  <!-- Título -->
+  <div class="assistant-name">
+    <span class="name-main">{{ institution.ai_name }}</span>
+  </div>
+
+  <!-- Visualização de ondas + badge de status -->
+  <div class="wave-scene">
+    <canvas id="waveCanvas" width="900" height="180"></canvas>
+    <div id="avatarStatus" class="status-badge idle">
+      <span class="status-dot"></span>
+      <span id="statusText">Online</span>
+    </div>
+  </div>
+
+  <!-- Botão de microfone -->
+  <div class="record-area">
+    <button id="recordBtn" class="record-btn">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
+        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+      </svg>
+    </button>
+    <span id="statusMsg" class="status-msg">Toque para falar</span>
+  </div>
+
+  <!-- Separador visual -->
+  <div class="divider-or"><span>ou</span></div>
+
+  <!-- Input de texto -->
+  <div class="chat-input-wrap">
+    <input id="textInput" class="search-input"
+           type="text" placeholder="Digite sua pergunta…" autocomplete="off"
+           style="border-radius:var(--r-pill);padding-right:56px;">
+    <button id="sendTextBtn" class="btn" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);min-height:44px;padding:10px 18px;">
+      Enviar
+    </button>
+  </div>
+
+  <!-- Seleção de voz (discreta, sem label) -->
+  <div class="voice-pills-wrap">
+    <button class="voice-pill active" data-voice="nova"    data-desc="Nova · feminina calorosa">Nova</button>
+    <button class="voice-pill"        data-voice="alloy"   data-desc="Alloy · neutra e clara">Alloy</button>
+    <button class="voice-pill"        data-voice="shimmer" data-desc="Shimmer · suave e expressiva">Shimmer</button>
+    <button class="voice-pill"        data-voice="onyx"    data-desc="Onyx · masculina grave">Onyx</button>
+    <button class="voice-pill"        data-voice="echo"    data-desc="Echo · masculina jovem">Echo</button>
+  </div>
+
+  <!-- Balões de conversa -->
+  <div class="chat-area">
+    <div id="userBubble" class="chat-bubble user hidden"></div>
+    <div id="botBubble"  class="chat-bubble bot  hidden"></div>
+  </div>
+
+</div>
+
+<style>
+.voice-page { display:flex;flex-direction:column;align-items:center;padding:4px 20px 32px;gap:0; }
+
+/* Título */
+.assistant-name { margin-bottom:2px; }
+.name-main { font-size:clamp(1.6em,3.5vw,2.4em);font-weight:900;color:var(--text);letter-spacing:4px;text-transform:uppercase; }
+
+/* Wave */
+.wave-scene { position:relative;width:100%;max-width:700px;display:flex;flex-direction:column;align-items:center;margin-bottom:4px; }
+#waveCanvas { width:100%;height:auto;display:block;max-height:150px; }
+
+/* Status badge */
+.status-badge { display:inline-flex;align-items:center;gap:6px;padding:5px 16px;border-radius:var(--r-pill);font-family:'Courier New',monospace;font-size:.78em;font-weight:700;letter-spacing:2px;text-transform:uppercase;transition:all .3s;margin-top:2px; }
+.status-dot   { width:7px;height:7px;border-radius:50%; }
+.status-badge.idle   { background:rgba(244,184,96,.07);border:1px solid rgba(244,184,96,.28);color:var(--accent); }
+.status-badge.idle   .status-dot { background:var(--accent);box-shadow:0 0 6px var(--accent);animation:blink-dot 2s ease infinite; }
+.status-badge.listen { background:rgba(255,80,80,.09);border:1px solid rgba(255,80,80,.35);color:#ff6060; }
+.status-badge.listen .status-dot { background:#ff6060;animation:blink-dot .6s ease infinite; }
+.status-badge.think  { background:rgba(80,160,255,.09);border:1px solid rgba(80,160,255,.35);color:#60aaff; }
+.status-badge.think  .status-dot { background:#60aaff;animation:blink-dot .3s ease infinite; }
+.status-badge.speak  { background:rgba(77,217,208,.09);border:1px solid rgba(77,217,208,.38);color:var(--teal); }
+.status-badge.speak  .status-dot { background:var(--teal);box-shadow:0 0 10px var(--teal);animation:blink-dot .4s ease infinite; }
+@keyframes blink-dot { 0%,100%{opacity:1;}50%{opacity:.3;} }
+
+/* Botão de microfone */
+.record-area { display:flex;flex-direction:column;align-items:center;gap:10px;margin:20px 0 8px; }
+.record-btn  {
+  width:100px;height:100px;border-radius:50%;
+  border:2px solid rgba(244,184,96,.35);
+  background:rgba(244,184,96,.05);
+  color:rgba(221,238,247,.85);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .25s;position:relative;
+}
+.record-btn::before { content:'';position:absolute;inset:-8px;border-radius:50%;border:1px solid rgba(244,184,96,.1); }
+.record-btn:hover     { border-color:var(--accent);background:rgba(244,184,96,.1);transform:scale(1.05); }
+.record-btn.recording { border-color:#ff4444;background:rgba(255,68,68,.1);color:#ff8888;animation:recordPulse 1.2s ease infinite; }
+.record-btn.loading   { border-color:#60aaff;background:rgba(96,170,255,.1);color:#60aaff;animation:loadingPulse 1s ease infinite;cursor:not-allowed; }
+@keyframes recordPulse  { 0%,100%{box-shadow:0 0 20px rgba(255,68,68,.2);}50%{box-shadow:0 0 42px rgba(255,68,68,.5);} }
+@keyframes loadingPulse { 0%,100%{box-shadow:0 0 20px rgba(96,170,255,.2);}50%{box-shadow:0 0 42px rgba(96,170,255,.5);} }
+.status-msg { font-size:.82em;color:var(--muted);letter-spacing:.4px;min-height:18px;text-align:center; }
+
+/* Divisor "ou" */
+.divider-or { display:flex;align-items:center;width:100%;max-width:480px;gap:12px;margin:14px 0 12px;color:rgba(221,238,247,.2);font-size:.8em;letter-spacing:2px; }
+.divider-or::before,.divider-or::after { content:'';flex:1;height:1px;background:rgba(255,255,255,.08); }
+
+/* Input de texto */
+.chat-input-wrap { position:relative;width:100%;max-width:520px;display:flex;align-items:center;margin-bottom:14px; }
+
+/* Pills de voz */
+.voice-pills-wrap { display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-bottom:12px; }
+.voice-pill { padding:5px 14px;border-radius:var(--r-pill);border:1px solid rgba(255,255,255,.09);background:transparent;color:rgba(221,238,247,.35);font-family:var(--font);font-size:.78em;font-weight:600;cursor:pointer;transition:all .2s; }
+.voice-pill:hover  { border-color:rgba(244,184,96,.35);color:rgba(244,184,96,.65); }
+.voice-pill.active { border-color:rgba(244,184,96,.5);color:var(--accent);background:rgba(244,184,96,.06); }
+
+/* Balões */
+.chat-area  { width:100%;max-width:480px;display:flex;flex-direction:column;gap:10px; }
+.chat-bubble { padding:12px 16px;border-radius:var(--r-md);font-size:.88em;line-height:1.6;max-width:90%; }
+.chat-bubble.hidden { display:none; }
+.chat-bubble.user { background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);color:rgba(221,238,247,.65);align-self:flex-end;border-bottom-right-radius:4px; }
+.chat-bubble.bot  { background:rgba(244,184,96,.05);border:1px solid rgba(244,184,96,.16);color:var(--text);align-self:flex-start;border-bottom-left-radius:4px; }
+</style>
+
+<script>
+const SLUG = "{{ institution.slug }}";
+const canvas=document.getElementById('waveCanvas'),ctx=canvas.getContext('2d');
+const W=canvas.width,H=canvas.height,CY=H/2;
+let analyser=null,waveMode='idle';
+const STATES={idle:{amp:15,speed:.10,spread:20,lineCount:90,alpha:.08,lineWidth:.7,ripple:.04,color1:'#f4b860',color2:'#cc5500'},listen:{amp:30,speed:.30,spread:30,lineCount:110,alpha:.11,lineWidth:.9,ripple:.06,color1:'#ff5722',color2:'#aa2200'},speak:{amp:45,speed:.38,spread:40,lineCount:130,alpha:.14,lineWidth:1.0,ripple:.15,color1:'#4dd9d0',color2:'#1a8080'}};
+let phase=0,lastTs=0,cAmp=STATES.idle.amp,cSpread=STATES.idle.spread,rawFreq=null,smoothedFreq=null;
+const lerp=(a,b,t)=>a+(b-a)*t;
+function spine(nx,ph){return Math.sin(nx*Math.PI*2+ph)+Math.sin(nx*Math.PI*3.5-ph*.62)*.38+Math.sin(nx*Math.PI*1.1-ph*.25)*.30+Math.sin(nx*Math.PI*5.2+ph*.38)*.14;}
+function readFreq(){if(!analyser)return false;const bins=analyser.frequencyBinCount;if(!rawFreq||rawFreq.length!==bins){rawFreq=new Uint8Array(bins);smoothedFreq=new Float32Array(bins);}analyser.getByteFrequencyData(rawFreq);for(let i=0;i<bins;i++)smoothedFreq[i]=lerp(smoothedFreq[i],rawFreq[i]/255,.18);return true;}
+function drawWave(dt){ctx.clearRect(0,0,W,H);const st=STATES[waveMode],lf=1-Math.exp(-2*dt);cAmp=lerp(cAmp,st.amp,lf);cSpread=lerp(cSpread,st.spread,lf);phase+=st.speed*dt;const hasAudio=waveMode==='speak'&&readFreq(),N=st.lineCount;ctx.lineCap='round';
+  for(let li=0;li<N;li++){const t=li/(N-1),u=(t-.5)*2,cw=(1-Math.abs(u))**2,lp=phase+li*.4142;ctx.beginPath();ctx.strokeStyle=t<.5?st.color1:st.color2;ctx.globalAlpha=lerp(.006,st.alpha,cw);ctx.lineWidth=lerp(.2,st.lineWidth,cw);
+    for(let i=0;i<=400;i++){const nx=i/400,x=nx*W,edge=Math.min(1,nx/.05)*Math.min(1,(1-nx)/.05),sy=spine(nx,lp)*cAmp*edge,tw=Math.sin(nx*Math.PI*3.5+lp*.7)*.65+.65,sp=u*cSpread*tw*edge,rp=Math.sin(nx*Math.PI*8+lp*1.6)*cAmp*st.ripple*edge;let fb=1;if(hasAudio){const bi=Math.min(Math.floor(Math.log1p(nx*9)/Math.LN10*smoothedFreq.length*.35),smoothedFreq.length-1);fb=1+smoothedFreq[bi]*1.1;}const y=CY+(sy+rp)*fb+sp;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();}
+  ctx.globalAlpha=1;}
+function renderLoop(ts){const dt=lastTs?Math.min((ts-lastTs)/1000,.05):0;lastTs=ts;drawWave(dt);requestAnimationFrame(renderLoop);}
+requestAnimationFrame(renderLoop);
+
+let audioCtx=null;
+function connectAnalyser(el){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();const src=audioCtx.createMediaElementSource(el);analyser=audioCtx.createAnalyser();analyser.fftSize=256;src.connect(analyser);analyser.connect(audioCtx.destination);}
+
+const recordBtn=document.getElementById('recordBtn'),
+      statusMsg=document.getElementById('statusMsg'),userBubble=document.getElementById('userBubble'),
+      botBubble=document.getElementById('botBubble'),avatarStatus=document.getElementById('avatarStatus'),
+      statusText=document.getElementById('statusText'),
+      textInput=document.getElementById('textInput'),sendTextBtn=document.getElementById('sendTextBtn');
+
+let selectedVoice='nova',isRecording=false,mediaRecorder,audioChunks=[];
+
+function setAvatarState(state,label){avatarStatus.className='status-badge '+state;statusText.textContent=label;waveMode=state==='listen'?'listen':state==='speak'?'speak':'idle';}
+document.querySelectorAll('.voice-pill').forEach(pill=>{
+  pill.addEventListener('click',()=>{document.querySelectorAll('.voice-pill').forEach(p=>p.classList.remove('active'));pill.classList.add('active');selectedVoice=pill.dataset.voice;});
+});
+
+// Voice recording
+recordBtn.addEventListener('click',async()=>{
+  if(isRecording){mediaRecorder.stop();return;}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    mediaRecorder=new MediaRecorder(stream);audioChunks=[];isRecording=true;
+    recordBtn.classList.add('recording');
+    statusMsg.textContent='Gravando...';setAvatarState('listen','Ouvindo');
+    mediaRecorder.ondataavailable=e=>audioChunks.push(e.data);
+    mediaRecorder.onstop=async()=>{
+      isRecording=false;recordBtn.classList.remove('recording');
+      stream.getTracks().forEach(t=>t.stop());
+      recordBtn.classList.add('loading');recordBtn.disabled=true;
+      statusMsg.textContent='Processando...';setAvatarState('think','Pensando');
+      const blob=new Blob(audioChunks,{type:'audio/wav'});
+      const form=new FormData();form.append('audio',blob,'audio.wav');form.append('voice',selectedVoice);
+      try{
+        const res=await fetch(`/${SLUG}/api/voice`,{method:'POST',body:form});
+        const data=await res.json();
+        if(data.error){statusMsg.textContent='❌ '+data.error;setAvatarState('idle','Online');return;}
+        userBubble.textContent=data.transcription;userBubble.classList.remove('hidden');
+        botBubble.textContent=data.response;botBubble.classList.remove('hidden');
+        const audio=new Audio('data:audio/mp3;base64,'+data.tts_base64);
+        audio.crossOrigin='anonymous';connectAnalyser(audio);
+        recordBtn.classList.remove('loading');recordBtn.disabled=false;
+        audio.onplay=()=>{setAvatarState('speak','Falando');statusMsg.textContent='';};
+        audio.onended=()=>{analyser=null;setAvatarState('idle','Online');statusMsg.textContent='Pronto para ouvir você';};
+        if(audioCtx?.state==='suspended')await audioCtx.resume();
+        audio.play();
+      }catch(err){statusMsg.textContent='❌ Erro de conexão';recordBtn.classList.remove('loading');recordBtn.disabled=false;setAvatarState('idle','Online');}
+    };
+    mediaRecorder.start();
+  }catch(err){
+    const msgs={
+      NotAllowedError:'Permissão negada — libere o microfone no navegador',
+      NotFoundError:'Nenhum microfone encontrado no dispositivo',
+      NotReadableError:'Microfone em uso por outro programa',
+      SecurityError:'Contexto inseguro — use localhost ao invés de 127.0.0.1',
+    };
+    statusMsg.textContent = msgs[err.name] || ('Erro: ' + err.name + ' — ' + err.message);
+    setAvatarState('idle','Online');
+  }
+});
+
+// Text chat
+async function sendText(){
+  const msg=textInput.value.trim();if(!msg)return;
+  userBubble.textContent=msg;userBubble.classList.remove('hidden');
+  textInput.value='';setAvatarState('think','Pensando');statusMsg.textContent='Processando...';
+  try{
+    const res=await fetch(`/${SLUG}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+    const data=await res.json();
+    botBubble.textContent=data.error||data.response;botBubble.classList.remove('hidden');
+    setAvatarState('idle','Online');statusMsg.textContent='Pronto para ouvir você';
+  }catch(e){botBubble.textContent='❌ Erro de conexão';botBubble.classList.remove('hidden');setAvatarState('idle','Online');}
+}
+sendTextBtn.addEventListener('click',sendText);
+textInput.addEventListener('keydown',e=>{if(e.key==='Enter')sendText();});
+</script>
+{% endblock %}

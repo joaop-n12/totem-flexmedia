@@ -1,0 +1,83 @@
+{% extends "admin/base.html" %}
+{% set editing = animal is not none %}
+{% block title %}{{ 'Editar ' ~ animal.nome if editing else 'Novo Animal' }}{% endblock %}
+{% block topbar_title %}{{ 'Editar Animal' if editing else 'Novo Animal' }}{% endblock %}
+
+{% block breadcrumb %}
+  {% if current_user.is_super_admin %}
+  <a href="{{ url_for('admin_platform.dashboard') }}">Plataforma</a>
+  <span class="sep">/</span>
+  {% endif %}
+  <a href="{{ url_for('admin_institution.animal_list', iid=inst.id) }}">Animais · {{ inst.name }}</a>
+  <span class="sep">/</span> {{ 'Editar' if editing else 'Novo' }}
+{% endblock %}
+
+{% block content %}
+<form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  <div class="card">
+    <div class="card-header">
+      <h2>{{ 'Editar: ' ~ animal.nome if editing else 'Novo Animal' }}</h2>
+    </div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Nome *</label>
+          <input class="form-control" type="text" name="nome" required
+                 value="{{ animal.nome if editing else '' }}" placeholder="Ex: Leão Africano">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Espécie</label>
+          <input class="form-control" type="text" name="especie"
+                 value="{{ animal.especie if editing else '' }}" placeholder="Ex: Mamífero">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Habitat</label>
+          <input class="form-control" type="text" name="habitat"
+                 value="{{ animal.habitat if editing else '' }}" placeholder="Ex: Savana">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Área no zoológico</label>
+          <input class="form-control" type="text" name="area"
+                 value="{{ animal.area if editing else '' }}" placeholder="Ex: africa">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Descrição</label>
+          <textarea class="form-control" name="descricao" rows="3"
+                    placeholder="Texto descritivo...">{{ animal.descricao if editing else '' }}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Alimentação</label>
+          <input class="form-control" type="text" name="alimentacao"
+                 value="{{ animal.alimentacao if editing else '' }}" placeholder="Ex: Carnívoro">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Curiosidades</label>
+          <input class="form-control" type="text" name="curiosidades"
+                 value="{{ animal.curiosidades if editing else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status de Conservação</label>
+          <input class="form-control" type="text" name="conservacao"
+                 value="{{ animal.conservacao if editing else '' }}"
+                 placeholder="Ex: Vulnerável (IUCN)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Imagem</label>
+          <input class="form-control" type="file" name="imagem" accept="image/*">
+          {% if editing and animal.imagem %}
+          <span class="form-hint">Atual: {{ animal.imagem }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="form-actions" style="margin-top:20px;">
+    <button class="btn btn-primary" type="submit">
+      {{ 'Salvar alterações' if editing else 'Criar animal' }}
+    </button>
+    <a class="btn btn-secondary"
+       href="{{ url_for('admin_institution.animal_list', iid=inst.id) }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

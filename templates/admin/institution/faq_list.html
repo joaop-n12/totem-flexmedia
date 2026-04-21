@@ -1,0 +1,46 @@
+{% extends "admin/base.html" %}
+{% block title %}FAQs · {{ inst.name }}{% endblock %}
+{% block topbar_title %}FAQs{% endblock %}
+
+{% block breadcrumb %}
+  {% if current_user.is_super_admin %}<a href="{{ url_for('admin_platform.dashboard') }}">Plataforma</a><span class="sep">/</span>{% endif %}
+  <a href="{{ url_for('admin_institution.dashboard', iid=inst.id) }}">{{ inst.name }}</a>
+  <span class="sep">/</span> FAQs
+{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div><h1>FAQs — {{ inst.name }}</h1><div class="page-hd-sub">{{ faqs|length }} perguntas</div></div>
+  <a class="btn btn-primary" href="{{ url_for('admin_institution.faq_new', iid=inst.id) }}">+ Nova FAQ</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Categoria</th><th>Pergunta</th><th>Resposta</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for faq in faqs %}
+        <tr>
+          <td><span class="badge badge-muted">{{ faq.category or 'Geral' }}</span></td>
+          <td class="log-input">{{ faq.question }}</td>
+          <td class="log-response">{{ faq.answer }}</td>
+          <td>
+            <div class="td-actions">
+              <a class="btn btn-secondary btn-sm" href="{{ url_for('admin_institution.faq_edit', iid=inst.id, fid=faq.id) }}">Editar</a>
+              <form class="delete-form" method="post"
+                    action="{{ url_for('admin_institution.faq_delete', iid=inst.id, fid=faq.id) }}"
+                    onsubmit="return confirm('Remover esta FAQ?')">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-danger btn-sm" type="submit">✕</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4"><div class="empty-state"><div class="empty-state-icon">❓</div><div class="empty-state-title">Nenhuma FAQ cadastrada</div></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:32px;">
+  <div style="font-size:72px;margin-bottom:16px;">📡</div>
+  <h1 style="font-size:28px;margin:0 0 12px;">Sem conexão no momento</h1>
+  <p style="max-width:520px;color:#aaa;line-height:1.5;margin:0 0 24px;">
+    O totem está offline. Você ainda pode explorar o conteúdo visitado recentemente.
+    Assim que a internet voltar, as funcionalidades de assistente e busca voltarão automaticamente.
+  </p>
+  <button onclick="location.reload()"
+          style="padding:14px 28px;border-radius:999px;border:0;background:var(--accent,#3b82f6);color:#fff;font-size:16px;cursor:pointer;">
+    Tentar novamente
+  </button>
+</div>
+{% endblock %}

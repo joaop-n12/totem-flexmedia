@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div class="page-eyebrow">🛍️ Shopping</div>
+  <h2 class="page-title">Lojas</h2>
+  <p class="page-desc">{{ stores|length }} lojas disponíveis</p>
+</div>
+
+<form class="search" method="get" action="{{ url_for('shopping.lojas', slug=institution.slug) }}">
+  <input type="text" name="q" placeholder="Buscar loja..." value="{{ q }}" autocomplete="off">
+  <select name="categoria" style="padding:14px 16px;border-radius:var(--r-md);border:1px solid var(--stroke);background:var(--bg-card);color:var(--text);font-family:var(--font);font-size:14px;">
+    <option value="">Todas as categorias</option>
+    {% for cat in categories %}
+    <option value="{{ cat }}" {% if active_category==cat %}selected{% endif %}>{{ cat }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn" type="submit">Filtrar</button>
+</form>
+
+<div class="grid animais-grid">
+  {% for store in stores %}
+  <div class="card">
+    <div class="card-body">
+      <h3 class="card-title">{{ store.name }}</h3>
+      <p class="card-meta">{{ store.category or '' }} {% if store.floor %}· Piso {{ store.floor }}{% endif %}</p>
+      {% if store.description %}<p class="card-desc">{{ store.description }}</p>{% endif %}
+      {% if store.on_promotion %}
+      <span class="animal-tag" style="background:rgba(255,80,80,.1);border-color:rgba(255,80,80,.3);color:#ff6060;">
+        ⭐ {{ store.promo_text or 'Promoção' }}
+      </span>
+      {% endif %}
+      {% if store.hours %}<p style="font-size:12px;color:var(--muted);margin-top:8px;">🕐 {{ store.hours }}</p>{% endif %}
+    </div>
+  </div>
+  {% else %}
+  <p class="muted" style="text-align:center;padding:40px;grid-column:1/-1;">Nenhuma loja cadastrada.</p>
+  {% endfor %}
+</div>
+{% endblock %}

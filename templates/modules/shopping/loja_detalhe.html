@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="detail">
+  <div class="detail-info" style="max-width:680px;margin:0 auto;">
+    <div class="detail-eyebrow">🛍️ {{ store.category or 'Loja' }}</div>
+    <h1 class="detail-title">{{ store.name }}</h1>
+
+    <div class="detail-meta-row">
+      {% if store.floor %}
+      <div class="detail-meta-item">
+        <span class="detail-meta-label">Piso</span>
+        <span class="detail-meta-value">{{ store.floor }}</span>
+      </div>
+      {% endif %}
+      {% if store.hours %}
+      <div class="detail-meta-item">
+        <span class="detail-meta-label">Horário</span>
+        <span class="detail-meta-value">{{ store.hours }}</span>
+      </div>
+      {% endif %}
+      {% if store.phone %}
+      <div class="detail-meta-item">
+        <span class="detail-meta-label">Telefone</span>
+        <span class="detail-meta-value">{{ store.phone }}</span>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if store.description %}
+    <p class="detail-text">{{ store.description }}</p>
+    {% endif %}
+
+    {% if store.on_promotion %}
+    <div class="detail-facts">
+      <div class="detail-fact">
+        <span class="detail-fact-icon">⭐</span>
+        <div>
+          <div class="detail-fact-label">Promoção</div>
+          <div class="detail-fact-value">{{ store.promo_text or 'Loja em promoção!' }}</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="page-actions">
+      <a class="back-btn" href="{{ url_for('shopping.lojas', slug=institution.slug) }}">← Voltar</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "admin/base.html" %}
+{% block title %}Produtos · {{ inst.name }}{% endblock %}
+{% block topbar_title %}Produtos{% endblock %}
+
+{% block breadcrumb %}
+  {% if current_user.is_super_admin %}<a href="{{ url_for('admin_platform.dashboard') }}">Plataforma</a><span class="sep">/</span>{% endif %}
+  <a href="{{ url_for('admin_institution.dashboard', iid=inst.id) }}">{{ inst.name }}</a>
+  <span class="sep">/</span> Produtos
+{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div><h1>Produtos — {{ inst.name }}</h1><div class="page-hd-sub">{{ products|length }} cadastrados</div></div>
+  <a class="btn btn-primary" href="{{ url_for('admin_institution.product_new', iid=inst.id) }}">+ Novo Produto</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Nome</th><th>Categoria</th><th>Preço</th><th>Promoção</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for p in products %}
+        <tr>
+          <td><strong>{{ p.name }}</strong></td>
+          <td class="td-muted">{{ p.category or '—' }}</td>
+          <td class="td-muted">R$ {{ '%.2f'|format(p.price) }}</td>
+          <td>{% if p.on_sale %}<span class="badge badge-success">● R$ {{ '%.2f'|format(p.sale_price) }}</span>{% else %}<span class="badge badge-muted">—</span>{% endif %}</td>
+          <td>
+            <div class="td-actions">
+              <a class="btn btn-secondary btn-sm" href="{{ url_for('admin_institution.product_edit', iid=inst.id, pid=p.id) }}">Editar</a>
+              <form class="delete-form" method="post"
+                    action="{{ url_for('admin_institution.product_delete', iid=inst.id, pid=p.id) }}"
+                    onsubmit="return confirm('Remover {{ p.name }}?')">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-danger btn-sm" type="submit">✕</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon">💊</div><div class="empty-state-title">Nenhum produto cadastrado</div></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

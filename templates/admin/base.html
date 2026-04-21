@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}Admin{% endblock %} · FlexMedia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<div class="admin-layout">
+
+  <!-- Sidebar -->
+  <aside class="admin-sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-logo">Flex<span>Media</span></div>
+      <div class="sidebar-brand-sub">
+        {% if current_user.is_super_admin %}Plataforma{% else %}Painel Admin{% endif %}
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+
+      {% if current_user.is_super_admin %}
+      <!-- Seção exclusiva do super_admin -->
+      <div class="nav-section-label">Plataforma FlexMedia</div>
+      <a class="nav-item {% if request.endpoint == 'admin_platform.dashboard' %}active{% endif %}"
+         href="{{ url_for('admin_platform.dashboard') }}">
+        <span class="nav-icon">⊞</span> Dashboard Global
+      </a>
+      <a class="nav-item {% if 'institution' in (request.endpoint or '') and 'admin_platform' in (request.endpoint or '') %}active{% endif %}"
+         href="{{ url_for('admin_platform.institution_list') }}">
+        <span class="nav-icon">🏛</span> Instituições
+      </a>
+      <a class="nav-item {% if 'user' in (request.endpoint or '') and 'admin_platform' in (request.endpoint or '') %}active{% endif %}"
+         href="{{ url_for('admin_platform.user_list') }}">
+        <span class="nav-icon">👥</span> Usuários
+      </a>
+      <a class="nav-item {% if request.endpoint == 'admin_platform.log_list' %}active{% endif %}"
+         href="{{ url_for('admin_platform.log_list') }}">
+        <span class="nav-icon">🔐</span> Logs & Auth
+      </a>
+      {% endif %}
+
+      <!-- Seção de conteúdo da instituição -->
+      {% set iid = request.view_args.iid if request.view_args else none %}
+      {% if iid %}
+      <div class="nav-section-label" style="margin-top:12px;">
+        Conteúdo
+        {% if current_user.is_super_admin %}
+        · <a href="{{ url_for('admin_platform.dashboard') }}"
+             style="color:var(--a-muted);font-size:10px;font-weight:400;">← Plataforma</a>
+        {% endif %}
+      </div>
+      <a class="nav-item {% if request.endpoint == 'admin_institution.dashboard' %}active{% endif %}"
+         href="{{ url_for('admin_institution.dashboard', iid=iid) }}">
+        <span class="nav-icon">⊞</span> Dashboard
+      </a>
+      <a class="nav-item {% if 'animal' in (request.endpoint or '') %}active{% endif %}"
+         href="{{ url_for('admin_institution.animal_list', iid=iid) }}">
+        <span class="nav-icon">🐾</span> Animais
+      </a>
+      <a class="nav-item {% if 'event' in (request.endpoint or '') %}active{% endif %}"
+         href="{{ url_for('admin_institution.event_list', iid=iid) }}">
+        <span class="nav-icon">📅</span> Eventos
+      </a>
+      <a class="nav-item {% if 'store' in (request.endpoint or '') %}active{% endif %}"
+         href="{{ url_for('admin_institution.store_list', iid=iid) }}">
+        <span class="nav-icon">🛍</span> Lojas
+      </a>
+      <a class="nav-item {% if 'product' in (request.endpoint or '') %}active{% endif %}"
+         href="{{ url_for('admin_institution.product_list', iid=iid) }}">
+        <span class="nav-icon">💊</span> Produtos
+      </a>
+      <a class="nav-item {% if 'faq' in (request.endpoint or '') %}active{% endif %}"
+         href="{{ url_for('admin_institution.faq_list', iid=iid) }}">
+        <span class="nav-icon">❓</span> FAQs
+      </a>
+      <a class="nav-item {% if request.endpoint == 'admin_institution.log_list' %}active{% endif %}"
+         href="{{ url_for('admin_institution.log_list', iid=iid) }}">
+        <span class="nav-icon">📋</span> Logs de IA
+      </a>
+
+      <div class="nav-section-label" style="margin-top:12px;">Totem</div>
+      {% if inst_slug is defined %}
+      <a class="nav-item" href="{{ url_for('core.home', slug=inst_slug) }}" target="_blank" rel="noopener noreferrer">
+        <span class="nav-icon">👁</span> Ver Totem
+      </a>
+      {% else %}
+      <a class="nav-item" href="{{ url_for('core.selector') }}" target="_blank" rel="noopener noreferrer">
+        <span class="nav-icon">👁</span> Ver Totem
+      </a>
+      {% endif %}
+
+      {% elif not current_user.is_super_admin %}
+      <!-- client_admin sem iid na URL (não deveria acontecer, mas segurança) -->
+      <div class="nav-section-label">Conteúdo</div>
+      <a class="nav-item" href="{{ url_for('admin_institution.index') }}">
+        <span class="nav-icon">⊞</span> Meu Painel
+      </a>
+      {% endif %}
+
+    </nav>
+
+    <div class="sidebar-footer">
+      <div style="font-size:12px;color:var(--a-muted);margin-bottom:6px;">
+        {{ current_user.name }}
+        <span class="badge badge-muted" style="margin-left:4px;font-size:9px;">
+          {{ 'super_admin' if current_user.is_super_admin else 'admin' }}
+        </span>
+      </div>
+      <a href="{{ url_for('auth.logout') }}">
+        <span>↩</span> Sair
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <div class="admin-topbar-title">
+        {% block topbar_title %}Painel{% endblock %}
+      </div>
+      <div class="admin-topbar-breadcrumb">
+        {% block breadcrumb %}{% endblock %}
+      </div>
+    </div>
+
+    <div class="admin-content">
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <ul class="flash-list">
+          {% for cat, msg in messages %}
+          <li class="flash {{ cat }}">{{ msg }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+
+</div>
+
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

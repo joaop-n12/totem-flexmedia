@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div class="page-eyebrow">💊 Farmácia</div>
+  <h2 class="page-title">Produtos</h2>
+  <p class="page-desc">{{ products|length }} produtos disponíveis</p>
+</div>
+
+<form class="search" method="get" action="{{ url_for('pharmacy.produtos', slug=institution.slug) }}">
+  <input type="text" name="q" placeholder="Buscar produto..." value="{{ q }}" autocomplete="off">
+  <select name="categoria" style="padding:14px 16px;border-radius:var(--r-md);border:1px solid var(--stroke);background:var(--bg-card);color:var(--text);font-family:var(--font);font-size:14px;">
+    <option value="">Todas as categorias</option>
+    {% for cat in categories %}
+    <option value="{{ cat }}" {% if active_category==cat %}selected{% endif %}>{{ cat }}</option>
+    {% endfor %}
+  </select>
+  <label style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:14px;cursor:pointer;">
+    <input type="checkbox" name="promocao" value="1" {% if on_sale %}checked{% endif %}> Em promoção
+  </label>
+  <button class="btn" type="submit">Filtrar</button>
+</form>
+
+<div class="grid animais-grid">
+  {% for p in products %}
+  <div class="card">
+    <div class="card-body">
+      <h3 class="card-title">{{ p.name }}</h3>
+      <p class="card-meta">{{ p.category or 'Geral' }}</p>
+      {% if p.description %}<p class="card-desc">{{ p.description }}</p>{% endif %}
+      <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        {% if p.on_sale and p.sale_price %}
+          <span style="font-size:18px;font-weight:800;color:var(--accent);">R$ {{ '%.2f'|format(p.sale_price) }}</span>
+          <span style="font-size:13px;color:var(--muted);text-decoration:line-through;">R$ {{ '%.2f'|format(p.price) }}</span>
+        {% elif p.price %}
+          <span style="font-size:18px;font-weight:700;color:var(--text);">R$ {{ '%.2f'|format(p.price) }}</span>
+        {% endif %}
+        {% if p.on_sale %}<span class="animal-tag" style="background:rgba(255,80,80,.1);border-color:rgba(255,80,80,.3);color:#ff6060;">PROMOÇÃO</span>{% endif %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <p class="muted" style="text-align:center;padding:40px;grid-column:1/-1;">Nenhum produto cadastrado.</p>
+  {% endfor %}
+</div>
+{% endblock %}

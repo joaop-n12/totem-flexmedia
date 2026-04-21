@@ -1,0 +1,42 @@
+{% extends "admin/base.html" %}
+{% set editing = faq is not none %}
+{% block title %}{{ 'Editar FAQ' if editing else 'Nova FAQ' }}{% endblock %}
+{% block topbar_title %}{{ 'Editar FAQ' if editing else 'Nova FAQ' }}{% endblock %}
+
+{% block breadcrumb %}
+  {% if current_user.is_super_admin %}<a href="{{ url_for('admin_platform.dashboard') }}">Plataforma</a><span class="sep">/</span>{% endif %}
+  <a href="{{ url_for('admin_institution.faq_list', iid=inst.id) }}">FAQs · {{ inst.name }}</a>
+  <span class="sep">/</span> {{ 'Editar' if editing else 'Nova' }}
+{% endblock %}
+
+{% block content %}
+<form method="post">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  <div class="card">
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Categoria</label>
+          <input class="form-control" type="text" name="category"
+                 value="{{ faq.category if editing else 'Geral' }}" placeholder="Ex: Horários, Ingressos">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Pergunta *</label>
+          <input class="form-control" type="text" name="question" required
+                 value="{{ faq.question if editing else '' }}" placeholder="Ex: Qual o horário de funcionamento?">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Resposta *</label>
+          <textarea class="form-control" name="answer" rows="4" required
+                    placeholder="Resposta completa...">{{ faq.answer if editing else '' }}</textarea>
+          <span class="form-hint">Esta resposta é usada pelo assistente IA para responder visitantes.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="form-actions" style="margin-top:20px;">
+    <button class="btn btn-primary" type="submit">{{ 'Salvar' if editing else 'Criar FAQ' }}</button>
+    <a class="btn btn-secondary" href="{{ url_for('admin_institution.faq_list', iid=inst.id) }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

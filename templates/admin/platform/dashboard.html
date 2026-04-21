@@ -1,0 +1,150 @@
+{% extends "admin/base.html" %}
+{% block title %}Dashboard Global{% endblock %}
+{% block topbar_title %}Dashboard da Plataforma{% endblock %}
+
+{% block content %}
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon blue">🏛</div>
+    <div class="stat-info">
+      <div class="stat-value">{{ stats.institutions }}</div>
+      <div class="stat-label">Instituições</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon green">👥</div>
+    <div class="stat-info">
+      <div class="stat-value">{{ stats.users }}</div>
+      <div class="stat-label">Usuários admin</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon cyan">📋</div>
+    <div class="stat-info">
+      <div class="stat-value">{{ stats.logs }}</div>
+      <div class="stat-label">Interações IA</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon amber">🔐</div>
+    <div class="stat-info">
+      <div class="stat-value">{{ stats.auth_fails }}</div>
+      <div class="stat-label">Falhas de login</div>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+
+  <!-- Institutions -->
+  <div class="card">
+    <div class="card-header">
+      <h2>Instituições</h2>
+      <a class="btn btn-primary btn-sm" href="{{ url_for('admin_platform.institution_new') }}">+ Nova</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Nome</th><th>Tipo</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for inst in institutions %}
+          <tr>
+            <td>
+              <strong>{{ inst.name }}</strong>
+              <div class="td-muted" style="font-size:11px;">{{ inst.slug }}</div>
+            </td>
+            <td><span class="badge badge-accent">{{ inst.type }}</span></td>
+            <td>
+              {% if inst.active %}
+              <span class="badge badge-success">● Ativo</span>
+              {% else %}
+              <span class="badge badge-muted">○ Inativo</span>
+              {% endif %}
+            </td>
+            <td>
+              <form method="post"
+                    action="{{ url_for('admin_platform.institution_enter', iid=inst.id) }}"
+                    style="display:inline;">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-secondary btn-sm" type="submit">Entrar</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" style="text-align:center;color:var(--a-muted);padding:32px;">
+            Nenhuma instituição.
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Recent Auth + IA logs -->
+  <div>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">
+        <h2>Últimas tentativas de login</h2>
+        <a class="btn btn-secondary btn-sm" href="{{ url_for('admin_platform.log_list', log_type='auth') }}">Ver todas</a>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>E-mail</th><th>IP</th><th>Status</th><th>Hora</th></tr>
+          </thead>
+          <tbody>
+            {% for al in recent_auth %}
+            <tr>
+              <td class="td-muted" style="font-size:12px;">{{ al.email }}</td>
+              <td class="td-muted" style="font-size:11px;">{{ al.ip_address }}</td>
+              <td>
+                {% if al.success %}
+                <span class="badge badge-success">OK</span>
+                {% else %}
+                <span class="badge badge-danger">Falha</span>
+                {% endif %}
+              </td>
+              <td class="log-time">{{ al.created_at.strftime('%d/%m %H:%M') }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" style="text-align:center;color:var(--a-muted);padding:16px;">Nenhum log.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Últimas interações IA</h2>
+        <a class="btn btn-secondary btn-sm" href="{{ url_for('admin_platform.log_list') }}">Ver todas</a>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Entrada</th><th>Tipo</th><th>Hora</th></tr>
+          </thead>
+          <tbody>
+            {% for log in recent_logs %}
+            <tr>
+              <td class="log-input">{{ log.input_text or '—' }}</td>
+              <td>
+                <span class="badge {% if log.input_type == 'voice' %}badge-accent{% else %}badge-muted{% endif %}">
+                  {{ log.input_type or 'text' }}
+                </span>
+              </td>
+              <td class="log-time">{{ log.created_at.strftime('%d/%m %H:%M') }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" style="text-align:center;color:var(--a-muted);padding:16px;">Nenhuma interação.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

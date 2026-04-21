@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="catalog-header">
+  <div class="page-eyebrow">📋 Catálogo</div>
+  <h2 class="page-title">Todos os Animais</h2>
+  <p class="page-desc">{{ animais | length }} espécies · busque e filtre</p>
+</div>
+
+<div class="search-wrap">
+  <span class="search-icon">🔍</span>
+  <input id="catalogSearch" class="search-input" type="search" inputmode="search"
+         autocomplete="off" placeholder="Buscar animal…" aria-label="Buscar animal">
+  <button class="search-clear" id="searchClear" hidden>✕</button>
+</div>
+
+<div class="filter-section">
+  <div class="filter-group">
+    <span class="filter-label">Espécie</span>
+    <div class="filter-bar">
+      <button class="filter-chip active" data-group="especie" data-value="">Todos</button>
+      {% for nome, slug in especies %}
+      <button class="filter-chip" data-group="especie" data-value="{{ slug }}">{{ nome }}</button>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">Habitat</span>
+    <div class="filter-bar">
+      <button class="filter-chip active" data-group="habitat" data-value="">Todos</button>
+      {% for h in habitats %}
+      <button class="filter-chip" data-group="habitat" data-value="{{ h|lower }}">{{ h }}</button>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="catalog-meta">
+  <span id="resultCount">{{ animais|length }} animais</span>
+  <button class="catalog-clear-btn" id="clearAllFilters" hidden>Limpar filtros</button>
+</div>
+
+<div class="grid catalog-grid" id="catalogGrid">
+  {% for animal in animais %}
+  <a class="card link-card"
+     href="{{ url_for('zoo.animal_detalhe', slug=institution.slug, animal_slug=animal.slug) }}"
+     data-name="{{ animal.nome|lower }}"
+     data-especie="{{ animal.especie_slug }}"
+     data-habitat="{{ (animal.habitat or '')|lower }}"
+     data-desc="{{ (animal.descricao or '')|lower|truncate(80,true,'') }}">
+    <div class="card-img-wrap">
+      <img class="card-img" src="{{ url_for('static', filename='images/' ~ animal.imagem) }}"
+           alt="{{ animal.nome }}" loading="lazy">
+    </div>
+    <div class="card-body">
+      <h3 class="card-title">{{ animal.nome }}</h3>
+      <div class="card-tags">
+        {% if animal.especie %}<span class="animal-tag">{{ animal.especie }}</span>{% endif %}
+        {% if animal.habitat %}<span class="animal-tag animal-tag-habitat">{{ animal.habitat }}</span>{% endif %}
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="catalog-empty" id="catalogEmpty" hidden>
+  <div class="catalog-empty-icon">🔭</div>
+  <div class="catalog-empty-title">Nenhum animal encontrado</div>
+  <p class="catalog-empty-desc">Tente outros termos ou remova algum filtro.</p>
+  <button class="btn" id="emptyReset">Limpar filtros</button>
+</div>
+
+<div class="page-actions">
+  <a class="back-btn" href="{{ url_for('zoo.especies', slug=institution.slug) }}">← Voltar</a>
+</div>
+
+<script>
+(function(){
+  const grid=document.getElementById('catalogGrid'),searchEl=document.getElementById('catalogSearch'),
+        clrSearch=document.getElementById('searchClear'),counter=document.getElementById('resultCount'),
+        emptyState=document.getElementById('catalogEmpty'),clearAll=document.getElementById('clearAllFilters'),
+        emptyReset=document.getElementById('emptyReset');
+  const cards=Array.from(grid.querySelectorAll('.card'));
+  const active={especie:'',habitat:''};
+  function apply(){
+    const q=(searchEl.value||'').trim().toLowerCase(); let v=0;
+    cards.forEach(c=>{
+      const show=(!q||(c.dataset.name||'').includes(q)||(c.dataset.desc||'').includes(q))
+               &&(!active.especie||c.dataset.especie===active.especie)
+               &&(!active.habitat||c.dataset.habitat===active.habitat);
+      c.hidden=!show; if(show)v++;
+    });
+    counter.textContent=v===cards.length?`${cards.length} animais`:`${v} de ${cards.length} animais`;
+    emptyState.hidden=v>0; grid.hidden=v===0;
+    clearAll.hidden=!(q||active.especie||active.habitat);
+  }
+  searchEl.addEventListener('input',()=>{clrSearch.hidden=!searchEl.value;apply();});
+  clrSearch.addEventListener('click',()=>{searchEl.value='';clrSearch.hidden=true;apply();searchEl.focus();});
+  document.querySelectorAll('.filter-chip').forEach(chip=>chip.addEventListener('click',()=>{
+    document.querySelectorAll(`.filter-chip[data-group="${chip.dataset.group}"]`).forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active'); active[chip.dataset.group]=chip.dataset.value; apply();
+  }));
+  function resetAll(){searchEl.value='';clrSearch.hidden=true;active.especie='';active.habitat='';
+    ['especie','habitat'].forEach(g=>document.querySelectorAll(`.filter-chip[data-group="${g}"]`).forEach(c=>c.classList.toggle('active',c.dataset.value==='')));
+    apply();}
+  clearAll.addEventListener('click',resetAll); emptyReset.addEventListener('click',resetAll);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends "admin/base.html" %}
+{% block title %}Dashboard · {{ inst.name }}{% endblock %}
+{% block topbar_title %}{{ inst.name }}{% endblock %}
+
+{% block breadcrumb %}
+  {% if current_user.is_super_admin %}
+  <a href="{{ url_for('admin_platform.dashboard') }}">Plataforma</a>
+  <span class="sep">/</span>
+  {% endif %}
+  {{ inst.name }}
+{% endblock %}
+
+{% block content %}
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon green">🐾</div>
+    <div class="stat-info">
+      <div class="stat-value">{{ stats.animals }}</div>
+      <div class="stat-label">Animais</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon amber">📅</div>
+    <div class="stat-info">
+      <div class="stat-value">{{ stats.events }}</div>
+      <div class="stat-label">Eventos</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon blue">🛍</div>
+    <div class="stat-info">
+      <div class="stat-value">{{ stats.stores }}</div>
+      <div class="stat-label">Lojas</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon cyan">📋</div>
+    <div class="stat-info">
+      <div class="stat-value">{{ stats.logs }}</div>
+      <div class="stat-label">Interações IA</div>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+
+  <!-- Quick access -->
+  <div class="card">
+    <div class="card-header"><h2>Acesso rápido</h2></div>
+    <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <a class="btn btn-secondary" href="{{ url_for('admin_institution.animal_list', iid=inst.id) }}">🐾 Animais</a>
+      <a class="btn btn-secondary" href="{{ url_for('admin_institution.event_list', iid=inst.id) }}">📅 Eventos</a>
+      <a class="btn btn-secondary" href="{{ url_for('admin_institution.store_list', iid=inst.id) }}">🛍 Lojas</a>
+      <a class="btn btn-secondary" href="{{ url_for('admin_institution.product_list', iid=inst.id) }}">💊 Produtos</a>
+      <a class="btn btn-secondary" href="{{ url_for('admin_institution.faq_list', iid=inst.id) }}">❓ FAQs</a>
+      <a class="btn btn-secondary" href="{{ url_for('admin_institution.log_list', iid=inst.id) }}">📋 Logs de IA</a>
+    </div>
+  </div>
+
+  <!-- Recent logs -->
+  <div class="card">
+    <div class="card-header">
+      <h2>Últimas interações IA</h2>
+      <a class="btn btn-secondary btn-sm"
+         href="{{ url_for('admin_institution.log_list', iid=inst.id) }}">Ver todas</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Entrada</th><th>Tipo</th><th>Hora</th></tr>
+        </thead>
+        <tbody>
+          {% for log in recent_logs %}
+          <tr>
+            <td class="log-input">{{ log.input_text or '—' }}</td>
+            <td>
+              <span class="badge {% if log.input_type == 'voice' %}badge-accent{% else %}badge-muted{% endif %}">
+                {{ log.input_type or 'text' }}
+              </span>
+            </td>
+            <td class="log-time">{{ log.created_at.strftime('%d/%m %H:%M') }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" style="text-align:center;color:var(--a-muted);padding:16px;">
+            Nenhuma interação ainda.
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

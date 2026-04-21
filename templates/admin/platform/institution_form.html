@@ -1,0 +1,205 @@
+{% extends "admin/base.html" %}
+
+{% if action == 'edit' %}
+  {% block title %}Editar {{ inst.name }}{% endblock %}
+  {% block topbar_title %}Editar Instituição{% endblock %}
+{% else %}
+  {% block title %}Nova Instituição{% endblock %}
+  {% block topbar_title %}Nova Instituição{% endblock %}
+{% endif %}
+
+{% block breadcrumb %}
+  <a href="{{ url_for('admin_platform.institution_list') }}">Instituições</a>
+  <span class="sep">/</span>
+  {{ 'Editar' if action == 'edit' else 'Nova' }}
+{% endblock %}
+
+{% block content %}
+<form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h2>Identidade</h2></div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Nome *</label>
+          <input class="form-control" type="text" name="name" required
+                 value="{{ inst.name if inst else '' }}" placeholder="Ex: Zoológico Municipal">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Slug (URL)</label>
+          <input class="form-control" type="text" name="slug"
+                 value="{{ inst.slug if inst else '' }}" placeholder="zoo-municipal">
+          <span class="form-hint">Deixe em branco para gerar automaticamente.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tipo</label>
+          <select class="form-control" name="type">
+            {% for t in ['zoo','shopping','pharmacy','park','museum','aquarium','generic'] %}
+            <option value="{{ t }}" {{ 'selected' if inst and inst.type == t }}>{{ t.title() }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tagline</label>
+          <input class="form-control" type="text" name="tagline"
+                 value="{{ inst.tagline if inst else '' }}" placeholder="Frase de impacto">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Logo</label>
+          <input class="form-control" type="file" name="logo" accept="image/*">
+          {% if inst and inst.logo_path %}
+          <span class="form-hint">Atual: {{ inst.logo_path }}</span>
+          {% endif %}
+        </div>
+        <div class="form-group" style="align-self:end;">
+          <label class="form-check">
+            <input type="checkbox" name="active" {{ 'checked' if not inst or inst.active }}>
+            <span class="form-check-label">Instituição ativa (visível no seletor)</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h2>Contato & Horários</h2></div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Endereço</label>
+          <input class="form-control" type="text" name="address"
+                 value="{{ inst.address if inst else '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefone</label>
+          <input class="form-control" type="text" name="phone"
+                 value="{{ inst.phone if inst else '' }}">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Horários de funcionamento</label>
+          <input class="form-control" type="text" name="opening_hours"
+                 value="{{ inst.opening_hours if inst else '' }}"
+                 placeholder="Ex: Seg-Sex 8h-18h · Sáb-Dom 9h-17h">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h2>Tema Visual</h2></div>
+    <div class="card-body">
+      <div class="form-grid cols-3">
+        <div class="form-group">
+          <label class="form-label">Cor primária</label>
+          <div class="color-field-wrap">
+            <input type="color" value="{{ inst.primary_color if inst else '#f4b860' }}"
+                   oninput="document.getElementById('pc').value=this.value">
+            <input class="form-control" type="text" name="primary_color" id="pc"
+                   value="{{ inst.primary_color if inst else '#f4b860' }}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cor secundária</label>
+          <div class="color-field-wrap">
+            <input type="color" value="{{ inst.secondary_color if inst else '#4dd9d0' }}"
+                   oninput="document.getElementById('sc').value=this.value">
+            <input class="form-control" type="text" name="secondary_color" id="sc"
+                   value="{{ inst.secondary_color if inst else '#4dd9d0' }}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cor de fundo</label>
+          <div class="color-field-wrap">
+            <input type="color" value="{{ inst.bg_color if inst else '#040c10' }}"
+                   oninput="document.getElementById('bc').value=this.value">
+            <input class="form-control" type="text" name="bg_color" id="bc"
+                   value="{{ inst.bg_color if inst else '#040c10' }}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cor do texto</label>
+          <div class="color-field-wrap">
+            <input type="color" value="{{ inst.text_color if inst else '#ddeef7' }}"
+                   oninput="document.getElementById('tc').value=this.value">
+            <input class="form-control" type="text" name="text_color" id="tc"
+                   value="{{ inst.text_color if inst else '#ddeef7' }}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tema</label>
+          <select class="form-control" name="theme">
+            <option value="dark" {{ 'selected' if not inst or inst.theme == 'dark' }}>Dark</option>
+            <option value="light" {{ 'selected' if inst and inst.theme == 'light' }}>Light</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h2>Assistente IA</h2></div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Nome do assistente</label>
+          <input class="form-control" type="text" name="ai_name"
+                 value="{{ inst.ai_name if inst else 'Assistente' }}"
+                 placeholder="Ex: ZoBot, ShopBot">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Contexto IA (system prompt base)</label>
+          <textarea class="form-control" name="ai_context" rows="4"
+                    placeholder="Descreva a personalidade e missão do assistente...">{{ inst.ai_context if inst else '' }}</textarea>
+          <span class="form-hint">FAQs e conteúdo cadastrado são adicionados automaticamente.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Quota diária de IA</label>
+          <input class="form-control" type="number" min="0" name="daily_ai_quota"
+                 value="{{ inst.daily_ai_quota if inst else 500 }}">
+          <span class="form-hint">
+            Nº máximo de interações por dia (voz + texto). Protege contra abuso e controla custo OpenAI.
+            Use <strong>0</strong> para ilimitado. Hoje: <strong>{{ inst.ai_calls_today() if inst else 0 }}</strong>.
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h2>Módulos ativos</h2></div>
+    <div class="card-body">
+      {% set enabled_slugs = inst.modules | map(attribute='module_slug') | list if inst else [] %}
+      {% set order_map = {} %}
+      {% if inst %}
+        {% for im in inst.modules %}{% set _ = order_map.update({im.module_slug: im.order}) %}{% endfor %}
+      {% endif %}
+      <div class="module-grid">
+        {% for mod in modules %}
+        <label class="module-item">
+          <input type="checkbox" name="modules" value="{{ mod.slug }}"
+                 {{ 'checked' if mod.slug in enabled_slugs }}>
+          <div class="module-item-body">
+            <div class="module-item-name">{{ mod.name }}</div>
+            <div class="module-item-slug">{{ mod.slug }}</div>
+            <div class="module-item-order">
+              <label>Ordem:</label>
+              <input type="number" name="order_{{ mod.slug }}" min="1" max="99"
+                     value="{{ order_map.get(mod.slug, loop.index) }}">
+            </div>
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">
+      {{ 'Salvar alterações' if action == 'edit' else 'Criar instituição' }}
+    </button>
+    <a class="btn btn-secondary" href="{{ url_for('admin_platform.institution_list') }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="detail">
+  <div class="detail-media">
+    <img class="detail-img"
+         src="{{ url_for('static', filename='images/' ~ animal.imagem) }}"
+         alt="{{ animal.nome }}">
+  </div>
+  <div class="detail-info">
+    <div class="detail-eyebrow">{{ animal.especie or 'Animal' }}</div>
+    <h1 class="detail-title">{{ animal.nome }}</h1>
+
+    <div class="detail-meta-row">
+      {% if animal.habitat %}
+      <div class="detail-meta-item">
+        <span class="detail-meta-label">Habitat</span>
+        <span class="detail-meta-value">{{ animal.habitat }}</span>
+      </div>
+      {% endif %}
+      {% if animal.area %}
+      <div class="detail-meta-item">
+        <span class="detail-meta-label">Área</span>
+        <span class="detail-meta-value">{{ animal.area.replace('-', ' ').title() }}</span>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if animal.descricao %}
+    <p class="detail-text">{{ animal.descricao }}</p>
+    {% endif %}
+
+    <div class="detail-facts">
+      {% if animal.alimentacao %}
+      <div class="detail-fact">
+        <span class="detail-fact-icon">🍖</span>
+        <div>
+          <div class="detail-fact-label">Alimentação</div>
+          <div class="detail-fact-value">{{ animal.alimentacao }}</div>
+        </div>
+      </div>
+      {% endif %}
+      {% if animal.curiosidades %}
+      <div class="detail-fact">
+        <span class="detail-fact-icon">💡</span>
+        <div>
+          <div class="detail-fact-label">Curiosidades</div>
+          <div class="detail-fact-value">{{ animal.curiosidades }}</div>
+        </div>
+      </div>
+      {% endif %}
+      {% if animal.conservacao %}
+      <div class="detail-fact">
+        <span class="detail-fact-icon">🌿</span>
+        <div>
+          <div class="detail-fact-label">Conservação</div>
+          <div class="detail-fact-value">{{ animal.conservacao }}</div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="page-actions">
+      <a class="back-btn" href="{{ url_for('zoo.animais_lista', slug=institution.slug, especie_slug=animal.especie_slug) }}">← Voltar</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

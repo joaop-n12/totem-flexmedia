@@ -1,0 +1,83 @@
+{% extends "admin/base.html" %}
+{% block title %}Instituições{% endblock %}
+{% block topbar_title %}Instituições{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div>
+    <h1>Instituições</h1>
+    <div class="page-hd-sub">{{ institutions|length }} cadastradas</div>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('admin_platform.institution_new') }}">+ Nova Instituição</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Nome / Slug</th><th>Tipo</th><th>Módulos ativos</th>
+          <th>Cores</th><th>IA</th><th>Status</th><th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inst in institutions %}
+        <tr>
+          <td>
+            <strong>{{ inst.name }}</strong>
+            <div class="td-muted" style="font-size:11px;margin-top:2px;">/{{ inst.slug }}</div>
+          </td>
+          <td><span class="badge badge-accent">{{ inst.type }}</span></td>
+          <td>
+            {% for im in inst.enabled_modules() %}
+            <span class="badge badge-muted" style="margin:1px;">{{ im.module_slug }}</span>
+            {% endfor %}
+          </td>
+          <td>
+            <span class="color-dot" style="background:{{ inst.primary_color }};"></span>
+            <span class="color-dot" style="background:{{ inst.secondary_color }};"></span>
+            <span class="color-dot" style="background:{{ inst.bg_color }};border-color:var(--a-border);"></span>
+          </td>
+          <td class="td-muted">{{ inst.ai_name or '—' }}</td>
+          <td>
+            {% if inst.active %}
+            <span class="badge badge-success">● Ativo</span>
+            {% else %}
+            <span class="badge badge-danger">○ Inativo</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="td-actions">
+              <form method="post"
+                    action="{{ url_for('admin_platform.institution_enter', iid=inst.id) }}"
+                    style="display:inline;">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-secondary btn-sm" type="submit">Entrar</button>
+              </form>
+              <a class="btn btn-secondary btn-sm"
+                 href="{{ url_for('admin_platform.institution_edit', iid=inst.id) }}">Editar</a>
+              <form class="delete-form" method="post"
+                    action="{{ url_for('admin_platform.institution_delete', iid=inst.id) }}"
+                    onsubmit="return confirm('Deletar {{ inst.name }}? Esta ação não pode ser desfeita.')">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-danger btn-sm" type="submit">Deletar</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7">
+            <div class="empty-state">
+              <div class="empty-state-icon">🏛</div>
+              <div class="empty-state-title">Nenhuma instituição cadastrada</div>
+              <p>Clique em "Nova Instituição" para começar.</p>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

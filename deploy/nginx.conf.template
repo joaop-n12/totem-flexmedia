@@ -1,0 +1,90 @@
+# Nginx — Totem FlexMedia (reverse proxy + SSL)
+#
+# Como usar:
+#   1. Substitua __DOMAIN__ pelo domínio real (ex.: totem.flexmedia.com.br)
+#   2. Gere o certificado: sudo certbot --nginx -d __DOMAIN__
+#   3. Copie para /etc/nginx/sites-available/totem-flexmedia
+#   4. Habilite: sudo ln -s /etc/nginx/sites-available/totem-flexmedia /etc/nginx/sites-enabled/
+#   5. Teste: sudo nginx -t && sudo systemctl reload nginx
+
+# Redireciona HTTP -> HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__;
+
+    # Permite o challenge do Let's Encrypt
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# HTTPS — aplicação
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name __DOMAIN__;
+
+    # Certificados (gerados pelo certbot)
+    ssl_certificate     /etc/letsencrypt/live/__DOMAIN__/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/__DOMAIN__/privkey.pem;
+
+    # TLS moderno
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    # HSTS — força HTTPS no navegador por 2 anos
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+
+    # Limite de upload (bate com MAX_CONTENT_LENGTH do Flask)
+    client_max_body_size 16M;
+
+    # Logs
+    access_log /var/log/nginx/totem-flexmedia.access.log;
+    error_log  /var/log/nginx/totem-flexmedia.error.log;
+
+    # Healthchecks — sem log para não poluir com polling do monitor
+    location = /healthz { access_log off; proxy_pass http://unix:/tmp/totem-flexmedia.sock; }
+    location = /readyz  { access_log off; proxy_pass http://unix:/tmp/totem-flexmedia.sock; }
+
+    # Arquivos estáticos servidos diretamente pelo Nginx (mais rápido)
+    location /static/ {
+        alias /opt/totem-flexmedia/static/;
+        expires 7d;
+        access_log off;
+        add_header Cache-Control "public, max-age=604800";
+    }
+
+    # Uploads do admin
+    location /static/uploads/ {
+        alias /opt/totem-flexmedia/static/uploads/;
+        expires 1d;
+        access_log off;
+    }
+
+    # Aplicação Flask via Gunicorn (socket Unix)
+    location / {
+        proxy_pass http://unix:/tmp/totem-flexmedia.sock;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+
+        # A IA (Whisper) pode demorar. Bate com timeout do Gunicorn.
+        proxy_connect_timeout 10s;
+        proxy_send_timeout    60s;
+        proxy_read_timeout    60s;
+
+        proxy_buffering off;
+    }
+}

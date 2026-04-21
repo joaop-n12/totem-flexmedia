@@ -1,0 +1,40 @@
+# Systemd service — Totem FlexMedia (Gunicorn)
+#
+# Instalação:
+#   sudo cp deploy/totem-flexmedia.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now totem-flexmedia
+#
+# Diagnóstico:
+#   sudo systemctl status totem-flexmedia
+#   sudo journalctl -u totem-flexmedia -f
+
+[Unit]
+Description=Totem FlexMedia (Gunicorn + Flask)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=totem
+Group=www-data
+WorkingDirectory=/opt/totem-flexmedia
+EnvironmentFile=/opt/totem-flexmedia/.env
+Environment="FLASK_ENV=production"
+Environment="PATH=/opt/totem-flexmedia/venv/bin"
+ExecStart=/opt/totem-flexmedia/venv/bin/gunicorn -c /opt/totem-flexmedia/gunicorn.conf.py wsgi:application
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=10
+Restart=always
+RestartSec=3
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=false
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/totem-flexmedia/instance /opt/totem-flexmedia/static/uploads /opt/totem-flexmedia/logs /tmp
+
+[Install]
+WantedBy=multi-user.target

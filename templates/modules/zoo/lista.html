@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div class="page-eyebrow">🐾 Espécie</div>
+  <h2 class="page-title">{{ especie_nome }}</h2>
+  <p class="page-desc">Selecione um animal para ver os detalhes</p>
+</div>
+
+<form class="search" method="get" action="{{ url_for('zoo.animais_lista', slug=institution.slug, especie_slug=especie_slug) }}">
+  <input type="text" name="q" placeholder="Pesquisar animal..." value="{{ q }}" autocomplete="off">
+  <button class="btn" type="submit">Buscar</button>
+  <a class="btn ghost" href="{{ url_for('zoo.animais_lista', slug=institution.slug, especie_slug=especie_slug) }}">Ver todos</a>
+</form>
+
+<div class="grid animais-grid">
+  {% for animal in animais %}
+  <a class="card link-card" href="{{ url_for('zoo.animal_detalhe', slug=institution.slug, animal_slug=animal.slug) }}">
+    <div class="card-img-wrap">
+      <img class="card-img" src="{{ url_for('static', filename='images/' ~ animal.imagem) }}" alt="{{ animal.nome }}" loading="lazy">
+    </div>
+    <div class="card-body">
+      <h3 class="card-title">{{ animal.nome }}</h3>
+      <p class="card-meta">🌍 {{ animal.habitat }}</p>
+      <p class="card-desc">{{ animal.descricao }}</p>
+    </div>
+  </a>
+  {% else %}
+  <p class="muted" style="text-align:center;padding:40px;grid-column:1/-1;">Nenhum animal encontrado.</p>
+  {% endfor %}
+</div>
+
+<div class="page-actions">
+  <a class="back-btn" href="{{ url_for('zoo.especies', slug=institution.slug) }}">← Voltar</a>
+</div>
+{% endblock %}

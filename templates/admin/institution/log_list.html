@@ -1,0 +1,55 @@
+{% extends "admin/base.html" %}
+{% block title %}Logs de IA · {{ inst.name }}{% endblock %}
+{% block topbar_title %}Logs de Interação IA{% endblock %}
+
+{% block breadcrumb %}
+  {% if current_user.is_super_admin %}<a href="{{ url_for('admin_platform.dashboard') }}">Plataforma</a><span class="sep">/</span>{% endif %}
+  <a href="{{ url_for('admin_institution.dashboard', iid=inst.id) }}">{{ inst.name }}</a>
+  <span class="sep">/</span> Logs de IA
+{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div>
+    <h1>Logs de IA — {{ inst.name }}</h1>
+    <div class="page-hd-sub">{{ logs|length }} interações recentes</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Data/Hora</th><th>Tipo</th><th>Entrada do usuário</th><th>Resposta IA</th><th>Sessão</th></tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td class="log-time">{{ log.created_at.strftime('%d/%m/%Y %H:%M:%S') }}</td>
+          <td>
+            <span class="badge {% if log.input_type == 'voice' %}badge-accent{% else %}badge-muted{% endif %}">
+              {{ log.input_type or 'text' }}
+            </span>
+          </td>
+          <td class="log-input" title="{{ log.input_text or '' }}">{{ log.input_text or '—' }}</td>
+          <td class="log-response" title="{{ log.response_text or '' }}">{{ log.response_text or '—' }}</td>
+          <td class="td-muted" style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            {{ log.session_id or '—' }}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5">
+            <div class="empty-state">
+              <div class="empty-state-icon">📋</div>
+              <div class="empty-state-title">Nenhuma interação registrada</div>
+              <p>As conversas com o assistente IA aparecerão aqui.</p>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

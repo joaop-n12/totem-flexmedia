@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Acesso negado · FlexMedia</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body>
+<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px;">
+  <div style="font-size:48px;">🔒</div>
+  <h1 style="color:var(--a-text,#fff);font-size:24px;">Acesso negado</h1>
+  <p style="color:var(--a-muted,#888);">Você não tem permissão para acessar esta página.</p>
+  <a href="{{ url_for('admin_institution.index') }}"
+     style="color:var(--a-accent,#f4b860);text-decoration:none;">← Voltar ao painel</a>
+</div>
+</body>
+</html>

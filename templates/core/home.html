@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="totem-shell" style="min-height:calc(100vh - var(--topbar-h) - var(--bnav-h));">
+
+  <header class="totem-header">
+    {% if institution.logo_path %}
+    <img class="totem-logo" src="{{ url_for('static', filename=institution.logo_path) }}" alt="Logo">
+    {% endif %}
+    <div class="totem-brand">
+      <h1 class="totem-title">{{ institution.name }}</h1>
+      <p class="totem-subtitle">{{ institution.tagline or '' }}</p>
+    </div>
+    <div class="totem-clock-box">
+      <div class="totem-clock" id="totemClock">00:00</div>
+      <div class="totem-date"  id="totemDate">Carregando...</div>
+    </div>
+  </header>
+
+  <main class="totem-main">
+    <div class="totem-grid">
+
+      {% set icons = {'animais':'🐾','mapa':'🗺️','programacao':'📅','alimentacao':'🍽️','ia':'💬','lojas':'🛍️','produtos':'💊','quiz':'🎮'} %}
+      {% set labels = {'animais':'Animais','mapa':'Mapa','programacao':'Programação','alimentacao':'Alimentação','ia':'Assistente IA','lojas':'Lojas','produtos':'Produtos','quiz':'Quiz'} %}
+      {% set descs  = {'animais':'Conheça as espécies','mapa':'Encontre atrações','programacao':'Horários do dia','alimentacao':'Praça de alimentação','ia':'Pergunte por voz','lojas':'Encontre lojas','produtos':'Buscar produtos','quiz':'Jogar e aprender'} %}
+      {% set url_map = {
+        'animais':     url_for('zoo.especies',       slug=institution.slug),
+        'mapa':        url_for('core.mapa',          slug=institution.slug),
+        'programacao': url_for('core.programacao',   slug=institution.slug),
+        'alimentacao': url_for('core.alimentacao',   slug=institution.slug),
+        'ia':          url_for('voice.ia_page',      slug=institution.slug),
+        'lojas':       url_for('shopping.lojas',     slug=institution.slug),
+        'produtos':    url_for('pharmacy.produtos',  slug=institution.slug),
+      } %}
+
+      {% for imod in institution.enabled_modules() %}
+        {% if imod.module_slug != 'home' and imod.module_slug in url_map %}
+        <a class="totem-card totem-card-{{ (loop.index0 % 4) + 1 }}"
+           href="{{ url_map[imod.module_slug] }}">
+          <div class="totem-icon-wrap">
+            <span class="totem-emoji">{{ icons.get(imod.module_slug, '📌') }}</span>
+          </div>
+          <div class="totem-card-title">{{ labels.get(imod.module_slug, imod.module_slug.title()) }}</div>
+          <div class="totem-card-desc">{{ descs.get(imod.module_slug, '') }}</div>
+          <div class="totem-card-accent"></div>
+        </a>
+        {% endif %}
+      {% endfor %}
+
+    </div>
+  </main>
+
+  <div class="sensor-bar">
+    <div class="sensor-bar-header"><span class="live-dot"></span> IoT · Ao Vivo</div>
+    <div class="sensor-tile">
+      <span class="sensor-tile-icon">🌡</span>
+      <div class="sensor-tile-info">
+        <span class="sensor-tile-label">Temperatura</span>
+        <span class="sensor-tile-value"><strong id="tempValue">--</strong>°C</span>
+      </div>
+    </div>
+    <div class="sensor-tile">
+      <span class="sensor-tile-icon">💧</span>
+      <div class="sensor-tile-info">
+        <span class="sensor-tile-label">Umidade</span>
+        <span class="sensor-tile-value"><strong id="umidValue">--</strong>%</span>
+      </div>
+    </div>
+    <div class="sensor-tile">
+      <span class="sensor-tile-icon">💡</span>
+      <div class="sensor-tile-info">
+        <span class="sensor-tile-label">Luminosidade</span>
+        <span class="sensor-tile-value"><strong id="luzValue">--</strong> lux</span>
+      </div>
+    </div>
+    <div class="sensor-tile">
+      <span class="sensor-tile-icon">👤</span>
+      <div class="sensor-tile-info">
+        <span class="sensor-tile-label">Presença</span>
+        <span class="sensor-tile-value" id="presencaValue">--</span>
+      </div>
+    </div>
+  </div>
+
+  <footer class="totem-footer">Toque em uma opção para começar &nbsp;·&nbsp; Plataforma FlexMedia</footer>
+</div>
+
+{# Sleep overlay #}
+<div class="sleep-overlay" id="sleepOverlay" aria-hidden="true">
+  <div class="sleep-card">
+    {% if institution.logo_path %}
+    <img class="sleep-logo" src="{{ url_for('static', filename=institution.logo_path) }}" alt="Logo">
+    {% endif %}
+    <div class="sleep-title">{{ institution.name }}</div>
+    <div class="sleep-sub">Modo Descanso</div>
+    <div class="sleep-hint">Toque na tela para voltar</div>
+  </div>
+</div>
+
+<script>
+  // Clock
+  (function(){
+    const dias=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+    const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    function tick(){
+      const n=new Date();
+      document.getElementById('totemClock').textContent=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
+      document.getElementById('totemDate').textContent=`${dias[n.getDay()]}, ${n.getDate()} ${meses[n.getMonth()]} ${n.getFullYear()}`;
+    }
+    tick(); setInterval(tick,1000);
+  })();
+
+  // Sensors
+  async function updateSensors(){
+    try{
+      const d=await fetch('/api/sensores').then(r=>r.json());
+      document.getElementById('tempValue').textContent=d.temperatura;
+      document.getElementById('umidValue').textContent=d.umidade;
+      document.getElementById('luzValue').textContent=d.luminosidade;
+      document.getElementById('presencaValue').textContent=d.presenca?'🟢 Detectado':'⚫ Ausente';
+    }catch(e){}
+  }
+  updateSensors(); setInterval(updateSensors,2000);
+
+  // Sleep mode (5 min)
+  (function(){
+    const SLEEP=5*60*1000;
+    const ov=document.getElementById('sleepOverlay');
+    let t=null;
+    const wake=()=>{ov.classList.remove('show');ov.setAttribute('aria-hidden','true');};
+    const reset=()=>{if(t)clearTimeout(t);if(ov.classList.contains('show'))wake();t=setTimeout(()=>{ov.classList.add('show');ov.setAttribute('aria-hidden','false');},SLEEP);};
+    ['mousemove','mousedown','click','touchstart','touchmove'].forEach(ev=>window.addEventListener(ev,reset,{passive:true}));
+    ov.addEventListener('click',reset); ov.addEventListener('touchstart',reset,{passive:true});
+    reset();
+  })();
+
+  // Fullscreen (totem button)
+  (function(){
+    const btn=document.getElementById('totemFsBtn');
+    if(!btn)return;
+    btn.addEventListener('click',()=>{
+      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+    });
+  })();
+</script>
+{% endblock %}

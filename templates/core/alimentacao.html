@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="service-page">
+  <div class="service-header">
+    <div class="page-eyebrow">🍽️ Alimentação</div>
+    <h2 class="page-title">Praça de Alimentação</h2>
+    <p class="page-desc">Opções de alimentação disponíveis em {{ institution.name }}</p>
+  </div>
+
+  <div class="service-grid">
+    <div class="service-card">
+      <span class="service-card-icon">🕒</span>
+      <h3>Horário de Funcionamento</h3>
+      <p>{{ institution.opening_hours or 'Consulte a recepção para horários.' }}</p>
+      <span class="service-tag">Praça de Alimentação</span>
+    </div>
+    <div class="service-card">
+      <span class="service-card-icon">🍕</span>
+      <h3>Lanches e Refeições</h3>
+      <p>Variedade de opções para todos os gostos, do lanche rápido à refeição completa.</p>
+      <span class="service-tag">Self-service disponível</span>
+    </div>
+    <div class="service-card">
+      <span class="service-card-icon">🥤</span>
+      <h3>Bebidas e Sobremesas</h3>
+      <p>Sucos naturais, sorvetes e doces para completar o passeio.</p>
+      <span class="service-tag">Várias opções</span>
+    </div>
+    <div class="service-card">
+      <span class="service-card-icon">♿</span>
+      <h3>Acessibilidade</h3>
+      <p>Espaço adaptado com rampas e mesas especiais para pessoas com mobilidade reduzida.</p>
+      <span class="service-tag">100% acessível</span>
+    </div>
+  </div>
+
+  <div class="info-panel">
+    <h3>✅ Dicas</h3>
+    <ul class="info-list">
+      <li>Aproveite os intervalos do passeio para as refeições.</li>
+      <li>Evite os horários de pico (12h–14h).</li>
+      <li>Bebidas podem ser levadas para as áreas externas.</li>
+    </ul>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="map-toolbar">
+  <button class="btn" type="button" id="zoomInBtn">＋ Zoom</button>
+  <button class="btn ghost" type="button" id="zoomOutBtn">－ Zoom</button>
+  <button class="btn ghost" type="button" id="resetMapBtn">↺ Resetar</button>
+</div>
+
+<div class="map-frame" id="mapFrame">
+  <div class="map-stage" id="mapStage">
+    <div class="map-image-wrap">
+      <img src="{{ url_for('static', filename='images/mapa.png') }}"
+           alt="Mapa de {{ institution.name }}"
+           class="interactive-map" id="interactiveMap" draggable="false">
+      <div class="hotspots horizontal">
+        {% for area in areas %}
+        <button class="hotspot"
+                style="top:{{ area.y_pos }}%;left:{{ area.x_pos }}%;"
+                onclick="abrirArea('{{ area.slug }}')"
+                aria-label="{{ area.name }}"></button>
+        {% endfor %}
+        {# fallback: hardcoded zoo hotspots if no DB areas #}
+        {% if not areas %}
+        <button class="hotspot" style="top:22%;left:33%;" onclick="abrirArea('savana-africana')"   aria-label="Savana Africana"></button>
+        <button class="hotspot" style="top:50%;left:21%;" onclick="abrirArea('ilha-dos-primatas')" aria-label="Ilha dos Primatas"></button>
+        <button class="hotspot" style="top:56%;left:39%;" onclick="abrirArea('aviario')"           aria-label="Aviário"></button>
+        <button class="hotspot" style="top:55%;left:58%;" onclick="abrirArea('alimentacao')"       aria-label="Alimentação"></button>
+        <button class="hotspot" style="top:67%;left:32%;" onclick="abrirArea('reptil-e-anfibios')" aria-label="Répteis"></button>
+        <button class="hotspot" style="top:39%;left:82%;" onclick="abrirArea('fauna-brasileira')"  aria-label="Fauna Brasileira"></button>
+        <button class="hotspot" style="top:83%;left:40%;" onclick="abrirArea('zona-australia')"    aria-label="Zona Austrália"></button>
+        <button class="hotspot" style="top:87%;left:80%;" onclick="abrirArea('entrada')"           aria-label="Entrada"></button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const slug = "{{ institution.slug }}";
+const AREA_URLS = {
+  {% for area in areas %}
+  "{{ area.slug }}": "/{{ institution.slug }}/animais/area/{{ area.slug }}",
+  {% endfor %}
+  "savana-africana":   "/{{ institution.slug }}/animais/area/savana-africana",
+  "ilha-dos-primatas": "/{{ institution.slug }}/animais/area/ilha-dos-primatas",
+  "aviario":           "/{{ institution.slug }}/animais/area/aviario",
+  "alimentacao":       "/{{ institution.slug }}/alimentacao",
+  "reptil-e-anfibios": "/{{ institution.slug }}/animais/area/reptil-e-anfibios",
+  "fauna-brasileira":  "/{{ institution.slug }}/animais/area/fauna-brasileira",
+  "zona-australia":    "/{{ institution.slug }}/animais/area/zona-australia",
+  "entrada":           "/{{ institution.slug }}/alimentacao",
+};
+function abrirArea(a){ if(AREA_URLS[a]) window.location.href=AREA_URLS[a]; }
+
+(function(){
+  const frame=document.getElementById('mapFrame');
+  const stage=document.getElementById('mapStage');
+  const img=document.getElementById('interactiveMap');
+  let scale=1,minScale=1,maxScale=4,tx=0,ty=0,dragging=false;
+  let startX=0,startY=0,pinchDist=null,pinchScale=1;
+  const clamp=(v,a,b)=>Math.min(Math.max(v,a),b);
+
+  function clampTrans(){
+    const fw=frame.clientWidth,fh=frame.clientHeight,sw=stage.clientWidth,sh=stage.clientHeight;
+    const mx=Math.max(0,(sw*scale-fw)/2),my=Math.max(0,(sh*scale-fh)/2);
+    tx=clamp(tx,-mx,mx); ty=clamp(ty,-my,my);
+  }
+  function apply(){ clampTrans(); stage.style.transform=`translate(${tx}px,${ty}px) scale(${scale})`; }
+  function zoomAt(ns,cx,cy){
+    const r=frame.getBoundingClientRect(),x=cx-r.left,y=cy-r.top,old=scale;
+    ns=clamp(ns,minScale,maxScale); if(ns===old)return;
+    tx=x-((x-tx)*(ns/old)); ty=y-((y-ty)*(ns/old)); scale=ns; apply();
+  }
+  img.addEventListener('dragstart',e=>e.preventDefault());
+  frame.addEventListener('mousedown',e=>{if(e.target.classList.contains('hotspot'))return;dragging=true;startX=e.clientX-tx;startY=e.clientY-ty;frame.classList.add('dragging');});
+  window.addEventListener('mousemove',e=>{if(!dragging)return;tx=e.clientX-startX;ty=e.clientY-startY;apply();});
+  window.addEventListener('mouseup',()=>{dragging=false;frame.classList.remove('dragging');});
+  frame.addEventListener('wheel',e=>{e.preventDefault();zoomAt(scale+(e.deltaY<0?.2:-.2),e.clientX,e.clientY);},{passive:false});
+  document.getElementById('zoomInBtn').onclick=()=>{const r=frame.getBoundingClientRect();zoomAt(scale+.25,r.left+r.width/2,r.top+r.height/2);};
+  document.getElementById('zoomOutBtn').onclick=()=>{const r=frame.getBoundingClientRect();zoomAt(scale-.25,r.left+r.width/2,r.top+r.height/2);};
+  document.getElementById('resetMapBtn').onclick=()=>{scale=1;tx=0;ty=0;apply();};
+  const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  const ctr=t=>({x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2});
+  frame.addEventListener('touchstart',e=>{if(e.target.classList.contains('hotspot'))return;if(e.touches.length===1){dragging=true;startX=e.touches[0].clientX-tx;startY=e.touches[0].clientY-ty;}if(e.touches.length===2){dragging=false;pinchDist=dist(e.touches);pinchScale=scale;}},{passive:true});
+  frame.addEventListener('touchmove',e=>{if(e.touches.length===1&&dragging){tx=e.touches[0].clientX-startX;ty=e.touches[0].clientY-startY;apply();}if(e.touches.length===2){e.preventDefault();const c=ctr(e.touches);zoomAt(pinchScale*(dist(e.touches)/pinchDist),c.x,c.y);}},{passive:false});
+  frame.addEventListener('touchend',e=>{if(e.touches.length===0){dragging=false;pinchDist=null;}});
+  apply();
+})();
+</script>
+{% endblock %}

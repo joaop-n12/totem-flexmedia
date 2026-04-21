@@ -1,0 +1,56 @@
+{% extends "admin/base.html" %}
+{% block title %}Eventos · {{ inst.name }}{% endblock %}
+{% block topbar_title %}Eventos{% endblock %}
+
+{% block breadcrumb %}
+  {% if current_user.is_super_admin %}<a href="{{ url_for('admin_platform.dashboard') }}">Plataforma</a><span class="sep">/</span>{% endif %}
+  <a href="{{ url_for('admin_institution.dashboard', iid=inst.id) }}">{{ inst.name }}</a>
+  <span class="sep">/</span> Eventos
+{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div>
+    <h1>Eventos — {{ inst.name }}</h1>
+    <div class="page-hd-sub">{{ events|length }} cadastrados</div>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('admin_institution.event_new', iid=inst.id) }}">+ Novo Evento</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Evento</th><th>Horário</th><th>Local</th><th>Status</th><th>Ações</th></tr>
+      </thead>
+      <tbody>
+        {% for ev in events %}
+        <tr>
+          <td><strong>{{ ev.evento }}</strong></td>
+          <td class="td-muted">{{ ev.horario or '—' }}</td>
+          <td class="td-muted">{{ ev.local or '—' }}</td>
+          <td>
+            {% if ev.active %}<span class="badge badge-success">● Ativo</span>
+            {% else %}<span class="badge badge-muted">○ Inativo</span>{% endif %}
+          </td>
+          <td>
+            <div class="td-actions">
+              <a class="btn btn-secondary btn-sm"
+                 href="{{ url_for('admin_institution.event_edit', iid=inst.id, eid=ev.id) }}">Editar</a>
+              <form class="delete-form" method="post"
+                    action="{{ url_for('admin_institution.event_delete', iid=inst.id, eid=ev.id) }}"
+                    onsubmit="return confirm('Remover este evento?')">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-danger btn-sm" type="submit">✕</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-title">Nenhum evento cadastrado</div></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

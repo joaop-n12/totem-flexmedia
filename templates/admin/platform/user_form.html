@@ -1,0 +1,103 @@
+{% extends "admin/base.html" %}
+{% if action == 'edit' %}
+  {% block title %}Editar {{ user.name }}{% endblock %}
+  {% block topbar_title %}Editar Usuário{% endblock %}
+{% else %}
+  {% block title %}Novo Usuário{% endblock %}
+  {% block topbar_title %}Novo Usuário{% endblock %}
+{% endif %}
+
+{% block breadcrumb %}
+  <a href="{{ url_for('admin_platform.user_list') }}">Usuários</a>
+  <span class="sep">/</span>
+  {{ 'Editar' if action == 'edit' else 'Novo' }}
+{% endblock %}
+
+{% block content %}
+<form method="post">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h2>Dados do usuário</h2></div>
+    <div class="card-body">
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label class="form-label">Nome completo *</label>
+          <input class="form-control" type="text" name="name" required
+                 value="{{ user.name if user else '' }}" placeholder="João Silva">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">E-mail *</label>
+          <input class="form-control" type="email" name="email" required
+                 value="{{ user.email if user else '' }}" placeholder="joao@empresa.com">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">
+            {% if action == 'edit' %}Nova senha <span class="form-hint">(deixe em branco para manter)</span>{% else %}Senha *{% endif %}
+          </label>
+          <input class="form-control" type="password" name="password"
+                 {{ 'required' if action == 'new' else '' }}
+                 placeholder="Mínimo 10 caracteres"
+                 autocomplete="new-password">
+          <span class="form-hint">Mínimo de 10 caracteres (NIST SP 800-63B).</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Role *</label>
+          <select class="form-control" name="role" id="role-select"
+                  onchange="toggleInstitution(this.value)">
+            <option value="client_admin" {{ 'selected' if not user or user.role == 'client_admin' }}>
+              client_admin — Acesso à instituição vinculada
+            </option>
+            <option value="super_admin" {{ 'selected' if user and user.role == 'super_admin' }}>
+              super_admin — Acesso global à plataforma
+            </option>
+          </select>
+        </div>
+
+        <div class="form-group" id="institution-field"
+             style="{{ 'display:none' if user and user.role == 'super_admin' else '' }}">
+          <label class="form-label">Instituição vinculada</label>
+          <select class="form-control" name="institution_id">
+            <option value="">— Selecione —</option>
+            {% for inst in institutions %}
+            <option value="{{ inst.id }}"
+                    {{ 'selected' if user and user.institution_id == inst.id }}>
+              {{ inst.name }}
+            </option>
+            {% endfor %}
+          </select>
+          <span class="form-hint">Obrigatório para client_admin.</span>
+        </div>
+
+        {% if action == 'edit' %}
+        <div class="form-group" style="align-self:end;">
+          <label class="form-check">
+            <input type="checkbox" name="active" {{ 'checked' if user and user.active }}>
+            <span class="form-check-label">Conta ativa</span>
+          </label>
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">
+      {{ 'Salvar alterações' if action == 'edit' else 'Criar usuário' }}
+    </button>
+    <a class="btn btn-secondary" href="{{ url_for('admin_platform.user_list') }}">Cancelar</a>
+  </div>
+</form>
+
+<script>
+function toggleInstitution(role) {
+  var field = document.getElementById('institution-field');
+  field.style.display = role === 'super_admin' ? 'none' : '';
+}
+</script>
+{% endblock %}

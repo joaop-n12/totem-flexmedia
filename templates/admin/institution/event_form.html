@@ -1,0 +1,51 @@
+{% extends "admin/base.html" %}
+{% set editing = event is not none %}
+{% block title %}{{ 'Editar Evento' if editing else 'Novo Evento' }}{% endblock %}
+{% block topbar_title %}{{ 'Editar Evento' if editing else 'Novo Evento' }}{% endblock %}
+
+{% block breadcrumb %}
+  {% if current_user.is_super_admin %}<a href="{{ url_for('admin_platform.dashboard') }}">Plataforma</a><span class="sep">/</span>{% endif %}
+  <a href="{{ url_for('admin_institution.event_list', iid=inst.id) }}">Eventos · {{ inst.name }}</a>
+  <span class="sep">/</span> {{ 'Editar' if editing else 'Novo' }}
+{% endblock %}
+
+{% block content %}
+<form method="post">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  <div class="card">
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group form-full">
+          <label class="form-label">Nome do evento *</label>
+          <input class="form-control" type="text" name="evento" required
+                 value="{{ event.evento if editing else '' }}" placeholder="Ex: Alimentação dos Leões">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Horário</label>
+          <input class="form-control" type="text" name="horario"
+                 value="{{ event.horario if editing else '' }}" placeholder="Ex: 14:30">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Local</label>
+          <input class="form-control" type="text" name="local"
+                 value="{{ event.local if editing else '' }}" placeholder="Ex: Área dos Felinos">
+        </div>
+        <div class="form-group form-full">
+          <label class="form-label">Descrição</label>
+          <textarea class="form-control" name="descricao" rows="3">{{ event.descricao if editing else '' }}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-check">
+            <input type="checkbox" name="active" {{ 'checked' if not editing or event.active }}>
+            <span class="form-check-label">Evento ativo</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="form-actions" style="margin-top:20px;">
+    <button class="btn btn-primary" type="submit">{{ 'Salvar' if editing else 'Criar evento' }}</button>
+    <a class="btn btn-secondary" href="{{ url_for('admin_institution.event_list', iid=inst.id) }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

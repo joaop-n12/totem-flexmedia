@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<article style="max-width:760px;margin:0 auto;padding:24px;line-height:1.6;">
+  <h1 style="margin-top:0;">Aviso de Privacidade</h1>
+  <p style="color:#aaa;">
+    Este totem é operado por
+    <strong>{{ institution.name if institution else 'FlexMedia' }}</strong>
+    e segue a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD).
+  </p>
+
+  <h2>Quais dados são coletados</h2>
+  <ul>
+    <li><strong>Perguntas de voz ou texto</strong> feitas ao assistente virtual.</li>
+    <li><strong>Transcrição do áudio</strong> (o áudio em si não é armazenado).</li>
+    <li><strong>Resposta gerada</strong> pela inteligência artificial.</li>
+    <li><strong>Data e hora</strong> da interação.</li>
+  </ul>
+  <p>Nenhum dado de identificação pessoal (nome, CPF, telefone) é solicitado pelo totem.</p>
+
+  <h2>Com quem os dados são compartilhados</h2>
+  <p>
+    Para gerar as respostas, o conteúdo da sua pergunta é enviado à
+    <strong>OpenAI</strong> (processador externo, operando sob
+    <a href="https://openai.com/policies/row-privacy-policy/" target="_blank" rel="noopener">
+      política de privacidade própria</a>).
+    Os dados trafegam criptografados (HTTPS) e não são utilizados pela OpenAI
+    para treinamento, conforme a política de API em vigor.
+  </p>
+
+  <h2>Por quanto tempo os dados são guardados</h2>
+  <p>
+    As interações ficam armazenadas por no máximo
+    <strong>{{ retention_days }} dias</strong>,
+    sendo automaticamente removidas após esse período.
+    O objetivo é exclusivamente melhorar o atendimento e gerar estatísticas agregadas.
+  </p>
+
+  <h2>Seus direitos</h2>
+  <p>
+    Nos termos da LGPD, você pode solicitar confirmação da existência, acesso,
+    correção ou eliminação dos seus dados. Como o totem não coleta identificadores
+    pessoais, o pedido deve ser feito informando data, horário e conteúdo
+    aproximado da interação, pelo e-mail
+    <strong>{{ institution.contact_email if institution and institution.contact_email else 'privacidade@flexmedia.com.br' }}</strong>.
+  </p>
+
+  <h2>Ao continuar</h2>
+  <p style="color:#aaa;">
+    Ao utilizar o assistente virtual, você concorda com o tratamento descrito acima.
+    Se preferir não utilizar, basta não tocar no botão de microfone — as demais
+    seções do totem não coletam nenhuma informação.
+  </p>
+
+  <div style="margin-top:32px;">
+    <a href="javascript:history.back()"
+       style="display:inline-block;padding:12px 24px;border-radius:999px;background:var(--accent,#3b82f6);color:#fff;text-decoration:none;">
+      Voltar
+    </a>
+  </div>
+</article>
+{% endblock %}

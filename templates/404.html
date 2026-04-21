@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>404 · Página não encontrada</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    .error-page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 0;
+      padding: 32px;
+    }
+    .error-emoji {
+      font-size: clamp(72px, 12vw, 120px);
+      animation: floaty 3.5s ease-in-out infinite;
+      margin-bottom: 16px;
+    }
+    .error-code {
+      font-size: clamp(80px, 14vw, 140px);
+      font-weight: 900;
+      color: var(--accent);
+      line-height: 1;
+      letter-spacing: -4px;
+      text-shadow: 0 0 60px rgba(244,184,96,.2);
+      margin-bottom: 12px;
+    }
+    .error-msg {
+      font-size: clamp(16px, 2.5vw, 22px);
+      color: var(--muted);
+      margin-bottom: 32px;
+      font-weight: 500;
+    }
+    @keyframes floaty {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-14px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="error-page">
+    <div class="error-emoji">🦒</div>
+    <div class="error-code">404</div>
+    <p class="error-msg">Essa página se perdeu na savana.</p>
+    <a href="/" class="btn">← Voltar ao Início</a>
+  </div>
+</body>
+</html>

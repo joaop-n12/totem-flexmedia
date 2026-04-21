@@ -1,0 +1,17 @@
+[
+  {
+    "evento": "Alimentação dos Leões",
+    "horario": "10:00",
+    "local": "Área da Savana"
+  },
+  {
+    "evento": "Show das Aves",
+    "horario": "14:00",
+    "local": "Arena Central"
+  },
+  {
+    "evento": "Tour Guiado",
+    "horario": "16:30",
+    "local": "Entrada Principal"
+  }
+]

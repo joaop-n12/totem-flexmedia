@@ -1,0 +1,83 @@
+{% extends "admin/base.html" %}
+{% block title %}Usuários{% endblock %}
+{% block topbar_title %}Usuários Administrativos{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div>
+    <h1>Usuários</h1>
+    <div class="page-hd-sub">{{ users|length }} cadastrados</div>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('admin_platform.user_new') }}">+ Novo Usuário</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Nome / E-mail</th><th>Role</th><th>Instituição</th>
+          <th>Status</th><th>Último login</th><th>Criado em</th><th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>
+            <strong>{{ u.name }}</strong>
+            <div class="td-muted" style="font-size:11px;">{{ u.email }}</div>
+          </td>
+          <td>
+            {% if u.role == 'super_admin' %}
+            <span class="badge badge-accent">super_admin</span>
+            {% else %}
+            <span class="badge badge-muted">client_admin</span>
+            {% endif %}
+          </td>
+          <td class="td-muted">
+            {{ u.institution.name if u.institution else '— (global)' }}
+          </td>
+          <td>
+            {% if u.active %}
+            <span class="badge badge-success">● Ativo</span>
+            {% else %}
+            <span class="badge badge-danger">○ Inativo</span>
+            {% endif %}
+          </td>
+          <td class="log-time">
+            {{ u.last_login_at.strftime('%d/%m/%Y %H:%M') if u.last_login_at else '—' }}
+          </td>
+          <td class="td-muted" style="font-size:11px;">
+            {{ u.created_at.strftime('%d/%m/%Y') }}
+          </td>
+          <td>
+            <div class="td-actions">
+              <a class="btn btn-secondary btn-sm"
+                 href="{{ url_for('admin_platform.user_edit', uid=u.id) }}">Editar</a>
+              {% if u.active %}
+              <form method="post"
+                    action="{{ url_for('admin_platform.user_delete', uid=u.id) }}"
+                    onsubmit="return confirm('Desativar {{ u.name }}?')">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-danger btn-sm" type="submit">Desativar</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7">
+            <div class="empty-state">
+              <div class="empty-state-icon">👥</div>
+              <div class="empty-state-title">Nenhum usuário cadastrado</div>
+              <p>Crie o primeiro usuário admin.</p>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

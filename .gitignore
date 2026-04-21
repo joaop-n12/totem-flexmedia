@@ -1,0 +1,11 @@
+venv/
+.env
+__pycache__/
+*.wav
+*.pyc
+*.pyo
+*.db
+instance/
+static/uploads/
+.claude/
+.flaskenv

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{% if institution %}{{ institution.name }}{% else %}FlexMedia Totem{% endif %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+  {# ── Dynamic institution theming ── #}
+  {% if institution %}
+  <style>
+    :root {
+      --accent:   {{ institution.primary_color }};
+      --teal:     {{ institution.secondary_color }};
+      --bg:       {{ institution.bg_color }};
+      --text:     {{ institution.text_color }};
+      --accent-glow: {{ institution.primary_color }}30;
+    }
+  </style>
+  {% endif %}
+</head>
+<body>
+
+{# ── Active nav detection ── #}
+{% set ep = request.endpoint or '' %}
+{% set slug = institution.slug if institution else '' %}
+{% set nav_home     = (ep == 'core.home') %}
+{% set nav_animais  = (ep in ['zoo.especies','zoo.animais_lista','zoo.animal_detalhe','zoo.catalogo']) %}
+{% set nav_mapa     = (ep == 'core.mapa') %}
+{% set nav_prog     = (ep == 'core.programacao') %}
+{% set nav_voice    = (ep == 'voice.ia_page') %}
+
+<div id="offlineBanner"
+     style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#b91c1c;color:#fff;text-align:center;padding:10px 16px;font-size:14px;font-weight:500;">
+  📡 Sem conexão — algumas funções (assistente, busca) estarão indisponíveis até a internet voltar.
+</div>
+
+<div class="page-wrapper" id="pageWrapper">
+
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('core.home', slug=slug) if slug else url_for('core.selector') }}">
+      {% if institution and institution.logo_path %}
+        <img class="logo" src="{{ url_for('static', filename=institution.logo_path) }}" alt="Logo">
+      {% else %}
+        <div class="logo" style="background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;">🏛️</div>
+      {% endif %}
+      <div class="brand-text">
+        <div class="brand-title">{{ institution.name if institution else 'FlexMedia' }}</div>
+        <div class="brand-subtitle">{{ institution.tagline if institution else 'Plataforma White Label' }}</div>
+      </div>
+    </a>
+
+    <button class="fs-btn" id="fsBtn" title="Tela cheia" aria-label="Alternar tela cheia">
+      <svg id="fsIcon" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 1h5M1 1v5M17 1h-5M17 1v5M1 17h5M1 17v-5M17 17h-5M17 17v-5"/>
+      </svg>
+    </button>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    Totem Interativo &nbsp;·&nbsp; Plataforma FlexMedia
+    &nbsp;·&nbsp;
+    <a href="{{ url_for('core.privacidade', slug=slug) if slug else url_for('core.privacidade') }}"
+       style="color:inherit;text-decoration:underline;">Privacidade</a>
+  </footer>
+
+</div>{# /page-wrapper #}
+
+{# ── Bottom navigation (only when inside an institution) ── #}
+{% if institution %}
+{% set enabled_mods = institution.enabled_modules() %}
+<nav class="bottom-nav" role="navigation" aria-label="Navegação principal">
+
+  <a href="{{ url_for('core.home', slug=slug) }}"
+     class="bnav-item {% if nav_home %}active{% endif %}" aria-label="Home">
+    <span class="bnav-icon">🏠</span>
+    <span class="bnav-label">Home</span>
+  </a>
+
+  {% if institution.has_module('animais') %}
+  <a href="{{ url_for('zoo.especies', slug=slug) }}"
+     class="bnav-item {% if nav_animais %}active{% endif %}" aria-label="Animais">
+    <span class="bnav-icon">🐾</span>
+    <span class="bnav-label">Animais</span>
+  </a>
+  {% endif %}
+
+  {% if institution.has_module('lojas') %}
+  <a href="{{ url_for('shopping.lojas', slug=slug) }}"
+     class="bnav-item" aria-label="Lojas">
+    <span class="bnav-icon">🛍️</span>
+    <span class="bnav-label">Lojas</span>
+  </a>
+  {% endif %}
+
+  {% if institution.has_module('produtos') %}
+  <a href="{{ url_for('pharmacy.produtos', slug=slug) }}"
+     class="bnav-item" aria-label="Produtos">
+    <span class="bnav-icon">💊</span>
+    <span class="bnav-label">Produtos</span>
+  </a>
+  {% endif %}
+
+  {% if institution.has_module('mapa') %}
+  <a href="{{ url_for('core.mapa', slug=slug) }}"
+     class="bnav-item {% if nav_mapa %}active{% endif %}" aria-label="Mapa">
+    <span class="bnav-icon">🗺️</span>
+    <span class="bnav-label">Mapa</span>
+  </a>
+  {% endif %}
+
+  {% if institution.has_module('programacao') %}
+  <a href="{{ url_for('core.programacao', slug=slug) }}"
+     class="bnav-item {% if nav_prog %}active{% endif %}" aria-label="Programação">
+    <span class="bnav-icon">📅</span>
+    <span class="bnav-label">Programação</span>
+  </a>
+  {% endif %}
+
+  {% if institution.has_module('ia') %}
+  <a href="{{ url_for('voice.ia_page', slug=slug) }}"
+     class="bnav-item {% if nav_voice %}active{% endif %}" aria-label="Assistente">
+    <span class="bnav-icon">💬</span>
+    <span class="bnav-label">Assistente</span>
+  </a>
+  {% endif %}
+
+</nav>
+{% endif %}
+
+<script>
+  // ── Inactivity redirect ──────────────────────────────────────────────────────
+  (function () {
+    const IDLE_MS  = 60 * 1000;
+    const HOME_URL = "{{ url_for('core.home', slug=slug) if slug else url_for('core.selector') }}";
+    const inIframe = window.parent !== window;
+    let timer = null;
+    const reset = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (inIframe) window.parent.postMessage('flexmedia:close', '*');
+        else window.location.href = HOME_URL;
+      }, IDLE_MS);
+    };
+    ["mousemove","mousedown","click","scroll","keydown","touchstart","touchmove"]
+      .forEach(ev => window.addEventListener(ev, reset, { passive: true }));
+    reset();
+  })();
+</script>
+
+<script>
+  // ── Page transitions (on wrapper, not body — keeps fixed nav correct) ────────
+  (function () {
+    const wrapper = document.getElementById('pageWrapper');
+    if (!wrapper) return;
+    wrapper.classList.add("page-enter");
+    window.addEventListener("load", () => {
+      requestAnimationFrame(() => wrapper.classList.remove("page-enter"));
+    });
+    document.querySelectorAll('a[href]').forEach(link => {
+      link.addEventListener("click", function (e) {
+        const href = this.getAttribute("href");
+        if (!href || href.startsWith("#") || href.startsWith("javascript:") ||
+            this.target === "_blank" || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        wrapper.classList.add("page-leave");
+        setTimeout(() => { window.location.href = href; }, 220);
+      });
+    });
+  })();
+</script>
+
+<script>
+  // ── Ripple effect ─────────────────────────────────────────────────────────────
+  (function () {
+    const TARGETS = '.btn,.filter-chip,.bnav-item,.card,.back-btn,.totem-card,.animal-card,.event-card,.service-card,.species-card';
+    function attachRipple(el) {
+      if (el._ripple) return;
+      el._ripple = true;
+      el.addEventListener('pointerdown', function (e) {
+        const rect = el.getBoundingClientRect();
+        const size = Math.max(rect.width, rect.height) * 1.6;
+        const rip  = document.createElement('span');
+        rip.classList.add('ripple');
+        rip.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px`;
+        el.appendChild(rip);
+        rip.addEventListener('animationend', () => rip.remove(), { once: true });
+      });
+    }
+    document.querySelectorAll(TARGETS).forEach(attachRipple);
+    new MutationObserver(m => m.forEach(r => r.addedNodes.forEach(n => {
+      if (n.nodeType !== 1) return;
+      if (n.matches?.(TARGETS)) attachRipple(n);
+      n.querySelectorAll?.(TARGETS).forEach(attachRipple);
+    }))).observe(document.body, { childList: true, subtree: true });
+  })();
+</script>
+
+<script>
+  // ── Fullscreen toggle ─────────────────────────────────────────────────────────
+  (function () {
+    const btn  = document.getElementById('fsBtn');
+    const icon = document.getElementById('fsIcon');
+    if (!btn) return;
+    const P_EXPAND   = 'M1 1h5M1 1v5M17 1h-5M17 1v5M1 17h5M1 17v-5M17 17h-5M17 17v-5';
+    const P_COMPRESS = 'M6 1v5H1M1 6l5-5M12 1v5h5M17 6l-5-5M6 17v-5H1M1 12l5 5M12 17v-5h5M17 12l-5 5';
+    const update = () => {
+      const isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      icon.querySelector('path').setAttribute('d', isFS ? P_COMPRESS : P_EXPAND);
+    };
+    btn.addEventListener('click', () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+    });
+    document.addEventListener('fullscreenchange', update);
+  })();
+</script>
+
+<script>
+  // ── Service Worker + detector de offline ─────────────────────────────────────
+  (function () {
+    // Registra o service worker para cachear estaticos e servir /offline
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+      });
+    }
+
+    // Mostra/esconde o banner de acordo com navigator.onLine
+    const banner = document.getElementById("offlineBanner");
+    const update = () => { if (banner) banner.style.display = navigator.onLine ? "none" : "block"; };
+    window.addEventListener("online",  update);
+    window.addEventListener("offline", update);
+    update();
+  })();
+</script>
+
+</body>
+</html>
