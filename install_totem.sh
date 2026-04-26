@@ -38,15 +38,28 @@ if [ ! -f .env ]; then
   echo ""
   echo "===== Configuracao da API ====="
   read -p "Cole sua OPENAI_API_KEY: " api_key
+  read -p "Email do super admin (ex.: admin@totem.com): " admin_email
+  read -s -p "Senha do super admin (minimo 10 caracteres): " admin_pass
+  echo ""
   {
     echo "OPENAI_API_KEY=$api_key"
     echo "FLASK_DEBUG=false"
     echo "SECRET_KEY=$(python3 -c 'import secrets;print(secrets.token_hex(32))')"
+    echo "SUPERADMIN_EMAIL=$admin_email"
+    echo "SUPERADMIN_PASSWORD=$admin_pass"
   } > .env
-  echo ".env criado."
+  chmod 600 .env
+  echo ".env criado (chmod 600)."
 else
   echo ".env ja existe, pulando..."
 fi
+
+# --- 3.1 Banco de dados (cria tabelas + seed inicial) ----------------------
+echo "Inicializando banco de dados..."
+export FLASK_APP=app.py
+set -a; source .env; set +a
+flask init-db
+flask seed
 
 # --- 4. Servico systemd do Flask (auto-restart) ----------------------------
 echo "Criando servico systemd do Flask..."
@@ -87,7 +100,7 @@ cat > "$HOME/.config/totem-kiosk.sh" <<'EOF'
 # - Se a rede/backend cair, recarrega a pagina periodicamente
 
 export DISPLAY=:0
-URL="http://localhost:8000/totem"
+URL="http://localhost:8000/"
 
 # Desativa screensaver, DPMS e blank
 xset s off

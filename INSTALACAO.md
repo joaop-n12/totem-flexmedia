@@ -73,7 +73,7 @@ Sempre no seu HOME, clone já direto na branch correta:
 
 ```bash
 cd ~
-git clone -b arrumando_codigo git@github.com:depaolii/Totem_Flexmedia.git totem_flexmedia
+git clone -b totem_tela_admin git@github.com:depaolii/totem_flexmedia.git totem_flexmedia
 cd totem_flexmedia
 ```
 
@@ -85,7 +85,7 @@ Confirme a estrutura:
 ls
 ```
 
-Deve aparecer: `app/`, `run.py`, `wsgi.py`, `migrations/`, `install_totem.sh`, `INSTALACAO.md` etc.
+Deve aparecer: `app/`, `app.py`, `wsgi.py`, `install_totem.sh`, `INSTALACAO.md` etc.
 
 ## 4️⃣ Rodar o instalador automatizado
 
@@ -102,7 +102,7 @@ O script vai:
   - `OPENAI_API_KEY` → sua chave da OpenAI
   - Email do super admin → ex.: `admin@totem.com`
   - Senha do super admin → escolha uma forte (anote!)
-- Criar o banco de dados (`flask db upgrade` + `flask seed`)
+- Criar o banco de dados (`flask init-db` + `flask seed`)
 - Configurar o systemd para subir o backend automaticamente
 - Instalar o Chromium em modo kiosk com autostart
 
@@ -179,7 +179,7 @@ No navegador (pode ser de outro computador na mesma rede):
 http://<IP-DA-MAQUINA>:8000/admin/login
 ```
 
-Faça login com o email e a senha que você cadastrou no passo 5.
+Faça login com o email e a senha que você cadastrou no passo 4.
 
 ### 7.3 O que dá pra configurar
 
@@ -284,13 +284,13 @@ sed -i 's/\r$//' install_totem.sh
 ```
 ~/totem_flexmedia/
 ├── app/                # código Flask (rotas, models, helpers)
-├── migrations/         # Alembic migrations
 ├── static/             # CSS, JS, imagens
 ├── templates/          # HTMLs (tótem + admin)
 ├── venv/               # virtualenv (não commitar)
 ├── .env                # segredos (chmod 600, NUNCA commitar)
+├── instance/           # banco SQLite (criado por `flask init-db`)
 ├── gunicorn.conf.py    # config do Gunicorn (bind TCP 127.0.0.1:8000)
-├── run.py              # entrypoint dev
+├── app.py              # entrypoint dev (python app.py)
 ├── wsgi.py             # entrypoint produção (Gunicorn)
 └── install_totem.sh    # instalador automatizado
 
