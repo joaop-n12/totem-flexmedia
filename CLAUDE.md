@@ -76,7 +76,7 @@ data/
 install_totem.sh             # Instalador kiosk: systemd auto-restart, Chromium fullscreen,
                              #   watchdog, unclutter, autostart LXDE/GNOME
 wsgi.py                      # Entrypoint de produção (Gunicorn)
-run.py                       # Entrypoint de desenvolvimento (flask run)
+app.py                       # Entrypoint de desenvolvimento (python app.py)
 .env.example                 # Template de variáveis (SECRET_KEY, OPENAI_API_KEY, SUPERADMIN_*,
                              #   DATABASE_URL opcional, INTERACTION_LOG_RETENTION_DAYS)
 config.py                    # Config / ProductionConfig / TestingConfig
@@ -96,7 +96,7 @@ requirements-dev.txt         # pytest + pytest-cov
   * Quota tenant estourada → 429 "limite diário"
 - Retenção de InteractionLog: agendar `flask purge-logs` no cron diariamente.
 - Segredos só em `.env` (nunca commitar); produção mantém `chmod 600`.
-- Entrypoints: `run.py` em dev, `wsgi.py` em produção (Gunicorn).
+- Entrypoints: `app.py` em dev, `wsgi.py` em produção (Gunicorn).
 
 ## Alvo de hardware
 - Piloto roda em **Raspberry Pi 3 B/B+** com Raspberry Pi OS **32 bits**

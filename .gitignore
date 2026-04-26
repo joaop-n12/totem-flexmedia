@@ -9,3 +9,4 @@ instance/
 static/uploads/
 .claude/
 .flaskenv
+*.log
