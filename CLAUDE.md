@@ -198,7 +198,7 @@ install_totem.sh            # Configura Raspberry como kiosk: systemd auto-resta
                             #   Chromium fullscreen, watchdog, unclutter, autostart
 INSTALACAO.md               # Guia passo a passo (Pi real ou VM Debian 12)
 wsgi.py                     # Entrypoint de produção (Gunicorn)
-app.py                      # Entrypoint de desenvolvimento (python app.py)
+run.py                      # Entrypoint de desenvolvimento (python run.py)
 gunicorn.conf.py            # Config do Gunicorn para deploy
 .env.example                # Template (SECRET_KEY, OPENAI_API_KEY, SUPERADMIN_*,
                             #   DATABASE_URL, REDIS_URL,
@@ -290,7 +290,7 @@ README.md                   # Apresentação pública do projeto
   usa `StaticPool` no SQLite para que commits feitos em uma sessao sejam
   visiveis em outra (sem isso, `:memory:` cria DBs isolados por conexao).
 - Segredos só em `.env` (nunca commitar); produção mantém `chmod 600`.
-- Entrypoints: `app.py` em dev, `wsgi.py` em produção (Gunicorn).
+- Entrypoints: `run.py` em dev, `wsgi.py` em produção (Gunicorn).
 - Não editar `migrations/versions/*` manualmente — sempre via Flask-Migrate.
 
 ---

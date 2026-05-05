@@ -85,7 +85,7 @@ Confirme a estrutura:
 ls
 ```
 
-Deve aparecer: `app/`, `app.py`, `wsgi.py`, `install_totem.sh`, `INSTALACAO.md` etc.
+Deve aparecer: `app/`, `run.py`, `wsgi.py`, `install_totem.sh`, `INSTALACAO.md` etc.
 
 ## 4️⃣ Rodar o instalador automatizado
 
@@ -290,7 +290,7 @@ sed -i 's/\r$//' install_totem.sh
 ├── .env                # segredos (chmod 600, NUNCA commitar)
 ├── instance/           # banco SQLite (criado por `flask init-db`)
 ├── gunicorn.conf.py    # config do Gunicorn (bind TCP 127.0.0.1:8000)
-├── app.py              # entrypoint dev (python app.py)
+├── run.py              # entrypoint dev (python run.py)
 ├── wsgi.py             # entrypoint produção (Gunicorn)
 └── install_totem.sh    # instalador automatizado
 

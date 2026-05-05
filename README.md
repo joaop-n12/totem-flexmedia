@@ -54,8 +54,8 @@ pip install -r requirements.txt
 cp .env.example .env           # editar SECRET_KEY, OPENAI_API_KEY, SUPERADMIN_*
 
 # 4. Banco e seed
-flask --app app.py db upgrade  # aplica migrations
-python app.py                  # cria seed na primeira execução
+flask --app run.py db upgrade  # aplica migrations
+python run.py                  # cria seed na primeira execução
 ```
 
 Acesse `http://localhost:5000`.
@@ -207,7 +207,7 @@ totem_flexmedia/
 ├── docs/OPERACAO.md             # Manual de operação (Pi 3)
 ├── instance/                    # SQLite + uploads (gitignored)
 ├── logs/app.log                 # Log rotativo (gitignored)
-├── app.py                       # Entrypoint dev
+├── run.py                       # Entrypoint dev
 ├── wsgi.py                      # Entrypoint prod (Gunicorn)
 ├── gunicorn.conf.py
 ├── install_totem.sh             # Configura Pi como kiosk
