@@ -37,33 +37,44 @@
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
 
-  <!-- Institutions -->
+  <!-- Institutions com métricas dos últimos N dias -->
   <div class="card">
     <div class="card-header">
-      <h2>Instituições</h2>
+      <h2>Instituições <small style="color:var(--a-muted);font-weight:400;">(uso nos últimos {{ period_days }} dias)</small></h2>
       <a class="btn btn-primary btn-sm" href="{{ url_for('admin_platform.institution_new') }}">+ Nova</a>
     </div>
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Nome</th><th>Tipo</th><th>Status</th><th></th></tr>
+          <tr>
+            <th>Nome</th>
+            <th>Tipo</th>
+            <th title="Total de interações no período">Total</th>
+            <th title="Voz / Texto / Tradução">V / T / Tr</th>
+            <th></th>
+          </tr>
         </thead>
         <tbody>
-          {% for inst in institutions %}
+          {% for row in institutions_metrics %}
+          {% set inst = row.inst %}
           <tr>
             <td>
               <strong>{{ inst.name }}</strong>
-              <div class="td-muted" style="font-size:11px;">{{ inst.slug }}</div>
+              <div class="td-muted" style="font-size:11px;">
+                {{ inst.slug }} ·
+                {% if inst.active %}<span style="color:#22c55e;">● ativo</span>
+                {% else %}<span style="color:#a1a1aa;">○ inativo</span>{% endif %}
+              </div>
             </td>
             <td><span class="badge badge-accent">{{ inst.type }}</span></td>
-            <td>
-              {% if inst.active %}
-              <span class="badge badge-success">● Ativo</span>
-              {% else %}
-              <span class="badge badge-muted">○ Inativo</span>
-              {% endif %}
+            <td><strong>{{ row.total }}</strong></td>
+            <td class="td-muted" style="font-size:12px;font-family:monospace;">
+              {{ row.voice }} / {{ row.text }} / {{ row.translate }}
             </td>
-            <td>
+            <td style="white-space:nowrap;">
+              <a class="btn btn-secondary btn-sm"
+                 href="{{ url_for('admin_platform.metrics_view', iid=inst.id) }}"
+                 title="Ver métricas detalhadas">📊</a>
               <form method="post"
                     action="{{ url_for('admin_platform.institution_enter', iid=inst.id) }}"
                     style="display:inline;">
@@ -73,7 +84,7 @@
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="4" style="text-align:center;color:var(--a-muted);padding:32px;">
+          <tr><td colspan="5" style="text-align:center;color:var(--a-muted);padding:32px;">
             Nenhuma instituição.
           </td></tr>
           {% endfor %}

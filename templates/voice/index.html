@@ -1,31 +1,32 @@
 {% extends "base.html" %}
 {% block content %}
 
-{# ── Modal de consentimento LGPD ──────────────────────────────────────────────
+{# ── Modal de consentimento LGPD (Neural Crew look) ─────────────────────
    Exibido uma unica vez por navegador (localStorage). O visitante precisa
    aceitar antes de usar microfone/chat. O aviso deixa claro que a pergunta
    eh enviada a OpenAI para gerar a resposta. #}
 <div id="lgpdModal"
-     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10000;align-items:center;justify-content:center;padding:20px;">
-  <div style="background:#111;border:1px solid #333;border-radius:20px;max-width:520px;width:100%;padding:28px;color:#f0f0f0;">
-    <h2 style="margin:0 0 12px;font-size:22px;">Antes de começar</h2>
-    <p style="line-height:1.5;color:#ccc;">
-      Suas perguntas são enviadas de forma criptografada à <strong>OpenAI</strong>
-      para gerar a resposta. Mantemos a transcrição por no máximo
-      <strong>{{ config.INTERACTION_LOG_RETENTION_DAYS or 90 }} dias</strong>
-      e não coletamos dados pessoais.
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);z-index:10000;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:linear-gradient(180deg,rgba(22,36,58,.95),rgba(15,26,43,.98));border:1px solid rgba(245,179,74,.30);border-radius:22px;max-width:520px;width:100%;padding:32px;color:var(--text);box-shadow:0 30px 80px rgba(0,0,0,.6);">
+    <div style="display:inline-flex;align-items:center;gap:10px;background:rgba(245,179,74,.06);border:1px solid rgba(245,179,74,.30);color:var(--accent);padding:6px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin-bottom:14px;">
+      <span style="width:7px;height:7px;border-radius:50%;background:var(--coral);box-shadow:0 0 10px var(--coral);"></span>
+      Aviso LGPD
+    </div>
+    <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;letter-spacing:-.3px;">Antes de comecar</h2>
+    <p style="line-height:1.6;color:var(--text-soft);font-size:14px;">
+      Suas perguntas sao enviadas de forma criptografada a <strong style="color:var(--accent);">OpenAI</strong>
+      para gerar a resposta. Mantemos a transcricao por no maximo
+      <strong style="color:var(--accent);">{{ config.INTERACTION_LOG_RETENTION_DAYS or 90 }} dias</strong>
+      e nao coletamos dados pessoais.
       <a href="{{ url_for('core.privacidade', slug=institution.slug) }}"
-         style="color:var(--accent,#3b82f6);">Ler aviso completo</a>.
+         style="color:var(--accent);text-decoration:underline;">Ler aviso completo</a>.
     </p>
-    <div style="display:flex;gap:12px;margin-top:20px;flex-wrap:wrap;">
-      <button id="lgpdAccept"
-              style="flex:1;min-width:140px;padding:14px 20px;border:0;border-radius:999px;background:var(--accent,#3b82f6);color:#fff;font-size:15px;cursor:pointer;">
+    <div style="display:flex;gap:12px;margin-top:22px;flex-wrap:wrap;">
+      <button id="lgpdAccept" class="btn" style="flex:1;min-width:140px;">
         Aceito e continuar
       </button>
-      <button id="lgpdDecline"
-              onclick="history.back()"
-              style="flex:1;min-width:140px;padding:14px 20px;border:1px solid #444;border-radius:999px;background:transparent;color:#ccc;font-size:15px;cursor:pointer;">
-        Não, obrigado
+      <button id="lgpdDecline" onclick="history.back()" class="btn ghost" style="flex:1;min-width:140px;">
+        Nao, obrigado
       </button>
     </div>
   </div>
@@ -47,10 +48,14 @@
 
 <div class="voice-page">
 
-  <!-- Título -->
+  <!-- Hero Neural Crew -->
+  <div class="page-eyebrow" style="margin-bottom: 14px;">Assistente de IA</div>
   <div class="assistant-name">
     <span class="name-main">{{ institution.ai_name }}</span>
   </div>
+  <p class="muted" style="margin: 4px 0 18px; font-size: 13px; letter-spacing: .5px;">
+    Pergunte por voz ou texto sobre o {{ institution.name }}
+  </p>
 
   <!-- Visualização de ondas + badge de status -->
   <div class="wave-scene">
@@ -170,7 +175,10 @@ const SLUG = "{{ institution.slug }}";
 const canvas=document.getElementById('waveCanvas'),ctx=canvas.getContext('2d');
 const W=canvas.width,H=canvas.height,CY=H/2;
 let analyser=null,waveMode='idle';
-const STATES={idle:{amp:15,speed:.10,spread:20,lineCount:90,alpha:.08,lineWidth:.7,ripple:.04,color1:'#f4b860',color2:'#cc5500'},listen:{amp:30,speed:.30,spread:30,lineCount:110,alpha:.11,lineWidth:.9,ripple:.06,color1:'#ff5722',color2:'#aa2200'},speak:{amp:45,speed:.38,spread:40,lineCount:130,alpha:.14,lineWidth:1.0,ripple:.15,color1:'#4dd9d0',color2:'#1a8080'}};
+// Paleta Neural Crew: ambar (idle), coral (listen), ambar-bright (speak)
+// Reduzimos lineCount versus original (90/110/130 -> 60/70/80) para
+// melhor performance no Pi 3 sem perda visual perceptivel.
+const STATES={idle:{amp:15,speed:.10,spread:20,lineCount:60,alpha:.08,lineWidth:.7,ripple:.04,color1:'#f5b34a',color2:'#c98a28'},listen:{amp:30,speed:.30,spread:30,lineCount:70,alpha:.12,lineWidth:.9,ripple:.06,color1:'#e85d4e',color2:'#b8392c'},speak:{amp:45,speed:.38,spread:40,lineCount:80,alpha:.15,lineWidth:1.0,ripple:.15,color1:'#ffc966',color2:'#e85d4e'}};
 let phase=0,lastTs=0,cAmp=STATES.idle.amp,cSpread=STATES.idle.spread,rawFreq=null,smoothedFreq=null;
 const lerp=(a,b,t)=>a+(b-a)*t;
 function spine(nx,ph){return Math.sin(nx*Math.PI*2+ph)+Math.sin(nx*Math.PI*3.5-ph*.62)*.38+Math.sin(nx*Math.PI*1.1-ph*.25)*.30+Math.sin(nx*Math.PI*5.2+ph*.38)*.14;}

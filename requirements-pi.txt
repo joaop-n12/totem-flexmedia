@@ -1,0 +1,13 @@
+# Dependencias adicionais APENAS para o Raspberry Pi (sensores fisicos).
+# Instalar no Pi com:
+#   pip install -r requirements.txt -r requirements-pi.txt
+#
+# Em laptop/CI/servidor remoto NAO instale — os modulos caem em modo mock
+# automaticamente via app.sensors.base.is_pi_hardware().
+
+# PIR sensor (HC-SR501) — leitura digital simples.
+RPi.GPIO==0.7.1
+
+# DHT22 — driver oficial Adafruit. Inclui dependencias de timing critico.
+adafruit-circuitpython-dht==4.0.6
+adafruit-blinka==8.50.0

@@ -1,9 +1,10 @@
 """Application factory for Totem FlexMedia White Label."""
 import logging
 import os
+from datetime import datetime, timedelta
 from logging.handlers import RotatingFileHandler
 
-from flask import Flask, g, request
+from flask import Flask, g, redirect, request, session, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 from config import config_map
 from app.extensions import db, migrate, login_manager, limiter
@@ -74,7 +75,11 @@ def create_app(env: str = "default") -> Flask:
     )
 
     # ── Config ──────────────────────────────────────────────────────────────────
-    app.config.from_object(config_map.get(env, config_map["default"]))
+    cfg = config_map.get(env, config_map["default"])
+    # Em producao, valida envs criticas antes de inicializar nada.
+    if hasattr(cfg, "validate_runtime"):
+        cfg.validate_runtime()
+    app.config.from_object(cfg)
 
     os.makedirs(app.config.get("UPLOAD_FOLDER", "static/uploads"), exist_ok=True)
     os.makedirs(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "instance"), exist_ok=True)
@@ -109,7 +114,20 @@ def create_app(env: str = "default") -> Flask:
             Institution, Module, InstitutionModule,
             Animal, Event, Store, Product, FAQ, MapArea,
             InteractionLog, User, AuthLog,
+            AdminAuditLog, TotemDevice, QuizQuestion, ExperienceRating,
         )
+
+
+    # ── Integracoes externas (registry plugavel) ───────────────────────────────
+    # Registradas ANTES dos blueprints — rotas dependem do registry populado.
+    # Adicionar uma nova integracao aqui nao requer mudancas no core: cria-se
+    # a classe em app/services/, instancia e chama registry.register(...).
+    from app.services import registry as _integrations_registry
+    from app.services.translation import TranslationIntegration
+    _integrations_registry.reset()  # idempotente — relevante em testes/factory reuse
+    _integrations_registry.register(TranslationIntegration(
+        redis_url=app.config.get("RATELIMIT_STORAGE_URL"),
+    ))
 
     # ── Blueprints ──────────────────────────────────────────────────────────────
     from app.routes.core              import core_bp
@@ -117,20 +135,32 @@ def create_app(env: str = "default") -> Flask:
     from app.routes.shopping          import shopping_bp
     from app.routes.pharmacy          import pharmacy_bp
     from app.routes.voice             import voice_bp
+    from app.routes.translate         import translate_bp
+    from app.routes.sync              import sync_bp
+    from app.routes.quiz              import quiz_bp
+    from app.routes.rating            import rating_bp
     from app.routes.admin_auth        import auth_bp
     from app.routes.admin_platform    import admin_platform_bp
     from app.routes.admin_institution import admin_institution_bp
     from app.routes.health            import health_bp
+    from app.routes.devices           import devices_bp
 
     app.register_blueprint(core_bp)
     app.register_blueprint(zoo_bp)
     app.register_blueprint(shopping_bp)
     app.register_blueprint(pharmacy_bp)
     app.register_blueprint(voice_bp)
+    app.register_blueprint(translate_bp)
+    app.register_blueprint(sync_bp)
+    app.register_blueprint(quiz_bp)
+    app.register_blueprint(rating_bp)
     app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp,               url_prefix="/admin")
     app.register_blueprint(admin_platform_bp,     url_prefix="/admin/platform")
     app.register_blueprint(admin_institution_bp,  url_prefix="/admin")
+    # devices_bp expoe /api/heartbeat (publico HMAC) + /admin/platform/devices/*
+    # As rotas declaram seu proprio prefixo dentro do blueprint para diferenciar.
+    app.register_blueprint(devices_bp)
 
     # ── Sentry (opcional) ───────────────────────────────────────────────────────
     # Se SENTRY_DSN estiver definido no .env, envia erros para o Sentry.
@@ -138,17 +168,115 @@ def create_app(env: str = "default") -> Flask:
     _init_sentry(app)
 
     # ── Security headers ─────────────────────────────────────────────────────────
+    # Justificativa de cada header:
+    #  - X-Content-Type-Options: bloqueia MIME sniffing (defesa contra XSS via upload).
+    #  - X-Frame-Options: bloqueia clickjacking — admin nunca em iframe.
+    #  - Referrer-Policy: limita o que vaza para terceiros (links externos da IA).
+    #  - Strict-Transport-Security (HSTS): so em prod (HTTPS).
+    #  - Permissions-Policy: desliga APIs perigosas que nao usamos (geo, USB, etc.).
+    #    Microfone E permitido pois a rota /assistente usa SpeechRecognition.
+    #  - Content-Security-Policy: bloqueia injection de scripts externos. Como
+    #    usamos CDNs (jsDelivr, fonts.googleapis), liberamos por host. 'unsafe-inline'
+    #    para scripts e CSS so no totem (templates antigos com inline) — futuro:
+    #    migrar para nonces.
     @app.after_request
     def add_security_headers(response):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("X-XSS-Protection", "1; mode=block")
+        response.headers.setdefault("X-XSS-Protection", "0")  # legado — modernos ignoram
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        # Admin pages: never cache, never index
+        response.headers.setdefault(
+            "Permissions-Policy",
+            "geolocation=(), camera=(), payment=(), usb=(), microphone=(self)",
+        )
+
+        # HSTS apenas em producao (com TLS); em dev poderia trancar localhost.
+        if not app.config.get("DEBUG") and not app.config.get("TESTING"):
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
+
+        # CSP — versao pragmatica. Apertar com nonces depois de auditar templates.
+        # Para o painel admin somos mais rigorosos (sem 'unsafe-inline' em script).
         if request.path.startswith("/admin"):
+            response.headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'self'; "
+                "img-src 'self' data: blob:; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                "font-src 'self' https://fonts.gstatic.com; "
+                "script-src 'self'; "
+                "connect-src 'self'; "
+                "frame-ancestors 'none'; "
+                "base-uri 'self'; "
+                "form-action 'self'",
+            )
             response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
             response.headers["Pragma"] = "no-cache"
+        else:
+            # Totem publico — mais permissivo (CDNs JS, audio, etc.).
+            response.headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'self'; "
+                "img-src 'self' data: blob: https:; "
+                "media-src 'self' blob: data:; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                "font-src 'self' https://fonts.gstatic.com data:; "
+                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net "
+                "https://cdnjs.cloudflare.com; "
+                "connect-src 'self' https://api.openai.com; "
+                "frame-ancestors 'none'; "
+                "base-uri 'self'",
+            )
         return response
+
+    # ── Sessao admin: idle timeout + binding por IP ──────────────────────────────
+    # Ataques comuns evitados:
+    #   - Sessao roubada e reusada dias depois → idle timeout invalida.
+    #   - Cookie de sessao copiado para outro IP → comparamos session["_login_ip"].
+    # A regra so vale para /admin (totem publico nao tem login).
+    app.config.setdefault("PERMANENT_SESSION_LIFETIME", timedelta(hours=8))
+    idle_minutes = int(os.environ.get("ADMIN_IDLE_TIMEOUT_MINUTES", "30"))
+
+    @app.before_request
+    def _enforce_admin_session_timeout():
+        if not request.path.startswith("/admin"):
+            return None
+        # Login/logout/forgot nao precisam dessa checagem.
+        if request.endpoint in {"auth.login", "auth.logout", "auth.forgot_password",
+                                "static", None}:
+            return None
+        from flask_login import current_user as _cu
+        if not _cu.is_authenticated:
+            return None
+
+        agora = datetime.utcnow()
+        ultimo = session.get("_last_activity")
+        if ultimo:
+            try:
+                ultimo_dt = datetime.fromisoformat(ultimo)
+                if (agora - ultimo_dt) > timedelta(minutes=idle_minutes):
+                    from flask_login import logout_user
+                    logout_user()
+                    session.clear()
+                    return redirect(url_for("auth.login", next=request.path))
+            except ValueError:
+                session.pop("_last_activity", None)
+
+        # Binding por IP — troca de IP encerra a sessao.
+        login_ip = session.get("_login_ip")
+        atual_ip = request.remote_addr or "unknown"
+        if login_ip is None:
+            session["_login_ip"] = atual_ip
+        elif login_ip != atual_ip:
+            from flask_login import logout_user
+            logout_user()
+            session.clear()
+            return redirect(url_for("auth.login"))
+
+        session["_last_activity"] = agora.isoformat()
+        return None
 
     # ── Context processors ──────────────────────────────────────────────────────
     from app.helpers import generate_csrf_token
@@ -156,10 +284,18 @@ def create_app(env: str = "default") -> Flask:
     @app.context_processor
     def inject_globals():
         from flask_login import current_user
+        from app.services.i18n import (
+            SUPPORTED_LOCALES, get_locale, locale_display_name, t,
+        )
         return dict(
             institution=getattr(g, "institution", None),
             csrf_token=generate_csrf_token,
             current_user=current_user,
+            # i18n: `t('chave')` traduz; `current_locale` e' o codigo atual.
+            t=t,
+            current_locale=get_locale,
+            locale_display=locale_display_name,
+            supported_locales=SUPPORTED_LOCALES,
         )
 
     # ── Error handlers ───────────────────────────────────────────────────────────
@@ -225,5 +361,128 @@ def create_app(env: str = "default") -> Flask:
         """
         db.create_all()
         print("Tabelas criadas via db.create_all().")
+
+    @app.cli.command("security-upgrade")
+    def _security_upgrade_cmd():
+        """Aplica colunas/tabelas novas do hardening em banco existente.
+
+        Idempotente — pode ser re-executado. Usa introspecao para nao falhar
+        se a coluna ja existir. Funciona com SQLite e Postgres.
+
+        Uso: flask security-upgrade
+        """
+        import re as _re
+        from sqlalchemy import inspect, text
+
+        from app.crypto import encrypt_field, safe_decrypt_field
+        from app.models import TotemDevice, User
+
+        insp = inspect(db.engine)
+
+        # 1. Cria as tabelas novas, se ainda nao existirem.
+        db.create_all()
+
+        # 2. Adiciona colunas novas em `users` se faltarem.
+        # totp_secret agora cabe ate 512 chars (Fernet ciphertext).
+        existing_cols = {c["name"] for c in insp.get_columns("users")}
+        alters = [
+            ("failed_login_count",      "INTEGER NOT NULL DEFAULT 0"),
+            ("locked_until",            "TIMESTAMP NULL"),
+            ("password_changed_at",     "TIMESTAMP NULL"),
+            ("must_change_password",    "BOOLEAN NOT NULL DEFAULT 0"),
+            ("totp_secret",             "VARCHAR(512) NULL"),
+            ("totp_enabled",            "BOOLEAN NOT NULL DEFAULT 0"),
+            ("totp_confirmed_at",       "TIMESTAMP NULL"),
+            ("backup_codes_hash_json",  "TEXT NULL"),
+        ]
+        for col, ddl in alters:
+            if col not in existing_cols:
+                try:
+                    db.session.execute(text(f"ALTER TABLE users ADD COLUMN {col} {ddl}"))
+                    db.session.commit()
+                    print(f"[security-upgrade] +coluna users.{col}")
+                except Exception as exc:  # noqa: BLE001
+                    db.session.rollback()
+                    print(f"[security-upgrade] FALHA ao adicionar {col}: {exc}")
+
+        # 2b. Colunas novas em `totem_devices` (telemetria de sensores fisicos).
+        if insp.has_table("totem_devices"):
+            existing_dev_cols = {c["name"] for c in insp.get_columns("totem_devices")}
+            dev_alters = [
+                ("ambient_temp_c",       "FLOAT NULL"),
+                ("ambient_humidity_pct", "FLOAT NULL"),
+                ("last_motion_at",       "TIMESTAMP NULL"),
+            ]
+            for col, ddl in dev_alters:
+                if col not in existing_dev_cols:
+                    try:
+                        db.session.execute(text(f"ALTER TABLE totem_devices ADD COLUMN {col} {ddl}"))
+                        db.session.commit()
+                        print(f"[security-upgrade] +coluna totem_devices.{col}")
+                    except Exception as exc:  # noqa: BLE001
+                        db.session.rollback()
+                        print(f"[security-upgrade] FALHA ao adicionar {col}: {exc}")
+
+        # 2c. Coluna content_version em `institutions` (sync de conteudo remoto).
+        if insp.has_table("institutions"):
+            existing_inst_cols = {c["name"] for c in insp.get_columns("institutions")}
+            if "content_version" not in existing_inst_cols:
+                try:
+                    db.session.execute(text(
+                        "ALTER TABLE institutions ADD COLUMN content_version "
+                        "INTEGER NOT NULL DEFAULT 0"
+                    ))
+                    db.session.commit()
+                    print("[security-upgrade] +coluna institutions.content_version")
+                except Exception as exc:  # noqa: BLE001
+                    db.session.rollback()
+                    print(f"[security-upgrade] FALHA ao adicionar content_version: {exc}")
+
+        # 3. Cifra totp_secrets legados (texto puro base32) in-place.
+        # Heuristica: base32 puro tem so [A-Z2-7], 32 chars exatos. Ciphertext
+        # Fernet comeca com "gAAAAA" e e' bem mais longo.
+        base32_re = _re.compile(r"^[A-Z2-7]{32}$")
+        try:
+            users = User.query.filter(User._totp_secret_enc.isnot(None)).all()
+            migrated = 0
+            for u in users:
+                raw = u._totp_secret_enc or ""
+                if base32_re.match(raw):
+                    u._totp_secret_enc = encrypt_field(raw)
+                    migrated += 1
+            if migrated:
+                db.session.commit()
+                print(f"[security-upgrade] {migrated} totp_secret(s) cifrados em repouso")
+        except Exception as exc:  # noqa: BLE001
+            db.session.rollback()
+            print(f"[security-upgrade] FALHA ao migrar totp_secrets: {exc}")
+
+        # 4. Detecta devices com api_key_hash legado (hash werkzeug, nao
+        # ciphertext Fernet). Esses NAO podem mais validar HMAC e sao
+        # marcados como needs_reprovision para evitar telemetria suspeita.
+        try:
+            devices = TotemDevice.query.all()
+            sinalizados = 0
+            for d in devices:
+                if not d.api_key_secret_encrypted:
+                    continue
+                # Tenta decifrar; se falhar e o valor parece hash werkzeug
+                # (comeca com "scrypt:" ou "pbkdf2:"), e' legado.
+                if safe_decrypt_field(d.api_key_secret_encrypted) is None:
+                    if d.status == "active":
+                        d.status = "needs_reprovision"
+                        sinalizados += 1
+            if sinalizados:
+                db.session.commit()
+                print(
+                    f"[security-upgrade] {sinalizados} totem(ns) marcados como "
+                    "needs_reprovision (hash legado nao permite validar HMAC). "
+                    "Reprovisione cada um pela tela admin."
+                )
+        except Exception as exc:  # noqa: BLE001
+            db.session.rollback()
+            print(f"[security-upgrade] FALHA ao auditar devices: {exc}")
+
+        print("[security-upgrade] OK.")
 
     return app

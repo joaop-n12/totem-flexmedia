@@ -1,0 +1,202 @@
+{% extends "admin/base.html" %}
+{% block title %}Métricas — {{ inst.name }}{% endblock %}
+{% block topbar_title %}Métricas — {{ inst.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h2 style="margin:0;">{{ inst.name }}</h2>
+    <p style="color:var(--a-muted);margin:4px 0 0;font-size:14px;">
+      Uso do totem nos últimos {{ days }} dias.
+    </p>
+  </div>
+
+  {# Selector de janela de tempo — recarrega a página com ?days=N #}
+  <form method="get" style="display:flex;gap:8px;align-items:center;">
+    <label class="form-label" style="margin:0;">Período:</label>
+    <select name="days" class="form-control" onchange="this.form.submit()">
+      {% for opt in [7, 14, 30, 60, 90] %}
+      <option value="{{ opt }}" {% if opt == days %}selected{% endif %}>{{ opt }} dias</option>
+      {% endfor %}
+    </select>
+    <a class="btn btn-secondary btn-sm" href="{{ url_for('admin_platform.dashboard') }}">← Dashboard</a>
+  </form>
+</div>
+
+<div class="stats-grid" style="margin-top:18px;">
+  <div class="stat-card">
+    <div class="stat-icon blue">📋</div>
+    <div class="stat-info">
+      <div class="stat-value">{{ metrics.total }}</div>
+      <div class="stat-label">Interações no período</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon green">🎙️</div>
+    <div class="stat-info">
+      <div class="stat-value">{{ metrics.channels.voice }}</div>
+      <div class="stat-label">Por voz</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon cyan">⌨️</div>
+    <div class="stat-info">
+      <div class="stat-value">{{ metrics.channels.text }}</div>
+      <div class="stat-label">Por texto</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon amber">🌐</div>
+    <div class="stat-info">
+      <div class="stat-value">{{ metrics.channels.translate }}</div>
+      <div class="stat-label">Traduções</div>
+    </div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;margin-top:18px;">
+
+  <!-- Volume por dia -->
+  <div class="card">
+    <div class="card-header">
+      <h3 style="margin:0;">Interações por dia</h3>
+    </div>
+    <div class="card-body">
+      {# Grafico simples em CSS — barras com altura proporcional ao max do periodo.
+         Sem CDN: o admin tem CSP restrita (script-src 'self'), Chart.js precisaria
+         self-hosted. Barras CSS sao acessiveis e nao quebram em Pi 3. #}
+      {% set max_total = metrics.daily | map(attribute='total') | max | default(1) %}
+      <div style="display:flex;align-items:flex-end;gap:3px;height:160px;padding:12px;">
+        {% for d in metrics.daily %}
+        {% set h = (d.total * 100 / max_total) if max_total else 0 %}
+        <div title="{{ d.date }}: {{ d.total }} interações"
+             style="flex:1;min-width:4px;background:linear-gradient(180deg,var(--a-accent,#3b82f6) 0%, var(--a-accent-dark,#2563eb) 100%);
+                    border-radius:3px 3px 0 0;height:{{ '%.1f' % h }}%;
+                    {% if d.total == 0 %}background:#444;opacity:.4;{% endif %}"
+             aria-label="{{ d.date }}: {{ d.total }}"></div>
+        {% endfor %}
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--a-muted);padding:0 12px 12px;">
+        <span>{{ metrics.daily[0].date if metrics.daily else '' }}</span>
+        <span>{{ metrics.daily[-1].date if metrics.daily else '' }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Idiomas pedidos -->
+  <div class="card">
+    <div class="card-header">
+      <h3 style="margin:0;">Idiomas pedidos (tradução)</h3>
+    </div>
+    <div class="card-body">
+      {% if metrics.languages %}
+      <table class="table">
+        <thead><tr><th>Idioma</th><th>Pedidos</th><th>%</th></tr></thead>
+        <tbody>
+          {% set total_lang = metrics.languages | sum(attribute='count') %}
+          {% for l in metrics.languages %}
+          <tr>
+            <td><code>{{ l.code }}</code></td>
+            <td>{{ l.count }}</td>
+            <td>{{ '%.1f%%' % (l.count * 100 / total_lang) if total_lang else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p style="color:var(--a-muted);padding:16px;text-align:center;">
+        Nenhuma tradução registrada no período.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- Avaliações da experiência -->
+<div class="card" style="margin-top:18px;">
+  <div class="card-header">
+    <h3 style="margin:0;">Avaliação da experiência</h3>
+    <span style="color:var(--a-muted);font-size:12px;">
+      {{ metrics.ratings.count }} resposta(s) no período
+    </span>
+  </div>
+  <div class="card-body">
+    {% if metrics.ratings.count == 0 %}
+    <p style="color:var(--a-muted);text-align:center;padding:16px 0;">
+      Nenhuma avaliação registrada no período.
+    </p>
+    {% else %}
+    <div style="display:flex;align-items:center;gap:32px;flex-wrap:wrap;">
+      <div style="text-align:center;">
+        <div style="font-size:42px;font-weight:700;line-height:1;">
+          {{ '%.2f' % metrics.ratings.average }}
+        </div>
+        <div style="color:#fbbf24;font-size:24px;letter-spacing:2px;margin-top:4px;">
+          {% for _ in range(metrics.ratings.average|round(0,'floor')|int) %}★{% endfor %}{% for _ in range(5 - (metrics.ratings.average|round(0,'floor')|int)) %}☆{% endfor %}
+        </div>
+        <div style="color:var(--a-muted);font-size:12px;margin-top:4px;">média (1-5)</div>
+      </div>
+      <div style="flex:1;min-width:240px;">
+        {% for stars in [5, 4, 3, 2, 1] %}
+        {% set n = metrics.ratings.distribution[stars] %}
+        {% set pct = (n * 100 / metrics.ratings.count) if metrics.ratings.count else 0 %}
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:13px;">
+          <span style="width:32px;color:#fbbf24;">{{ stars }}★</span>
+          <div style="flex:1;background:rgba(255,255,255,.08);height:8px;border-radius:4px;overflow:hidden;">
+            <div style="background:#fbbf24;height:100%;width:{{ '%.1f' % pct }}%;"></div>
+          </div>
+          <span style="width:48px;text-align:right;color:var(--a-muted);">{{ n }} ({{ '%.0f%%' % pct }})</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% if metrics.ratings.recent_comments %}
+    <hr style="border:0;border-top:1px solid rgba(255,255,255,.08);margin:16px 0;">
+    <div style="font-size:13px;color:var(--a-muted);margin-bottom:8px;">Comentários recentes:</div>
+    <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:6px;">
+      {% for c in metrics.ratings.recent_comments %}
+      <li style="background:rgba(255,255,255,.05);padding:10px 12px;border-radius:8px;font-size:13px;">
+        “{{ c }}”
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- Top perguntas -->
+<div class="card" style="margin-top:18px;">
+  <div class="card-header">
+    <h3 style="margin:0;">Perguntas mais frequentes</h3>
+    <span style="color:var(--a-muted);font-size:12px;">Top 10 — entradas com mais de 4 caracteres</span>
+  </div>
+  <div class="card-body" style="padding:0;">
+    {% if metrics.top_questions %}
+    <table class="table">
+      <thead><tr><th style="width:60px;">#</th><th>Pergunta</th><th style="width:100px;">Frequência</th></tr></thead>
+      <tbody>
+        {% for q in metrics.top_questions %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ q.text }}</td>
+          <td><span class="badge badge-accent">{{ q.count }}×</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--a-muted);padding:24px;text-align:center;">
+      Sem perguntas frequentes — instituição com pouco volume no período.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Link do JSON para integracoes externas -->
+<p style="color:var(--a-muted);font-size:12px;margin-top:18px;">
+  Para integrar com analytics externo, consuma:
+  <code><a style="color:inherit;" href="{{ url_for('admin_platform.metrics_json', iid=inst.id, days=days) }}">{{ url_for('admin_platform.metrics_json', iid=inst.id, days=days) }}</a></code>
+</p>
+{% endblock %}

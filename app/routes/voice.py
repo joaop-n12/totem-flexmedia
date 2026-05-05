@@ -10,6 +10,7 @@ from openai import OpenAI, APIConnectionError, APITimeoutError, RateLimitError, 
 from app.extensions import db, limiter
 from app.helpers import load_institution, build_ai_context
 from app.models import InteractionLog
+from app.services.i18n import get_locale, locale_display_name
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,17 @@ def voice_api(slug):
             )
         user_text = transcription.text.strip()[:MAX_CHAT_LEN]
 
+        # Anexa instrucao de idioma se nao for o default — assim a IA responde
+        # em ingles quando o visitante selecionou EN no topbar (Trello: Modulo 3
+        # Acessibilidade e Idiomas, criterio 3.7).
         system_prompt = build_ai_context(inst)
+        locale = get_locale()
+        if locale != "pt":
+            system_prompt += (
+                f"\n\nIMPORTANT: Respond in {locale_display_name(locale)}. "
+                f"Translate proper nouns only when they have a widely accepted "
+                f"equivalent. Keep tone friendly and concise."
+            )
 
         chat = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -135,7 +146,17 @@ def chat_api(slug):
 
     try:
         client = _get_client()
+        # Anexa instrucao de idioma se nao for o default — assim a IA responde
+        # em ingles quando o visitante selecionou EN no topbar (Trello: Modulo 3
+        # Acessibilidade e Idiomas, criterio 3.7).
         system_prompt = build_ai_context(inst)
+        locale = get_locale()
+        if locale != "pt":
+            system_prompt += (
+                f"\n\nIMPORTANT: Respond in {locale_display_name(locale)}. "
+                f"Translate proper nouns only when they have a widely accepted "
+                f"equivalent. Keep tone friendly and concise."
+            )
 
         chat = client.chat.completions.create(
             model="gpt-4o-mini",

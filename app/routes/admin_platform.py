@@ -1,20 +1,39 @@
 """Admin platform: dashboard global, CRUD de instituições e usuários (super_admin)."""
+import re
+
 from flask import (
-    Blueprint, flash, redirect, render_template,
+    Blueprint, flash, g, jsonify, redirect, render_template,
     request, url_for,
 )
 
 from app.extensions import db
 from app.helpers import (
-    allowed_file, save_upload, slugify,
+    allowed_file, audit_log, save_upload, slugify,
     super_admin_required, validate_csrf_token,
+    validate_password_strength,
 )
 from app.models import (
-    AuthLog, Institution, InteractionLog,
+    AdminAuditLog, AuthLog, Institution, InteractionLog,
     Module, InstitutionModule, User,
+)
+from app.models.audit import (
+    ACTION_INSTITUTION_CREATE, ACTION_INSTITUTION_DELETE,
+    ACTION_INSTITUTION_UPDATE, ACTION_USER_CREATE,
+    ACTION_USER_DELETE, ACTION_USER_UPDATE,
+)
+from app.services.metrics import (
+    DEFAULT_DAYS, collect_metrics_dict, collect_platform_summary,
 )
 
 admin_platform_bp = Blueprint("admin_platform", __name__)
+
+
+def _safe_int(raw, default: int) -> int:
+    """Parse defensivo de inteiros vindos de form. Nao explode em 500 com lixo."""
+    try:
+        return int(raw) if raw not in (None, "") else default
+    except (TypeError, ValueError):
+        return default
 
 
 # ── Dashboard ──────────────────────────────────────────────────────────────────
@@ -31,13 +50,54 @@ def dashboard():
     institutions = Institution.query.order_by(Institution.name).all()
     recent_logs  = InteractionLog.query.order_by(InteractionLog.created_at.desc()).limit(10).all()
     recent_auth  = AuthLog.query.order_by(AuthLog.created_at.desc()).limit(10).all()
+
+    # Resumo agregado por instituicao nos ultimos 30 dias.
+    # Combina com a lista de instituicoes para que o template ja receba
+    # cada inst com seus totais sem precisar de N queries no Jinja.
+    summary_by_id = {row["institution_id"]: row
+                     for row in collect_platform_summary(days=DEFAULT_DAYS)}
+    institutions_with_metrics = []
+    for inst in institutions:
+        m = summary_by_id.get(inst.id, {
+            "total": 0, "voice": 0, "text": 0, "translate": 0, "other": 0,
+        })
+        institutions_with_metrics.append({"inst": inst, **m})
+
     return render_template(
         "admin/platform/dashboard.html",
         stats=stats,
         institutions=institutions,
+        institutions_metrics=institutions_with_metrics,
         recent_logs=recent_logs,
         recent_auth=recent_auth,
+        period_days=DEFAULT_DAYS,
     )
+
+
+# ── Metricas por instituicao ───────────────────────────────────────────────────
+
+@admin_platform_bp.route("/metrics/<int:iid>")
+@super_admin_required
+def metrics_view(iid):
+    """Pagina HTML de metricas de UMA instituicao."""
+    inst = Institution.query.get_or_404(iid)
+    days = max(1, min(365, request.args.get("days", default=DEFAULT_DAYS, type=int)))
+    metrics = collect_metrics_dict(iid, days=days)
+    return render_template(
+        "admin/platform/metrics.html",
+        inst=inst,
+        metrics=metrics,
+        days=days,
+    )
+
+
+@admin_platform_bp.route("/metrics/<int:iid>.json")
+@super_admin_required
+def metrics_json(iid):
+    """JSON consumido por graficos client-side (Chart.js no template)."""
+    Institution.query.get_or_404(iid)  # 404 se nao existe
+    days = max(1, min(365, request.args.get("days", default=DEFAULT_DAYS, type=int)))
+    return jsonify(collect_metrics_dict(iid, days=days))
 
 
 # ── Institutions ───────────────────────────────────────────────────────────────
@@ -70,7 +130,7 @@ def institution_new():
             opening_hours   = request.form.get("opening_hours", ""),
             ai_name         = request.form.get("ai_name", "Assistente"),
             ai_context      = request.form.get("ai_context", ""),
-            daily_ai_quota  = max(0, int(request.form.get("daily_ai_quota") or 500)),
+            daily_ai_quota  = max(0, _safe_int(request.form.get("daily_ai_quota"), 500)),
             active          = "active" in request.form,
         )
         logo = request.files.get("logo")
@@ -83,7 +143,7 @@ def institution_new():
 
         for mod in modules:
             if mod.slug in request.form.getlist("modules"):
-                order = int(request.form.get(f"order_{mod.slug}", 99))
+                order = _safe_int(request.form.get(f"order_{mod.slug}"), 99)
                 db.session.add(InstitutionModule(
                     institution_id=inst.id,
                     module_slug=mod.slug,
@@ -91,6 +151,11 @@ def institution_new():
                     order=order,
                 ))
 
+        audit_log(
+            ACTION_INSTITUTION_CREATE,
+            resource_type="institution", resource_id=inst.id,
+            details={"name": inst.name, "slug": inst.slug, "type": inst.type},
+        )
         db.session.commit()
         flash(f"Instituição '{inst.name}' criada com sucesso.", "success")
         return redirect(url_for("admin_platform.institution_list"))
@@ -121,7 +186,7 @@ def institution_edit(iid):
         inst.opening_hours   = request.form.get("opening_hours", "")
         inst.ai_name         = request.form.get("ai_name", "Assistente")
         inst.ai_context      = request.form.get("ai_context", "")
-        inst.daily_ai_quota  = max(0, int(request.form.get("daily_ai_quota") or inst.daily_ai_quota or 500))
+        inst.daily_ai_quota  = max(0, _safe_int(request.form.get("daily_ai_quota"), inst.daily_ai_quota or 500))
         inst.active          = "active" in request.form
 
         logo = request.files.get("logo")
@@ -134,7 +199,7 @@ def institution_edit(iid):
 
         for mod in modules:
             if mod.slug in enabled_slugs:
-                order = int(request.form.get(f"order_{mod.slug}", 99))
+                order = _safe_int(request.form.get(f"order_{mod.slug}"), 99)
                 if mod.slug in existing:
                     existing[mod.slug].enabled = True
                     existing[mod.slug].order   = order
@@ -147,6 +212,11 @@ def institution_edit(iid):
                 if mod.slug in existing:
                     existing[mod.slug].enabled = False
 
+        audit_log(
+            ACTION_INSTITUTION_UPDATE,
+            resource_type="institution", resource_id=inst.id,
+            details={"name": inst.name, "active": inst.active},
+        )
         db.session.commit()
         flash(f"Instituição '{inst.name}' atualizada.", "success")
         return redirect(url_for("admin_platform.institution_list"))
@@ -161,6 +231,11 @@ def institution_delete(iid):
     validate_csrf_token()
     inst = Institution.query.get_or_404(iid)
     name = inst.name
+    audit_log(
+        ACTION_INSTITUTION_DELETE,
+        resource_type="institution", resource_id=inst.id,
+        details={"name": name, "slug": inst.slug},
+    )
     db.session.delete(inst)
     db.session.commit()
     flash(f"Instituição '{name}' removida.", "warning")
@@ -173,6 +248,80 @@ def institution_enter(iid):
     validate_csrf_token()
     Institution.query.get_or_404(iid)
     return redirect(url_for("admin_institution.dashboard", iid=iid))
+
+
+# ── Pre-visualizacao de white-label (Trello: Modulo 1 - White Label 1.4) ──────
+# Renderiza a home do totem aplicando atributos visuais propostos (cores,
+# tema, tagline, ai_name) sem persistir nada. Permite ao super_admin ver o
+# resultado antes de salvar.
+#
+# Defesa em profundidade contra commit acidental:
+#   - `db.session.expunge(inst)` desliga o objeto da sessao. Mesmo que algo
+#     mais tarde chamasse `db.session.commit()`, a inst nao seria persistida.
+#   - Apos override, NAO re-adicionamos a sessao.
+#   - Validacao de cada campo proposto antes de aplicar (hex valido, theme
+#     conhecido, tamanho maximo) — entrada nao-confiavel nao rompe layout.
+
+_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+_THEME_VALUES = {"dark", "light"}
+_PREVIEW_MAX_TAGLINE = 255
+_PREVIEW_MAX_AI_NAME = 60
+
+
+def _apply_preview_overrides(inst, src):
+    """Aplica overrides validados sobre o objeto Institution (em memoria).
+
+    Campos invalidos sao descartados silenciosamente — preview e' melhor
+    cair no padrao do que dar 400 e quebrar o fluxo de edicao.
+    """
+    for field in ("primary_color", "secondary_color", "bg_color", "text_color"):
+        v = (src.get(field) or "").strip()
+        if v and _HEX_COLOR_RE.match(v):
+            setattr(inst, field, v)
+
+    theme = (src.get("theme") or "").strip().lower()
+    if theme in _THEME_VALUES:
+        inst.theme = theme
+
+    tagline = (src.get("tagline") or "").strip()
+    if tagline:
+        inst.tagline = tagline[:_PREVIEW_MAX_TAGLINE]
+
+    ai_name = (src.get("ai_name") or "").strip()
+    if ai_name:
+        inst.ai_name = ai_name[:_PREVIEW_MAX_AI_NAME]
+
+
+@admin_platform_bp.route("/institutions/<int:iid>/preview", methods=["GET", "POST"])
+@super_admin_required
+def institution_preview(iid):
+    """Renderiza a home da instituicao com overrides visuais sem persistir.
+
+    GET aceita os campos via querystring; POST aceita via form (mais util
+    quando ha muitos campos com caracteres especiais que escapariam em URL).
+    Token CSRF validado em POST.
+    """
+    inst = Institution.query.get_or_404(iid)
+    src = request.form if request.method == "POST" else request.args
+    if request.method == "POST":
+        validate_csrf_token()
+
+    # Mantemos `inst` atachada a sessao para que lazy loads (modules etc.)
+    # funcionem no template. Mudancas em atributos NAO sao persistidas porque
+    # esta rota NUNCA chama `db.session.commit()`. Apos a resposta, o teardown
+    # do Flask-SQLAlchemy faz `session.remove()` que descarta a transacao
+    # pendente. Belt + suspenders: rollback explicito ao final.
+    _apply_preview_overrides(inst, src)
+
+    # `g.institution` alimenta o context_processor que injeta `institution`
+    # no Jinja. Marcar `preview_mode` permite ao base.html mostrar a barra
+    # "PREVIEW — alteracoes nao salvas".
+    g.institution = inst
+    g.preview_mode = True
+    rendered = render_template("core/home.html", institution=inst, preview_mode=True)
+    # Garantia explicita: nada de mutacao sobrevive a este request.
+    db.session.rollback()
+    return rendered
 
 
 # ── Users ──────────────────────────────────────────────────────────────────────
@@ -199,8 +348,7 @@ def user_new():
         errors = []
         if not email:
             errors.append("E-mail obrigatório.")
-        if len(password) < 10:
-            errors.append("Senha deve ter ao menos 10 caracteres.")
+        errors.extend(validate_password_strength(password))
         if role not in ("super_admin", "client_admin"):
             errors.append("Role inválida.")
         if role == "client_admin" and not iid_raw:
@@ -221,11 +369,22 @@ def user_new():
             role=role,
             institution_id=institution_id,
             active=True,
+            # Senha definida pelo super_admin é tratada como temporária:
+            # o usuário é forçado a trocá-la no primeiro login.
+            must_change_password=True,
         )
         user.set_password(password)
+        # set_password reseta must_change_password — re-aplicamos depois.
+        user.must_change_password = True
         db.session.add(user)
+        db.session.flush()
+        audit_log(
+            ACTION_USER_CREATE,
+            resource_type="user", resource_id=user.id,
+            details={"email": email, "role": role, "institution_id": institution_id},
+        )
         db.session.commit()
-        flash(f"Usuário '{name}' criado.", "success")
+        flash(f"Usuário '{name}' criado. Ele deverá trocar a senha no primeiro acesso.", "success")
         return redirect(url_for("admin_platform.user_list"))
 
     return render_template("admin/platform/user_form.html",
@@ -256,8 +415,8 @@ def user_edit(uid):
         conflict = User.query.filter(User.email == email, User.id != uid).first()
         if conflict:
             errors.append("E-mail já usado por outro usuário.")
-        if password and len(password) < 10:
-            errors.append("Nova senha deve ter ao menos 10 caracteres.")
+        if password:
+            errors.extend(validate_password_strength(password))
 
         if errors:
             for e in errors:
@@ -265,14 +424,39 @@ def user_edit(uid):
             return render_template("admin/platform/user_form.html",
                                    user=user, institutions=institutions, action="edit")
 
+        # Snapshot antes da mudança — útil para auditoria forense.
+        before = {"email": user.email, "role": user.role,
+                  "institution_id": user.institution_id, "active": user.active}
+
         user.email          = email
         user.name           = name
         user.role           = role
         user.institution_id = int(iid_raw) if iid_raw else None
         user.active         = "active" in request.form
+        password_changed = False
         if password:
             user.set_password(password)
+            # Se super_admin trocou a senha de outro usuário, força troca no
+            # próximo login. Se trocou a propria, mantem normal.
+            from flask_login import current_user as _cu
+            if _cu.id != user.id:
+                user.must_change_password = True
+            # Reset lockout — se a senha foi resetada, o usuário pode entrar.
+            user.failed_login_count = 0
+            user.locked_until = None
+            password_changed = True
 
+        audit_log(
+            ACTION_USER_UPDATE,
+            resource_type="user", resource_id=user.id,
+            details={
+                "before": before,
+                "after": {"email": email, "role": role,
+                          "institution_id": user.institution_id,
+                          "active": user.active},
+                "password_changed": password_changed,
+            },
+        )
         db.session.commit()
         flash(f"Usuário '{user.name}' atualizado.", "success")
         return redirect(url_for("admin_platform.user_list"))
@@ -286,7 +470,19 @@ def user_edit(uid):
 def user_delete(uid):
     validate_csrf_token()
     user = User.query.get_or_404(uid)
-    user.active = False  # soft delete — preserva AuthLog
+    # Defesa: super_admin nao pode se auto-desativar (perderia acesso e
+    # potencialmente derrubaria a unica conta privilegiada).
+    from flask_login import current_user as _cu
+    if user.id == _cu.id:
+        flash("Você não pode desativar a própria conta.", "error")
+        return redirect(url_for("admin_platform.user_list"))
+
+    user.active = False  # soft delete — preserva AuthLog/AdminAuditLog
+    audit_log(
+        ACTION_USER_DELETE,
+        resource_type="user", resource_id=user.id,
+        details={"email": user.email, "name": user.name, "role": user.role},
+    )
     db.session.commit()
     flash(f"Usuário '{user.name}' desativado.", "warning")
     return redirect(url_for("admin_platform.user_list"))

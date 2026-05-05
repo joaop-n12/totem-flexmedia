@@ -1,0 +1,66 @@
+{% extends "admin/base.html" %}
+{% block title %}Auditoria{% endblock %}
+{% block topbar_title %}Trilha de auditoria{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2 style="margin:0;">Eventos administrativos</h2>
+  <p style="color:var(--a-muted);margin:4px 0 0;font-size:14px;">
+    {{ total }} evento(s) registrado(s). Pagina {{ page }} de
+    {{ ((total - 1) // per_page) + 1 if total else 1 }}.
+  </p>
+</div>
+
+<div class="card" style="margin-top:18px;">
+  <div class="card-body" style="padding:0;">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Quando</th>
+          <th>Quem</th>
+          <th>Acao</th>
+          <th>Recurso</th>
+          <th>IP</th>
+          <th>Detalhes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td style="white-space:nowrap;">{{ e.created_at.strftime('%d/%m %H:%M:%S') }}</td>
+          <td>{{ e.actor_email or '—' }}</td>
+          <td><code style="font-size:12px;">{{ e.action }}</code></td>
+          <td style="font-size:12px;">
+            {% if e.resource_type %}{{ e.resource_type }}#{{ e.resource_id }}{% else %}—{% endif %}
+          </td>
+          <td style="font-family:monospace;font-size:12px;">{{ e.ip_address }}</td>
+          <td>
+            {% if e.details_json %}
+            <details>
+              <summary style="cursor:pointer;color:var(--a-muted);font-size:12px;">ver</summary>
+              <pre style="font-size:11px;background:#0c1014;color:#e2e8f0;padding:8px;border-radius:6px;margin-top:6px;max-width:480px;overflow:auto;">{{ e.details_json }}</pre>
+            </details>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--a-muted);">
+          Nenhum evento registrado ainda.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if total > per_page %}
+<div style="margin-top:14px;display:flex;gap:8px;justify-content:center;">
+  {% if page > 1 %}
+    <a class="btn btn-secondary" href="?page={{ page - 1 }}">‹ Anterior</a>
+  {% endif %}
+  {% if page * per_page < total %}
+    <a class="btn btn-secondary" href="?page={{ page + 1 }}">Proxima ›</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

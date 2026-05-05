@@ -7,27 +7,32 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 
 /* ================================================================
-   CSS VARIABLES
+   CSS VARIABLES — Paleta Neural Crew (coral + ambar sobre grafite)
+   Mantemos os mesmos tokens (--accent, --teal, etc.) para que TODOS
+   os componentes existentes herdem o novo visual sem refatoracao.
 ================================================================ */
 :root {
-  --bg:          #040c10;
-  --bg-surface:  #071520;
-  --bg-card:     rgba(255,255,255,.05);
-  --bg-elevated: rgba(255,255,255,.08);
+  --bg:          #0a1320;          /* grafite profundo (Neural Crew) */
+  --bg-surface:  #0f1a2b;
+  --bg-card:     rgba(245,179,74,.04);
+  --bg-elevated: rgba(245,179,74,.07);
 
-  --text:        #ddeef7;
-  --text-soft:   rgba(221,238,247,.72);
-  --muted:       #5e8fa8;
+  --text:        #f4f1ea;
+  --text-soft:   rgba(244,241,234,.72);
+  --muted:       #8a96a8;
 
-  --accent:      #f4b860;
-  --accent-lt:   #ffd38f;
-  --accent-glow: rgba(244,184,96,.18);
+  --accent:      #f5b34a;          /* dourado/ambar do texto */
+  --accent-lt:   #ffc966;
+  --accent-glow: rgba(245,179,74,.18);
 
-  --teal:        #4dd9d0;
+  --coral:       #e85d4e;          /* coral do cerebro */
+  --coral-bright:#ff7a5c;
+
+  --teal:        #4dd9d0;          /* mantido p/ compat. (status badges, etc.) */
   --teal-dark:   #2ab8ae;
 
-  --stroke:      rgba(255,255,255,.08);
-  --glass:       rgba(255,255,255,.05);
+  --stroke:      rgba(245,179,74,.12);
+  --glass:       rgba(245,179,74,.04);
 
   --shadow-sm:   0 4px 16px rgba(0,0,0,.28);
   --shadow-md:   0 12px 40px rgba(0,0,0,.42);
@@ -63,18 +68,28 @@ body {
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
   background-image:
-    radial-gradient(ellipse 1100px 600px at 65% -5%,  rgba(77,217,208,.06) 0%, transparent 60%),
-    radial-gradient(ellipse  800px 500px at  0% 55%,  rgba(244,184,96,.05) 0%, transparent 55%),
-    radial-gradient(ellipse  600px 400px at 85% 85%,  rgba(167,139,250,.04) 0%, transparent 50%);
+    radial-gradient(ellipse 1100px 600px at 65% -5%, rgba(232,93,78,.07) 0%, transparent 60%),
+    radial-gradient(ellipse  800px 500px at  0% 55%, rgba(245,179,74,.06) 0%, transparent 55%),
+    radial-gradient(ellipse  600px 400px at 85% 85%, rgba(245,179,74,.04) 0%, transparent 50%);
   background-attachment: fixed;
 }
 
-/* Glows de fundo das páginas de funcionalidades (âmbar + azul + roxo) — não afeta o totem */
-body:not(.totem-mode) {
+/* Glows de fundo das paginas internas (Neural Crew: coral + ambar) */
+body:not(.totem-mode):not(.neural-home) {
   background-image:
-    radial-gradient(900px 500px at 50% 10%, rgba(244,184,96,.18), transparent 60%),
-    radial-gradient(900px 500px at 10% 25%, rgba(110,231,255,.10), transparent 60%),
-    radial-gradient(700px 450px at 85% 40%, rgba(167,139,250,.10), transparent 60%);
+    radial-gradient(900px 500px at 50% 10%, rgba(232,93,78,.10) 0%, transparent 55%),
+    radial-gradient(900px 500px at 10% 30%, rgba(245,179,74,.10) 0%, transparent 60%),
+    radial-gradient(700px 450px at 85% 40%, rgba(232,93,78,.06) 0%, transparent 55%),
+    linear-gradient(180deg, #060c17 0%, #0a1320 60%, #0d1828 100%);
+}
+
+/* Vinheta sutil so para pginas internas (no totem home) */
+body:not(.totem-mode):not(.neural-home)::after {
+  content: "";
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.45) 100%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* Touch momentum scroll */
@@ -92,11 +107,12 @@ body:not(.totem-mode) {
   flex-direction: column;
   min-height: 100vh;
   opacity: 1;
-  transform: translateY(0);
-  transition: opacity .28s ease, transform .28s ease;
+  /* PERF: transicao mais rapida e SEM transform (translate em wrapper full-page
+     cria uma camada GPU enorme que trava no Pi 3). So opacity. */
+  transition: opacity .14s ease;
 }
-.page-wrapper.page-enter { opacity: 0; transform: translateY(16px); }
-.page-wrapper.page-leave { opacity: 0; transform: translateY(-10px); }
+.page-wrapper.page-enter { opacity: 0; }
+.page-wrapper.page-leave { opacity: 0; }
 
 @keyframes screenIn {
   from { opacity: 0; transform: translateY(18px); }
@@ -156,6 +172,47 @@ body:not(.totem-mode) {
   flex-shrink: 0;
 }
 .fs-btn:hover { background: rgba(255,255,255,.1); color: var(--text); }
+
+/* ─── Cluster a direita do topbar: relogio compacto + tela cheia ─── */
+.topbar-meta {
+  display: flex; align-items: center; gap: 12px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Relogio em pill — visivel em todas as paginas internas. */
+.topbar-clock {
+  display: flex; flex-direction: column; align-items: flex-end;
+  gap: 2px; line-height: 1;
+  padding: 6px 14px;
+  border-radius: var(--r-md);
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--stroke);
+  user-select: none;
+}
+
+.topbar-clock-time {
+  font-size: clamp(15px, 1.6vw, 22px);
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 14px rgba(244,184,96,.18);
+}
+
+.topbar-clock-date {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+@media (max-width: 540px) {
+  /* Em totens muito estreitos, esconde a data e mantem so a hora. */
+  .topbar-clock-date { display: none; }
+  .topbar-clock      { padding: 6px 10px; }
+}
 
 /* ================================================================
    BOTTOM NAVIGATION  (navegação principal touch-friendly)
@@ -545,13 +602,14 @@ main.container { flex: 1; }
   border: 1px solid var(--stroke);
   overflow: hidden;
   box-shadow: var(--shadow-sm);
-  transition: transform var(--t-base), box-shadow var(--t-base), border-color var(--t-base);
-  will-change: transform;
+  /* PERF: anima so border-color e box-shadow no hover (transform travava o
+     scroll com 6+ cards no Pi 3). Sem will-change — economiza camada GPU. */
+  transition: border-color var(--t-base), box-shadow var(--t-base);
   contain: layout style;
 }
 
-.card:hover   { transform: translateY(-5px); box-shadow: var(--shadow-md); border-color: rgba(244,184,96,.22); }
-.card:active  { transform: scale(.97); }
+.card:hover   { box-shadow: var(--shadow-md); border-color: rgba(244,184,96,.22); }
+.card:active  { opacity: .85; }
 
 .card-img-wrap {
   width: 100%; height: 200px;
@@ -563,12 +621,9 @@ main.container { flex: 1; }
   width: 100%; height: 100%;
   object-fit: cover; object-position: center;
   display: block;
-  filter: saturate(1.05) contrast(1.02);
-  transition: transform .4s ease;
-  will-change: transform;
+  /* PERF: removido filter saturate/contrast (recompositing por imagem) e
+     transform de zoom no hover (forca repaint da imagem inteira). */
 }
-
-.card:hover .card-img { transform: scale(1.06); }
 
 .card-body { padding: 16px 18px 20px; }
 
@@ -586,9 +641,8 @@ main.container { flex: 1; }
 .species-thumb { width: 100%; height: 200px; overflow: hidden; background: var(--bg-surface); }
 .species-thumb img {
   width: 100%; height: 100%; object-fit: cover; object-position: center; display: block;
-  transition: transform .4s ease; will-change: transform;
+  /* PERF: sem zoom no hover — repaint da imagem inteira em GPUs fracas. */
 }
-.species-card:hover .species-thumb img { transform: scale(1.06); }
 .species-thumb.fallback { background: rgba(244,184,96,.1); display: flex; align-items: center; justify-content: center; }
 
 /* ================================================================
@@ -795,75 +849,84 @@ main.container { flex: 1; }
   user-select: none;
 }
 
+/* ────────────────────────────────────────────────────────────────────
+   TOTEM HOME — layout full-bleed para tela cheia (vertical e horizontal)
+   ────────────────────────────────────────────────────────────────────
+   Decisoes:
+     - Sem .totem-header — branding/horario ja vivem no .topbar.
+     - Container quebra max-width quando body tem .page-home.
+     - Cards usam flexbox (em vez de grid 2-col), permitindo "auto-piramide"
+       responsiva (3 + 2 em landscape; 2 colunas em portrait).
+*/
+
 .totem-shell {
-  height: 100vh;
   display: grid;
   grid-template-rows: auto 1fr auto auto;
-  padding: clamp(18px, 2.6vw, 36px) clamp(20px, 2.8vw, 42px);
-  gap: clamp(10px, 1.6vw, 20px);
-  overflow: hidden;
+  gap: clamp(14px, 1.8vw, 24px);
+  min-height: calc(100vh - var(--topbar-h) - var(--bnav-h));
   animation: totemFade .55s ease both;
+}
+
+/* ── Hero de boas-vindas ── */
+.totem-hero {
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+  gap: clamp(6px, .9vw, 12px);
+  padding: clamp(8px, 1.4vw, 22px) clamp(16px, 2.4vw, 28px) clamp(4px, .8vw, 12px);
+  animation: cardIn .55s ease both;
+}
+.totem-hero-eyebrow {
+  font-size: clamp(10px, 1.1vw, 13px);
+  font-weight: 800; letter-spacing: 4px; text-transform: uppercase;
+  color: var(--accent); opacity: .9;
+}
+.totem-hero-title {
+  margin: 0;
+  font-size: clamp(28px, 4.4vw, 64px);
+  font-weight: 900; letter-spacing: 1.5px; line-height: 1.05;
+  color: var(--text);
+  text-shadow: 0 2px 24px rgba(0,0,0,.5);
+}
+.totem-hero-title span {
+  background: linear-gradient(90deg, var(--accent), var(--teal, var(--accent)));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.totem-hero-sub {
+  margin: 0;
+  font-size: clamp(13px, 1.5vw, 18px);
+  color: var(--muted); letter-spacing: .4px; max-width: 60ch;
 }
 
 @keyframes totemFade { from { opacity: 0; } to { opacity: 1; } }
 
-/* ── Totem Header ── */
-.totem-header { display: flex; align-items: center; gap: 18px; }
-
-.totem-logo {
-  width: clamp(54px, 5.5vw, 88px); height: clamp(54px, 5.5vw, 88px);
-  border-radius: 20px; object-fit: cover;
-  border: 1px solid rgba(255,255,255,.14); box-shadow: var(--shadow-md); flex-shrink: 0;
+/* Home rompe o max-width do container — totem usa toda a tela. */
+body.page-home main.container {
+  max-width: none;
+  padding: clamp(20px, 2.4vw, 36px) clamp(24px, 3vw, 56px) calc(var(--bnav-h) + clamp(14px, 1.6vw, 22px));
 }
 
-.totem-brand { flex: 1; }
-
-.totem-title {
-  font-size: clamp(24px, 3.2vw, 50px); font-weight: 900;
-  letter-spacing: 1px; color: var(--text); line-height: 1; margin: 0;
+/* ── Main Grid (flex auto-piramide) ── */
+.totem-main {
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  min-height: 0;
 }
-
-.totem-subtitle {
-  font-size: clamp(11px, 1.3vw, 17px); font-weight: 600;
-  letter-spacing: 3.5px; text-transform: uppercase; color: var(--accent); opacity: .8; margin-top: 5px;
-}
-
-/* ── Clock ── */
-.totem-clock-box { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
-
-.totem-clock {
-  font-size: clamp(36px, 5vw, 68px); font-weight: 900;
-  letter-spacing: 2px; color: var(--accent); line-height: 1;
-  text-shadow: 0 0 32px rgba(244,184,96,.28);
-}
-
-.totem-date { font-size: clamp(11px, 1.3vw, 16px); font-weight: 500; color: var(--muted); margin-top: 4px; letter-spacing: .5px; }
-
-/* ── Fullscreen button (totem) ── */
-.totem-fs-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: clamp(36px, 3.5vw, 48px); height: clamp(36px, 3.5vw, 48px);
-  border-radius: var(--r-md); background: rgba(255,255,255,.06);
-  border: 1px solid var(--stroke); color: var(--muted);
-  cursor: pointer; flex-shrink: 0;
-  transition: all var(--t-fast); font-size: clamp(14px, 1.5vw, 20px);
-}
-.totem-fs-btn:hover  { background: rgba(255,255,255,.12); color: var(--text); }
-.totem-fs-btn:active { transform: scale(.92); }
-
-/* ── Main Grid ── */
-.totem-main { display: flex; align-items: center; justify-content: center; min-height: 0; }
 
 .totem-grid {
-  width: 100%; max-width: 1240px;
-  display: grid; grid-template-columns: repeat(2, 1fr);
-  gap: clamp(12px, 2vw, 24px); height: 100%;
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(16px, 2.2vw, 32px);
+  align-content: stretch;
 }
-/* Card sozinho na última linha → ocupa toda a largura */
-.totem-card:last-child:nth-child(odd) {
-  grid-column: 1 / -1;
-  max-width: calc(50% - clamp(6px, 1vw, 12px));
-  margin: 0 auto; width: 100%;
+
+/* Cada card pega ~1/3 da largura em landscape; o flex-grow distribui
+   sobras para que a ultima linha tambem fique justificada. */
+.totem-card {
+  flex: 1 1 calc(33.333% - clamp(16px, 2.2vw, 32px));
+  min-width: clamp(220px, 24vw, 380px);
+  min-height: clamp(200px, 30vh, 360px);
 }
 
 /* ── Totem Cards ── */
@@ -931,11 +994,59 @@ main.container { flex: 1; }
 
 .totem-emoji { font-size: clamp(26px, 3.8vw, 52px); filter: drop-shadow(0 4px 14px rgba(0,0,0,.45)); line-height: 1; }
 
-.totem-card-title { font-size: clamp(17px, 2.5vw, 32px); font-weight: 900; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text); text-align: center; text-shadow: 0 2px 12px rgba(0,0,0,.45); }
-.totem-card-desc  { font-size: clamp(11px, 1.4vw, 16px); font-weight: 500; color: rgba(221,238,247,.55); text-align: center; letter-spacing: .3px; }
+.totem-card-title { font-size: clamp(20px, 2.6vw, 38px); font-weight: 900; letter-spacing: 1.4px; text-transform: uppercase; color: var(--text); text-align: center; text-shadow: 0 2px 12px rgba(0,0,0,.45); line-height: 1.05; }
+.totem-card-desc  { font-size: clamp(12px, 1.4vw, 17px); font-weight: 500; color: rgba(221,238,247,.6); text-align: center; letter-spacing: .4px; }
 
-.totem-footer { text-align: center; color: var(--muted); font-size: clamp(11px, 1.3vw, 15px); font-weight: 500; letter-spacing: .6px; }
+/* ── Rodapé do totem (idiomas · assinatura · acessibilidade) ── */
+.totem-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: clamp(10px, 2vw, 24px); flex-wrap: wrap;
+  padding: clamp(8px, 1.2vw, 14px) clamp(10px, 1.8vw, 20px);
+  border-radius: var(--r-lg);
+  background: rgba(255,255,255,.025);
+  border: 1px solid var(--stroke);
+  backdrop-filter: blur(10px);
+  color: var(--muted); font-size: clamp(11px, 1.3vw, 15px);
+  font-weight: 500; letter-spacing: .6px;
+}
+.totem-foot-sign { flex: 1 1 auto; text-align: center; opacity: .75; }
+
+.totem-lang { display: flex; gap: 8px; }
+.totem-lang-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--stroke);
+  color: var(--text); font: inherit; font-weight: 700; letter-spacing: 1px;
+  cursor: pointer; transition: background .18s ease, border-color .18s ease, transform .12s ease;
+}
+.totem-lang-btn:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.18); }
+.totem-lang-btn:active { transform: scale(.96); }
+.totem-lang-btn.is-active {
+  background: var(--accent-glow, rgba(255,255,255,.08));
+  border-color: var(--accent); color: var(--text);
+}
+.totem-lang-btn .flag { font-size: 16px; line-height: 1; }
+.totem-lang-btn .code { font-size: 11px; }
+
+.totem-help-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 999px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--stroke);
+  color: var(--text); font: inherit; font-weight: 700;
+  letter-spacing: .8px; text-transform: uppercase; font-size: 12px;
+  cursor: pointer; transition: background .18s ease, border-color .18s ease, transform .12s ease;
+}
+.totem-help-btn:hover { background: rgba(255,255,255,.08); border-color: var(--accent); }
+.totem-help-btn:active { transform: scale(.96); }
+
 .voice-response { display: none; }
+
+/* Modo acessibilidade (escala global de leitura) */
+body.a11y-large .totem-card-title { font-size: clamp(26px, 3.4vw, 46px); }
+body.a11y-large .totem-card-desc  { font-size: clamp(14px, 1.7vw, 20px); }
+body.a11y-large .totem-hero-title { font-size: clamp(34px, 5.4vw, 76px); }
 
 /* ================================================================
    SENSOR BAR
@@ -1056,20 +1167,22 @@ main.container { flex: 1; }
 
 /* ================================================================
    CARD ENTRY ANIMATIONS
+   PERF: animacao simplificada — so opacity (sem transform/scale, que
+   forca composicao GPU em todos os cards simultaneamente). Cascade
+   reduzida e teto em .nth-child(6) para evitar 30 animacoes seriais
+   na pagina /catalogo (lista completa de animais).
 ================================================================ */
-.card:nth-child(1)  { animation: cardAppear .4s ease .04s both; }
-.card:nth-child(2)  { animation: cardAppear .4s ease .09s both; }
-.card:nth-child(3)  { animation: cardAppear .4s ease .14s both; }
-.card:nth-child(4)  { animation: cardAppear .4s ease .19s both; }
-.card:nth-child(5)  { animation: cardAppear .4s ease .24s both; }
-.card:nth-child(6)  { animation: cardAppear .4s ease .29s both; }
-.card:nth-child(7)  { animation: cardAppear .4s ease .34s both; }
-.card:nth-child(8)  { animation: cardAppear .4s ease .38s both; }
-.card:nth-child(n+9){ animation: cardAppear .4s ease .42s both; }
+.card:nth-child(1)   { animation: cardAppear .25s ease .03s both; }
+.card:nth-child(2)   { animation: cardAppear .25s ease .06s both; }
+.card:nth-child(3)   { animation: cardAppear .25s ease .09s both; }
+.card:nth-child(4)   { animation: cardAppear .25s ease .12s both; }
+.card:nth-child(5)   { animation: cardAppear .25s ease .15s both; }
+.card:nth-child(6)   { animation: cardAppear .25s ease .18s both; }
+.card:nth-child(n+7) { animation: cardAppear .25s ease .20s both; }
 
 @keyframes cardAppear {
-  from { opacity: 0; transform: translateY(18px) scale(.98); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ================================================================
@@ -1100,14 +1213,211 @@ main.container { flex: 1; }
   .map-frame { height: 60vh; min-height: 340px; }
 }
 
+/* Totem na vertical (1080×1920) — 2 cards por linha, mais altos. */
 @media (orientation: portrait) {
-  .totem-grid              { grid-template-columns: 1fr; }
   .hotspots.horizontal     { display: none; }
   .hotspots.vertical       { display: block; }
-  .totem-header            { justify-content: center; text-align: center; }
+  .totem-card {
+    flex: 1 1 calc(50% - clamp(14px, 2vw, 28px));
+    min-height: clamp(180px, 22vh, 320px);
+  }
 }
 
+/* Totens largos (1920+) — cards ainda maiores, sem max-width artificial. */
 @media (min-width: 1600px) {
-  .totem-grid { max-width: 1460px; }
   .grid, .animais-grid, .catalog-grid { grid-template-columns: repeat(5, minmax(0,1fr)); }
+  .totem-card {
+    min-height: clamp(260px, 32vh, 420px);
+  }
+}
+
+/* ================================================================
+   NEURAL CREW — refinamento das paginas internas
+   Aplica o look-and-feel da home (coral + ambar sobre grafite) em
+   TODAS as paginas internas (animais, mapa, programacao, IA...) sem
+   precisar duplicar markup. Usa apenas seletores ja existentes.
+================================================================ */
+
+/* topbar do interno fica mais "Neural Crew" */
+body:not(.neural-home) .topbar {
+  background: rgba(10,19,32,.82);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border-bottom: 1px solid rgba(245,179,74,.12);
+  box-shadow: 0 1px 0 rgba(245,179,74,.10);
+}
+body:not(.neural-home) .brand-title {
+  color: var(--accent);
+  text-shadow: 0 0 12px rgba(245,179,74,.25);
+}
+body:not(.neural-home) .topbar-clock {
+  background: rgba(245,179,74,.06);
+  border: 1px solid rgba(245,179,74,.18);
+}
+body:not(.neural-home) .topbar-clock-time {
+  color: var(--accent);
+  text-shadow: 0 0 14px rgba(245,179,74,.45);
+}
+
+/* page header com mesma "vibe" do hero da home */
+body:not(.neural-home) .page-header,
+body:not(.neural-home) .catalog-header {
+  position: relative;
+  padding: 22px 24px 24px;
+  margin-bottom: 26px;
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-xl);
+  background:
+    linear-gradient(180deg, rgba(22,36,58,.78) 0%, rgba(15,26,43,.92) 100%);
+  box-shadow: 0 12px 40px rgba(0,0,0,.35), inset 0 1px 0 rgba(245,179,74,.08);
+  overflow: hidden;
+}
+body:not(.neural-home) .page-header::before,
+body:not(.neural-home) .catalog-header::before {
+  content: '';
+  position: absolute; top: 0; left: 10%; right: 10%;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: .6;
+}
+
+/* eyebrow ganha pulso (mesmo do home) */
+body:not(.neural-home) .page-eyebrow,
+body:not(.neural-home) .detail-eyebrow {
+  background: rgba(245,179,74,.06);
+  border: 1px solid rgba(245,179,74,.32);
+  color: var(--accent);
+  letter-spacing: 3.5px;
+}
+body:not(.neural-home) .page-eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 7px; height: 7px;
+  background: var(--coral);
+  border-radius: 50%;
+  margin-right: 6px;
+  box-shadow: 0 0 12px var(--coral);
+  animation: ncPulseDot 2s ease-in-out infinite;
+}
+@keyframes ncPulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: .4; transform: scale(.7); }
+}
+body:not(.neural-home) .page-title {
+  background: linear-gradient(135deg, var(--text) 0%, var(--accent-lt) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* cards no estilo Neural Crew (animais, lojas, produtos)
+   PERF: SEM backdrop-filter — em telas com 6+ cards o blur composto
+   trava o scroll/transicoes no Pi 3. Substituido por gradiente solido
+   (visualmente equivalente, custo zero de GPU). */
+body:not(.neural-home) .card,
+body:not(.neural-home) .service-card,
+body:not(.neural-home) .event-card {
+  background: linear-gradient(180deg, #18253a 0%, #0f1a2b 100%);
+  border: 1px solid var(--stroke);
+}
+body:not(.neural-home) .card:hover,
+body:not(.neural-home) .service-card:hover {
+  border-color: rgba(245,179,74,.45);
+  /* Box-shadow simplificada — menos camadas, mais barato pra render. */
+  box-shadow: 0 12px 30px rgba(0,0,0,.45);
+}
+body:not(.neural-home) .card-img-wrap,
+body:not(.neural-home) .species-thumb {
+  background: #0f1a2b;
+}
+
+/* event-card com coluna de horario "Neural Crew" */
+body:not(.neural-home) .event-time-col {
+  background:
+    radial-gradient(circle at 30% 20%, rgba(232,93,78,.18), transparent 65%),
+    linear-gradient(180deg, rgba(245,179,74,.08), rgba(232,93,78,.04));
+  border-right: 1px solid rgba(245,179,74,.18);
+}
+body:not(.neural-home) .event-time-value {
+  color: var(--accent);
+  text-shadow: 0 0 14px rgba(245,179,74,.4);
+}
+
+/* botao primario com glow coral */
+body:not(.neural-home) .btn {
+  background: linear-gradient(135deg, var(--accent-lt) 0%, var(--accent) 60%, var(--coral) 130%);
+  color: #1a0e02;
+  box-shadow:
+    0 8px 0 rgba(0,0,0,.28),
+    0 16px 36px rgba(232,93,78,.20),
+    inset 0 1px 0 rgba(255,255,255,.25);
+}
+body:not(.neural-home) .btn:hover {
+  box-shadow:
+    0 10px 0 rgba(0,0,0,.26),
+    0 22px 50px rgba(232,93,78,.30),
+    inset 0 1px 0 rgba(255,255,255,.3);
+}
+body:not(.neural-home) .btn.ghost {
+  background: rgba(245,179,74,.05);
+  color: var(--text);
+  border: 1px solid var(--stroke);
+}
+body:not(.neural-home) .btn.ghost:hover {
+  background: rgba(245,179,74,.10);
+  border-color: var(--accent);
+}
+
+/* back-btn alinhado ao novo tema */
+body:not(.neural-home) .back-btn {
+  background: rgba(245,179,74,.05);
+  border: 1px solid var(--stroke);
+}
+body:not(.neural-home) .back-btn:hover {
+  background: rgba(245,179,74,.12);
+  border-color: var(--accent);
+}
+
+/* filtros e search com bordas mais "Neural" */
+body:not(.neural-home) .filter-chip:hover {
+  border-color: rgba(245,179,74,.45);
+  color: rgba(245,179,74,.9);
+}
+body:not(.neural-home) .filter-chip.active {
+  background: rgba(245,179,74,.12);
+  border-color: rgba(245,179,74,.55);
+  color: var(--accent);
+}
+body:not(.neural-home) .search input,
+body:not(.neural-home) .search-input,
+body:not(.neural-home) .catalog-search-input {
+  background: rgba(15,26,43,.7);
+  border: 1px solid var(--stroke);
+}
+body:not(.neural-home) .search input:focus,
+body:not(.neural-home) .search-input:focus,
+body:not(.neural-home) .catalog-search-input:focus {
+  border-color: var(--accent);
+  background: rgba(15,26,43,.9);
+  box-shadow: 0 0 0 3px rgba(245,179,74,.12);
+}
+
+/* bottom-nav fica mais elegante */
+body:not(.neural-home) .bottom-nav {
+  background: rgba(10,19,32,.92);
+  border-top: 1px solid rgba(245,179,74,.14);
+}
+body:not(.neural-home) .bnav-item.active::after { background: var(--accent); }
+
+/* info-panel (alimentacao) ganha o "card glass" */
+body:not(.neural-home) .info-panel {
+  background: linear-gradient(180deg, rgba(22,36,58,.85) 0%, rgba(15,26,43,.95) 100%);
+  border: 1px solid var(--stroke);
+}
+
+/* container fica acima do ::after vinheta */
+body:not(.totem-mode):not(.neural-home) .page-wrapper { position: relative; z-index: 1; }
+
+/* PERF: desativa transicoes/animacoes pesadas em telas com pouca CPU */
+@media (prefers-reduced-motion: reduce) {
+  body:not(.neural-home) .page-eyebrow::before { animation: none; }
+  .card { transition: none !important; }
 }

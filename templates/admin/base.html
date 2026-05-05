@@ -87,6 +87,14 @@
          href="{{ url_for('admin_platform.log_list') }}">
         <span class="nav-icon">{{ icon('shield') }}</span> Logs &amp; Auth
       </a>
+      <a class="nav-item {% if request.endpoint and request.endpoint.startswith('devices.device') %}active{% endif %}"
+         href="{{ url_for('devices.device_list') }}">
+        <span class="nav-icon">{{ icon('eye') }}</span> Totens (frota)
+      </a>
+      <a class="nav-item {% if request.endpoint == 'devices.audit_list' %}active{% endif %}"
+         href="{{ url_for('devices.audit_list') }}">
+        <span class="nav-icon">{{ icon('list') }}</span> Auditoria
+      </a>
       {% endif %}
 
       {% set iid = request.view_args.iid if request.view_args else none %}

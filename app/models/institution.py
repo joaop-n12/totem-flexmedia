@@ -38,6 +38,12 @@ class Institution(db.Model):
     active        = db.Column(db.Boolean, default=True)
     created_at    = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Versionamento de conteudo — incrementado a cada CRUD do client_admin.
+    # Totem em campo polla /api/sync/version e recarrega quando muda. Permite
+    # atualizar conteudo sem reiniciar o kiosk (Trello: Modulo 3 - Atualizacao
+    # de conteudo, criterios 3.5 e 3.6).
+    content_version = db.Column(db.Integer, nullable=False, default=0)
+
     # Relationships
     modules       = db.relationship("InstitutionModule", back_populates="institution",
                                     cascade="all, delete-orphan", order_by="InstitutionModule.order")

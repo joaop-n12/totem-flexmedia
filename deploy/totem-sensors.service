@@ -1,0 +1,21 @@
+[Unit]
+Description=Totem FlexMedia — Daemon de sensores (PIR + DHT22)
+After=network-online.target totem-flexmedia.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=gpio
+WorkingDirectory=/home/pi/totem_flexmedia
+ExecStart=/home/pi/totem_flexmedia/venv/bin/python -m scripts.totem_sensor_daemon \
+    --env-file /etc/totem/credenciais.env
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+# Sem privilegios extras — usuario `pi` ja pertence ao grupo `gpio` no
+# Raspberry Pi OS, suficiente para acessar /dev/gpiomem.
+
+[Install]
+WantedBy=multi-user.target

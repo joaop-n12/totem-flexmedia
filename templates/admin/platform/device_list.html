@@ -1,0 +1,131 @@
+{% extends "admin/base.html" %}
+{% block title %}Totens (frota){% endblock %}
+{% block topbar_title %}Frota de Totens{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2 style="margin:0;">Totens em campo</h2>
+  <p style="color:var(--a-muted);margin:4px 0 0;font-size:14px;">
+    Considera-se <strong>online</strong> quem reportou heartbeat nos ultimos {{ threshold_min }} minutos.
+  </p>
+</div>
+
+<div class="card" style="margin-top:18px;">
+  <div class="card-header">
+    <h3 style="margin:0;">Provisionar novo totem</h3>
+  </div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('devices.device_new') }}" class="form-inline">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label class="form-label">Instituicao</label>
+        <select class="form-control" name="institution_id" required>
+          <option value="">— escolher —</option>
+          {% for inst in institutions %}
+          <option value="{{ inst.id }}">{{ inst.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nome interno</label>
+        <input class="form-control" type="text" name="name" maxlength="120"
+               placeholder="ex.: Totem entrada principal" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Localizacao (opcional)</label>
+        <input class="form-control" type="text" name="location" maxlength="200"
+               placeholder="Praca de alimentacao, Piso 2...">
+      </div>
+      <button class="btn btn-primary" type="submit">Gerar credenciais</button>
+    </form>
+    <p style="color:var(--a-muted);font-size:12.5px;margin-top:10px;">
+      O segredo sera mostrado <strong>uma unica vez</strong>. Salve-o no totem
+      (chmod 600 /etc/totem/credenciais.env) imediatamente.
+    </p>
+  </div>
+</div>
+
+<div class="card" style="margin-top:18px;">
+  <div class="card-header">
+    <h3 style="margin:0;">Frota ({{ items|length }})</h3>
+  </div>
+  <div class="card-body" style="padding:0;">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Instituicao</th>
+          <th>Status</th>
+          <th>Ultimo heartbeat</th>
+          <th>IP</th>
+          <th>Versao</th>
+          <th>CPU</th>
+          <th>Ambiente</th>
+          <th>Presenca</th>
+          <th>Disco livre</th>
+          <th>Acoes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        {% set d = item.device %}
+        <tr>
+          <td>
+            <strong>{{ d.name }}</strong>
+            {% if d.location %}<div style="font-size:12px;color:var(--a-muted);">{{ d.location }}</div>{% endif %}
+            <div style="font-size:11px;color:var(--a-muted);font-family:monospace;">{{ d.api_key_id }}</div>
+          </td>
+          <td>{{ d.institution.name }}</td>
+          <td>
+            {% if d.status == 'revoked' %}
+              <span class="badge badge-danger">Revogado</span>
+            {% elif item.online %}
+              <span class="badge badge-success">Online</span>
+            {% else %}
+              <span class="badge badge-warning">Offline</span>
+            {% endif %}
+          </td>
+          <td>{{ d.last_seen_at.strftime('%d/%m %H:%M') if d.last_seen_at else '—' }}</td>
+          <td style="font-family:monospace;font-size:12px;">{{ d.last_ip or '—' }}</td>
+          <td>{{ d.app_version or '—' }}</td>
+          <td>{{ '%.1f °C' % d.cpu_temp_c if d.cpu_temp_c else '—' }}</td>
+          <td>
+            {% if d.ambient_temp_c is not none or d.ambient_humidity_pct is not none %}
+              {{ '%.1f °C' % d.ambient_temp_c if d.ambient_temp_c is not none else '—' }}
+              /
+              {{ '%.0f%%' % d.ambient_humidity_pct if d.ambient_humidity_pct is not none else '—' }}
+            {% else %}
+              <span style="color:var(--a-muted);">sem sensor</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if d.last_motion_at %}
+              {{ d.last_motion_at.strftime('%d/%m %H:%M') }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>{{ '%d MB' % d.free_disk_mb if d.free_disk_mb else '—' }}</td>
+          <td>
+            {% if d.is_active %}
+            <form method="post" action="{{ url_for('devices.device_revoke', did=d.id) }}"
+                  onsubmit="return confirm('Revogar a chave deste totem? Ele deixara de reportar.');"
+                  style="display:inline;">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-danger" type="submit">Revogar</button>
+            </form>
+            {% else %}
+            —
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="11" style="text-align:center;padding:24px;color:var(--a-muted);">
+          Nenhum totem provisionado ainda.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

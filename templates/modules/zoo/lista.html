@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-header">
-  <div class="page-eyebrow">🐾 Espécie</div>
+  <div class="page-eyebrow">Especie</div>
   <h2 class="page-title">{{ especie_nome }}</h2>
-  <p class="page-desc">Selecione um animal para ver os detalhes</p>
+  <p class="page-desc">Toque em um animal para ver detalhes, habitat e curiosidades.</p>
 </div>
 
 <form class="search" method="get" action="{{ url_for('zoo.animais_lista', slug=institution.slug, especie_slug=especie_slug) }}">

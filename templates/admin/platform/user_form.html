@@ -1,11 +1,6 @@
 {% extends "admin/base.html" %}
-{% if action == 'edit' %}
-  {% block title %}Editar {{ user.name }}{% endblock %}
-  {% block topbar_title %}Editar Usuário{% endblock %}
-{% else %}
-  {% block title %}Novo Usuário{% endblock %}
-  {% block topbar_title %}Novo Usuário{% endblock %}
-{% endif %}
+{% block title %}{% if action == 'edit' %}Editar {{ user.name }}{% else %}Novo Usuário{% endif %}{% endblock %}
+{% block topbar_title %}{% if action == 'edit' %}Editar Usuário{% else %}Novo Usuário{% endif %}{% endblock %}
 
 {% block breadcrumb %}
   <a href="{{ url_for('admin_platform.user_list') }}">Usuários</a>

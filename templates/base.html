@@ -8,6 +8,18 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    /* Toggle de idioma — discreto no topbar, alta legibilidade no totem. */
+    .lang-switch { display:inline-flex; gap:4px; align-items:center; margin-right:10px; }
+    .lang-btn {
+      padding:6px 10px; font-size:12px; font-weight:600; letter-spacing:.5px;
+      border:1px solid currentColor; border-radius:8px; background:transparent;
+      color:inherit; cursor:pointer; opacity:.55; transition:opacity .15s, transform .12s;
+    }
+    .lang-btn:hover { opacity:1; transform:translateY(-1px); }
+    .lang-btn.active { opacity:1; background:currentColor; }
+    .lang-btn.active { color:var(--bg, #040c10); }
+  </style>
 
   {# ── Dynamic institution theming ── #}
   {% if institution %}
@@ -22,7 +34,7 @@
   </style>
   {% endif %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
 
 {# ── Active nav detection ── #}
 {% set ep = request.endpoint or '' %}
@@ -35,8 +47,22 @@
 
 <div id="offlineBanner"
      style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#b91c1c;color:#fff;text-align:center;padding:10px 16px;font-size:14px;font-weight:500;">
-  📡 Sem conexão — algumas funções (assistente, busca) estarão indisponíveis até a internet voltar.
+  📡 {{ t('offline.banner') }}
 </div>
+
+{# Banner de pre-visualizacao do white-label (super_admin → Pre-visualizar). #}
+{# `preview_mode` so e' True quando a rota /admin/institutions/<iid>/preview  #}
+{# renderiza essa template. NUNCA aparece no totem em campo.                  #}
+{% if preview_mode %}
+<div role="alert"
+     style="position:fixed;top:0;left:0;right:0;z-index:10000;
+            background:linear-gradient(90deg,#7c3aed 0%,#3b82f6 100%);
+            color:#fff;text-align:center;padding:8px 16px;
+            font-size:13px;font-weight:600;letter-spacing:.4px;
+            box-shadow:0 2px 8px rgba(0,0,0,.25);">
+  👁 {{ t('preview.banner') }}
+</div>
+{% endif %}
 
 <div class="page-wrapper" id="pageWrapper">
 
@@ -53,11 +79,31 @@
       </div>
     </a>
 
-    <button class="fs-btn" id="fsBtn" title="Tela cheia" aria-label="Alternar tela cheia">
-      <svg id="fsIcon" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M1 1h5M1 1v5M17 1h-5M17 1v5M1 17h5M1 17v-5M17 17h-5M17 17v-5"/>
-      </svg>
-    </button>
+    {# ─── Cluster a direita: idioma + relogio + tela cheia ─── #}
+    <div class="topbar-meta">
+      {# Toggle de idioma — Trello Modulo 3 - Acessibilidade. Sem JS heavy:
+         POST para /api/locale e recarrega a pagina (estado fica na sessao). #}
+      <div class="lang-switch" role="group" aria-label="{{ t('common.language') }}">
+        {% for code, label in supported_locales.items() %}
+        <button type="button"
+                class="lang-btn {% if current_locale() == code %}active{% endif %}"
+                data-locale="{{ code }}" title="{{ label }}">
+          {{ code|upper }}
+        </button>
+        {% endfor %}
+      </div>
+
+      <div class="topbar-clock" aria-live="polite">
+        <span class="topbar-clock-time" id="topbarClock">--:--</span>
+        <span class="topbar-clock-date" id="topbarDate">&nbsp;</span>
+      </div>
+
+      <button class="fs-btn" id="fsBtn" title="{{ t('common.fullscreen') }}" aria-label="{{ t('common.fullscreen') }}">
+        <svg id="fsIcon" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 1h5M1 1v5M17 1h-5M17 1v5M1 17h5M1 17v-5M17 17h-5M17 17v-5"/>
+        </svg>
+      </button>
+    </div>
   </header>
 
   <main class="container">
@@ -136,6 +182,28 @@
 {% endif %}
 
 <script>
+  // ── Toggle de idioma (POST /api/locale + reload) ─────────────────────────────
+  // Estrategia simples: persiste na sessao server-side e recarrega para que
+  // todas as strings traduzidas via `t()` sejam re-renderizadas. Sem reload,
+  // teriamos que duplicar todo o catalogo no cliente.
+  (function () {
+    const buttons = document.querySelectorAll('.lang-btn[data-locale]');
+    if (!buttons.length) return;
+    buttons.forEach(btn => btn.addEventListener('click', async () => {
+      const locale = btn.dataset.locale;
+      try {
+        const r = await fetch("{{ url_for('core.set_session_locale') }}", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ locale }),
+        });
+        if (r.ok) location.reload();
+      } catch (_) { /* sem rede — ignora silenciosamente */ }
+    }));
+  })();
+</script>
+
+<script>
   // ── Inactivity redirect ──────────────────────────────────────────────────────
   (function () {
     const IDLE_MS  = 60 * 1000;
@@ -156,50 +224,55 @@
 </script>
 
 <script>
-  // ── Page transitions (on wrapper, not body — keeps fixed nav correct) ────────
+  // ── Page transitions (delegacao no document — antes era 1 listener por <a>) ──
+  // Antes: querySelectorAll('a[href]').forEach(addEventListener) — ruim em pgs
+  //        com muitos animais/lojas (catalogo).
+  // Agora: 1 listener unico que detecta o link via closest().
   (function () {
     const wrapper = document.getElementById('pageWrapper');
     if (!wrapper) return;
     wrapper.classList.add("page-enter");
     window.addEventListener("load", () => {
       requestAnimationFrame(() => wrapper.classList.remove("page-enter"));
-    });
-    document.querySelectorAll('a[href]').forEach(link => {
-      link.addEventListener("click", function (e) {
-        const href = this.getAttribute("href");
-        if (!href || href.startsWith("#") || href.startsWith("javascript:") ||
-            this.target === "_blank" || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-        e.preventDefault();
-        wrapper.classList.add("page-leave");
-        setTimeout(() => { window.location.href = href; }, 220);
-      });
+    }, { once: true });
+
+    document.addEventListener("click", function (e) {
+      if (e.defaultPrevented) return;
+      if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+      const link = e.target.closest && e.target.closest('a[href]');
+      if (!link) return;
+      const href = link.getAttribute("href");
+      if (!href || href.startsWith("#") || href.startsWith("javascript:") || link.target === "_blank") return;
+      // Mesma origem somente — evita interceptar links externos
+      try {
+        const url = new URL(href, location.href);
+        if (url.origin !== location.origin) return;
+      } catch (_) { return; }
+      e.preventDefault();
+      wrapper.classList.add("page-leave");
+      // PERF: 220ms → 120ms. Sensacao "clicou agora" sem perder a transicao.
+      setTimeout(() => { window.location.href = href; }, 120);
     });
   })();
 </script>
 
 <script>
-  // ── Ripple effect ─────────────────────────────────────────────────────────────
+  // ── Ripple effect (delegacao global — MUITO mais leve que MutationObserver) ──
+  // Antes: cada n DOM novo disparava o observer (custoso no Pi 3).
+  // Agora: 1 unico listener no document captura via 'closest()'.
   (function () {
-    const TARGETS = '.btn,.filter-chip,.bnav-item,.card,.back-btn,.totem-card,.animal-card,.event-card,.service-card,.species-card';
-    function attachRipple(el) {
-      if (el._ripple) return;
-      el._ripple = true;
-      el.addEventListener('pointerdown', function (e) {
-        const rect = el.getBoundingClientRect();
-        const size = Math.max(rect.width, rect.height) * 1.6;
-        const rip  = document.createElement('span');
-        rip.classList.add('ripple');
-        rip.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px`;
-        el.appendChild(rip);
-        rip.addEventListener('animationend', () => rip.remove(), { once: true });
-      });
-    }
-    document.querySelectorAll(TARGETS).forEach(attachRipple);
-    new MutationObserver(m => m.forEach(r => r.addedNodes.forEach(n => {
-      if (n.nodeType !== 1) return;
-      if (n.matches?.(TARGETS)) attachRipple(n);
-      n.querySelectorAll?.(TARGETS).forEach(attachRipple);
-    }))).observe(document.body, { childList: true, subtree: true });
+    const TARGETS = '.btn,.filter-chip,.bnav-item,.card,.back-btn,.totem-card,.animal-card,.event-card,.service-card,.species-card,.nc-btn,.voice-pill';
+    document.addEventListener('pointerdown', function (e) {
+      const el = e.target.closest && e.target.closest(TARGETS);
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height) * 1.6;
+      const rip  = document.createElement('span');
+      rip.className = 'ripple';
+      rip.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px`;
+      el.appendChild(rip);
+      rip.addEventListener('animationend', () => rip.remove(), { once: true });
+    }, { passive: true });
   })();
 </script>
 
@@ -221,6 +294,106 @@
     });
     document.addEventListener('fullscreenchange', update);
   })();
+</script>
+
+<script>
+  // ── Relogio do topbar (todas as paginas internas) ────────────────────────────
+  // Atualiza a cada 1s. Se o totem ficar dias ligado, evita drift cumulativo.
+  (function () {
+    const elT = document.getElementById('topbarClock');
+    const elD = document.getElementById('topbarDate');
+    if (!elT) return;
+    const dias  = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    function tick() {
+      const n = new Date();
+      elT.textContent = `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
+      if (elD) elD.textContent = `${dias[n.getDay()]} · ${n.getDate()} ${meses[n.getMonth()]}`;
+    }
+    tick(); setInterval(tick, 1000);
+  })();
+</script>
+
+<script>
+  // ── Presenca via SSE (sensor PIR no Pi local) ────────────────────────────────
+  // O daemon de sensores (scripts/totem_sensor_daemon.py) avisa este Flask
+  // sempre que o PIR detecta um visitante. Aqui assinamos o stream para:
+  //  - Voltar para a Home se a tela estiver inativa em outra rota.
+  //  - Disparar o evento custom `flexmedia:presence` para qualquer pagina
+  //    que queira reagir (ex.: tocar audio de boas-vindas, animar attract).
+  // Falhas sao silenciosas — se Flask ou daemon nao estiverem rodando, o
+  // totem segue funcionando normalmente.
+  (function () {
+    if (typeof EventSource === 'undefined') return;
+    const HOME_URL = "{{ url_for('core.home', slug=slug) if slug else url_for('core.selector') }}";
+    let lastTrigger = 0;
+    let lastInteraction = Date.now();
+    ["click","keydown","touchstart","mousemove"].forEach(ev =>
+      window.addEventListener(ev, () => { lastInteraction = Date.now(); }, { passive: true })
+    );
+
+    function connect() {
+      let es;
+      try { es = new EventSource('/api/local/wake-stream'); }
+      catch (_) { return; }
+      es.addEventListener('presence', (e) => {
+        const now = Date.now();
+        // Throttle de 5s para nao spamar Home redirects.
+        if (now - lastTrigger < 5000) return;
+        lastTrigger = now;
+        // Tela ficou parada >30s e PIR detectou alguem novo? Volta pra Home.
+        if (now - lastInteraction > 30000 && location.pathname !== HOME_URL) {
+          location.href = HOME_URL;
+          return;
+        }
+        try { window.dispatchEvent(new CustomEvent('flexmedia:presence', { detail: JSON.parse(e.data) })); }
+        catch (_) {}
+      });
+      es.onerror = () => {
+        es.close();
+        // Reconnect com backoff curto — servidor pode estar reiniciando.
+        setTimeout(connect, 5000);
+      };
+    }
+    connect();
+  })();
+</script>
+
+<script>
+  // ── Polling de versao de conteudo (sync remoto) ──────────────────────────────
+  // O painel admin pode editar conteudo a qualquer momento. Em vez de obrigar
+  // o operador a reiniciar o totem, polamos /api/sync/version a cada 60s e
+  // recarregamos a pagina quando o numero muda. Sem auth: o endpoint so devolve
+  // um inteiro derivado de dados publicos (e ja tem rate-limit).
+  // Falhas sao silenciosas (totem fica em modo "stale" ate a rede voltar).
+  {% if institution %}
+  (function () {
+    const URL = "{{ url_for('sync.version', slug=institution.slug) }}";
+    const INTERVAL_MS = 60 * 1000;
+    let known = null;
+    let lastInteraction = Date.now();
+    ["click","keydown","touchstart","mousemove"].forEach(ev =>
+      window.addEventListener(ev, () => { lastInteraction = Date.now(); }, { passive: true })
+    );
+
+    async function check() {
+      try {
+        const r = await fetch(URL, { cache: "no-store" });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (known === null) { known = data.version; return; }
+        if (data.version !== known) {
+          // Espera o usuario ficar ocioso para nao trocar a pagina no meio
+          // de uma interacao em andamento.
+          if (Date.now() - lastInteraction < 10000) return;
+          location.reload();
+        }
+      } catch (_) { /* offline — proxima checagem tenta de novo */ }
+    }
+    check();
+    setInterval(check, INTERVAL_MS);
+  })();
+  {% endif %}
 </script>
 
 <script>

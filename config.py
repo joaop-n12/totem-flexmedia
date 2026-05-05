@@ -6,12 +6,19 @@ load_dotenv()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+# Marker de SECRET_KEY default — qualquer valor IGUAL a este e' tratado
+# como ausente em producao (ver ProductionConfig.__init_subclass__/init).
+_DEV_SECRET_KEY = "flexmedia-dev-only-change-in-prod"
+
+
 class Config:
-    SECRET_KEY = os.environ.get("SECRET_KEY", "flexmedia-white-label-secret-change-in-prod")
+    SECRET_KEY = os.environ.get("SECRET_KEY", _DEV_SECRET_KEY)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-    # ADMIN_PASSWORD kept only as fallback for seed_super_admin; not used for login
-    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "flexmedia2024")
+    # ADMIN_PASSWORD: se definido, e' usado como senha inicial do super_admin
+    # apenas se SUPERADMIN_PASSWORD nao estiver setado. NAO ha fallback fixo —
+    # se nada for definido, o seed gera senha random forte e imprime no log.
+    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB
     UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
 
@@ -30,6 +37,23 @@ class Config:
         os.environ.get("INTERACTION_LOG_RETENTION_DAYS", "90")
     )
 
+    # ── Hardening de autenticacao admin ──────────────────────────────────────
+    # Lockout: apos LOCKOUT_THRESHOLD falhas seguidas, a conta fica bloqueada
+    # por LOCKOUT_MINUTES. Defesa contra brute-force distribuido.
+    LOCKOUT_THRESHOLD = int(os.environ.get("LOCKOUT_THRESHOLD", "5"))
+    LOCKOUT_MINUTES   = int(os.environ.get("LOCKOUT_MINUTES",   "15"))
+
+    # Idle timeout do painel admin (minutos). Sessao expira por inatividade.
+    ADMIN_IDLE_TIMEOUT_MINUTES = int(os.environ.get("ADMIN_IDLE_TIMEOUT_MINUTES", "30"))
+
+    # ── Heartbeat dos totens ─────────────────────────────────────────────────
+    # Janela aceita do timestamp enviado pelo totem (anti-replay). 5 minutos
+    # tolera relogio dessincronizado em RPi sem NTP, mas curto o suficiente
+    # para nao deixar replays viaveis.
+    HEARTBEAT_CLOCK_SKEW_SECONDS = int(
+        os.environ.get("HEARTBEAT_CLOCK_SKEW_SECONDS", "300")
+    )
+
 
 class DevelopmentConfig(Config):
     DEBUG = True
@@ -40,7 +64,28 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
+    # Cookie da sessao so trafega via HTTPS e nunca acessivel via JS (HttpOnly
+    # ja esta na Config base). SameSite=Strict bloqueia CSRF cross-site mais
+    # agressivamente que Lax — mas mantemos Lax pois usuarios chegam via
+    # links externos para /admin/login.
     SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+
+    @classmethod
+    def validate_runtime(cls) -> None:
+        """Fail-fast: producao nao pode subir com SECRET_KEY default nem sem
+        FIELD_ENCRYPTION_KEY. Chamado pelo factory quando env='production'.
+        """
+        if not os.environ.get("SECRET_KEY") or os.environ.get("SECRET_KEY") == _DEV_SECRET_KEY:
+            raise RuntimeError(
+                "SECRET_KEY ausente ou usando default de dev. "
+                "Defina SECRET_KEY=<random 64+ bytes> no .env antes de subir prod."
+            )
+        if not os.environ.get("FIELD_ENCRYPTION_KEY") and not os.environ.get("FIELD_ENCRYPTION_KEYS"):
+            raise RuntimeError(
+                "FIELD_ENCRYPTION_KEY ausente. Gere uma com:\n"
+                "  python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            )
     # DATABASE_URL no .env. Formatos aceitos:
     #   SQLite:    sqlite:////opt/totem-flexmedia/instance/flexmedia.db
     #   Postgres:  postgresql+psycopg://usuario:senha@host:5432/flexmedia
@@ -61,6 +106,19 @@ class TestingConfig(Config):
     WTF_CSRF_ENABLED = False
     # Banco em memoria — cada execucao parte do zero.
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+    # IMPORTANTE: SQLite `:memory:` cria um banco por CONEXAO. Sem StaticPool,
+    # cada request do test_client recebe uma conexao nova → banco vazio →
+    # commits feitos em outras conexoes nao sao visiveis. StaticPool mantem
+    # uma unica conexao compartilhada para que dados commitados sejam vistos
+    # por todas as requests + contextos da mesma execucao de teste.
+    # `check_same_thread=False` e' necessario porque a unica conexao e' usada
+    # de threads diferentes (test_client e fixture rodam no mesmo thread, mas
+    # SQLAlchemy nao tem como saber).
+    from sqlalchemy.pool import StaticPool
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "connect_args": {"check_same_thread": False},
+        "poolclass": StaticPool,
+    }
     # Desliga o rate limiter para nao interferir nos testes.
     RATELIMIT_ENABLED = False
     RATELIMIT_STORAGE_URL = "memory://"

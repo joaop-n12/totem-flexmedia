@@ -9,7 +9,10 @@ from app.models import Animal, Event, FAQ, Institution, InstitutionModule, Modul
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
 
-OBSOLETE_MODULE_SLUGS = {"quiz"}
+# Modulos descontinuados em versoes anteriores. Mantemos a lista para que
+# `flask seed` em bancos antigos remova entradas orfas. O modulo "quiz" esta
+# de volta na Sprint 4 — saiu desta lista e voltou ao catalogo principal.
+OBSOLETE_MODULE_SLUGS: set[str] = set()
 
 
 def seed_modules():
@@ -23,6 +26,8 @@ def seed_modules():
         dict(slug="animais",     name="Animais",       icon="🐾", description="Catálogo de animais",          compatible_types="zoo"),
         dict(slug="lojas",       name="Lojas",         icon="🛍️", description="Catálogo de lojas",            compatible_types="shopping"),
         dict(slug="produtos",    name="Produtos",      icon="💊", description="Catálogo de produtos",         compatible_types="pharmacy"),
+        dict(slug="quiz",        name="Quiz",          icon="🎯", description="Quiz com curiosidades",        compatible_types="all"),
+        dict(slug="avaliacao",   name="Avaliação",     icon="⭐", description="Avaliação da experiência",     compatible_types="all"),
     ]
     for item in catalog:
         if not Module.query.filter_by(slug=item["slug"]).first():
@@ -128,27 +133,69 @@ def seed_zoo():
 
 def seed_super_admin():
     """
-    Cria o primeiro super_admin a partir de variáveis de ambiente.
-    Executa apenas uma vez (se não existir nenhum super_admin).
-    Variáveis: SUPERADMIN_EMAIL, SUPERADMIN_PASSWORD (fallback: ADMIN_PASSWORD).
+    Cria o primeiro super_admin a partir de variaveis de ambiente.
+    Executa apenas uma vez (se nao existir nenhum super_admin).
+
+    Variaveis aceitas (em ordem de preferencia):
+      SUPERADMIN_PASSWORD  → senha definitiva (deve passar na politica forte)
+      ADMIN_PASSWORD       → fallback (legado; mesmo tratamento)
+      <nada>               → gera senha random forte e imprime no console
+
+    Se a senha definida pelo operador nao cumprir a politica, criamos a conta
+    com must_change_password=True para forcar troca no primeiro login. Nunca
+    aceitamos um literal previsivel — o fallback antigo ("flexmedia2024") foi
+    removido propositalmente.
     """
+    import secrets as _secrets
+    import string as _string
+
+    from app.helpers import validate_password_strength
+
     if User.query.filter_by(role="super_admin").first():
         return
 
-    email    = os.environ.get("SUPERADMIN_EMAIL", "admin@flexmedia.com.br")
-    password = os.environ.get("SUPERADMIN_PASSWORD") or os.environ.get("ADMIN_PASSWORD", "flexmedia2024")
-    name     = os.environ.get("SUPERADMIN_NAME", "FlexMedia Admin")
+    email = os.environ.get("SUPERADMIN_EMAIL", "admin@flexmedia.com.br")
+    name  = os.environ.get("SUPERADMIN_NAME", "FlexMedia Admin")
+    password = os.environ.get("SUPERADMIN_PASSWORD") or os.environ.get("ADMIN_PASSWORD")
+    senha_gerada = False
 
-    if len(password) < 10:
-        print("[seed] AVISO: SUPERADMIN_PASSWORD tem menos de 10 caracteres. "
-              "Defina SUPERADMIN_PASSWORD no .env com ao menos 10 caracteres.")
-        password = password.ljust(10, "0")  # padding mínimo para não bloquear o boot
+    if not password:
+        # Gera senha forte: 20 chars com 4 classes garantidas. O operador
+        # tem que copiar do log e trocar no primeiro login.
+        alphabet = _string.ascii_letters + _string.digits + "!@#$%&*-_=+"
+        password = "".join(_secrets.choice(alphabet) for _ in range(20))
+        senha_gerada = True
 
-    user = User(email=email, name=name, role="super_admin", active=True)
+    erros = validate_password_strength(password)
+    senha_fraca = bool(erros) and not senha_gerada
+    if senha_fraca:
+        print(
+            "[seed] AVISO: SUPERADMIN_PASSWORD nao cumpre a politica de senha forte:\n  - "
+            + "\n  - ".join(erros)
+            + "\n  Conta sera criada com must_change_password=True. "
+            "Defina SUPERADMIN_PASSWORD com 12+ caracteres e variedade no .env."
+        )
+
+    user = User(
+        email=email, name=name, role="super_admin", active=True,
+        must_change_password=senha_fraca or senha_gerada,
+    )
     user.set_password(password)
+    # set_password reseta must_change_password — re-aplicamos se necessario.
+    user.must_change_password = senha_fraca or senha_gerada
     db.session.add(user)
     db.session.commit()
-    print(f"[seed] Super admin criado: {email}")
+
+    if senha_gerada:
+        print(
+            "[seed] Super admin criado SEM SUPERADMIN_PASSWORD definido.\n"
+            f"       Email: {email}\n"
+            f"       Senha temporaria: {password}\n"
+            "       MUDE NO PRIMEIRO LOGIN — esta linha so aparece uma vez."
+        )
+    else:
+        print(f"[seed] Super admin criado: {email}"
+              + (" (TROCA DE SENHA OBRIGATORIA NO 1o LOGIN)" if senha_fraca else ""))
 
 
 def run_seed():

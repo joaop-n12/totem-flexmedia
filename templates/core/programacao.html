@@ -1,26 +1,111 @@
 {% extends "base.html" %}
 {% block content %}
+{# ────────────────────────────────────────────────────────────────────
+   Pagina unificada: "Programacao e Alimentacao" do dia.
+   Backend permanece intacto — recebemos `eventos` (lista de dicts com
+   horario, evento, local, descricao) vinda de core.programacao().
+   Aqui apenas separamos visualmente as alimentacoes (containing
+   "alimenta"/"refei" no nome) das demais atividades, atravs de
+   filtros Jinja em duas passadas (no precisa de extensao 'do').
+   ──────────────────────────────────────────────────────────────────── #}
+
 <div class="page-header">
-  <div class="page-eyebrow">📅 Programação</div>
-  <h2 class="page-title">Programação do Dia</h2>
-  <p class="page-desc">Horários e atividades especiais de hoje</p>
+  <div class="page-eyebrow">Hoje no parque</div>
+  <h2 class="page-title">Programacao e Alimentacao</h2>
+  <p class="page-desc">Horarios das atividades especiais, apresentacoes e momentos de alimentacao dos animais.</p>
 </div>
 
-<div class="stack">
-  {% for ev in eventos %}
-  <div class="event-card">
-    <div class="event-time-col">
-      <span class="event-time-value">{{ ev.horario }}</span>
-      <span class="event-time-label">Hoje</span>
-    </div>
-    <div class="event-content">
-      <div class="event-name">{{ ev.evento }}</div>
-      <div class="event-location">📍 {{ ev.local }}</div>
-      {% if ev.descricao %}<p style="font-size:13px;color:var(--text-soft);margin-top:6px;">{{ ev.descricao }}</p>{% endif %}
-    </div>
+{# Detecta presenca de evento de alimentacao via namespace (escopo Jinja) #}
+{% set food_ns = namespace(has=false) %}
+{% for ev in eventos %}
+  {% set n = (ev.evento or '') | lower %}
+  {% if 'aliment' in n or 'refei' in n or 'comida' in n or 'jantar' in n %}
+    {% set food_ns.has = true %}
+  {% endif %}
+{% endfor %}
+
+{% if food_ns.has %}
+<section style="margin-bottom: 32px;">
+  <h3 style="font-size: 15px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase;
+             color: var(--accent); margin: 0 0 14px; display: flex; align-items: center; gap: 10px;">
+    <span style="font-size: 22px;">🍖</span> Alimentacao dos animais
+  </h3>
+  <div class="stack">
+    {% for ev in eventos %}
+      {% set n = (ev.evento or '') | lower %}
+      {% if 'aliment' in n or 'refei' in n or 'comida' in n or 'jantar' in n %}
+      <div class="event-card">
+        <div class="event-time-col">
+          <span class="event-time-value">{{ ev.horario }}</span>
+          <span class="event-time-label">Hoje</span>
+        </div>
+        <div class="event-content">
+          <div class="event-name">{{ ev.evento }}</div>
+          <div class="event-location">📍 {{ ev.local }}</div>
+          {% if ev.descricao %}
+          <p style="font-size: 13px; color: var(--text-soft); margin-top: 6px; line-height: 1.55;">
+            {{ ev.descricao }}
+          </p>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    {% endfor %}
   </div>
-  {% else %}
-  <p class="muted" style="text-align:center;padding:40px 0;">Nenhum evento programado para hoje.</p>
-  {% endfor %}
+</section>
+{% endif %}
+
+{# ── Secao: demais atividades e apresentacoes ── #}
+<section style="margin-bottom: 24px;">
+  <h3 style="font-size: 15px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase;
+             color: var(--accent); margin: 0 0 14px; display: flex; align-items: center; gap: 10px;">
+    <span style="font-size: 22px;">📅</span> Atividades e apresentacoes
+  </h3>
+  <div class="stack">
+    {% set ns = namespace(count=0) %}
+    {% for ev in eventos %}
+      {% set n = (ev.evento or '') | lower %}
+      {% if not ('aliment' in n or 'refei' in n or 'comida' in n or 'jantar' in n) %}
+      {% set ns.count = ns.count + 1 %}
+      <div class="event-card">
+        <div class="event-time-col">
+          <span class="event-time-value">{{ ev.horario }}</span>
+          <span class="event-time-label">Hoje</span>
+        </div>
+        <div class="event-content">
+          <div class="event-name">{{ ev.evento }}</div>
+          <div class="event-location">📍 {{ ev.local }}</div>
+          {% if ev.descricao %}
+          <p style="font-size: 13px; color: var(--text-soft); margin-top: 6px; line-height: 1.55;">
+            {{ ev.descricao }}
+          </p>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    {% endfor %}
+
+    {% if ns.count == 0 and not food_ns.has %}
+    <div class="catalog-empty">
+      <div class="catalog-empty-icon">📅</div>
+      <div class="catalog-empty-title">Nenhuma atividade programada</div>
+      <p class="catalog-empty-desc">Volte mais tarde para conferir o cronograma do dia.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{# Atalho para alimentacao do visitante (CTA) #}
+{% if institution.has_module('alimentacao') %}
+<div class="info-panel" style="margin-top: 24px;">
+  <h3>Procurando onde comer?</h3>
+  <p style="color: var(--text-soft); line-height: 1.7; margin-bottom: 14px;">
+    Veja todos os restaurantes, lanchonetes e quiosques disponiveis no parque.
+  </p>
+  <a class="btn" href="{{ url_for('core.alimentacao', slug=institution.slug) }}">
+    🍽️ Ver pontos de alimentacao
+  </a>
 </div>
+{% endif %}
+
 {% endblock %}

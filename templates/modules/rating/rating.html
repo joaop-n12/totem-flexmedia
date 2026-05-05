@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Avaliação · {{ institution.name }}{% endblock %}
+
+{% block content %}
+<div id="ratingApp" class="rating-app">
+
+  {# ── 1) Pergunta inicial ─────────────────────────────────────────────── #}
+  <section id="ratingIntro" class="rating-screen">
+    <h1 class="rating-title">Como foi sua experiência?</h1>
+    <p class="rating-subtitle">
+      Levam menos de 30 segundos. Sua resposta é anônima.
+    </p>
+    <div class="rating-actions">
+      <button class="rating-btn rating-btn-primary" id="ratingBtnYes">
+        {{ t('common.yes') }}, avaliar
+      </button>
+      <a class="rating-btn rating-btn-secondary"
+         href="{{ url_for('core.home', slug=institution.slug) }}">
+        {{ t('common.no') }}, voltar
+      </a>
+    </div>
+  </section>
+
+  {# ── 2) Formulario de estrelas + comentario ─────────────────────────── #}
+  <section id="ratingForm" class="rating-screen" hidden>
+    <h2 class="rating-title">Toque nas estrelas</h2>
+    <div class="rating-stars" id="ratingStars" role="radiogroup" aria-label="Estrelas">
+      {% for i in range(1, 6) %}
+      <button type="button" class="rating-star" data-stars="{{ i }}"
+              role="radio" aria-checked="false" aria-label="{{ i }} estrelas">★</button>
+      {% endfor %}
+    </div>
+    <label class="rating-label" for="ratingComment">Quer deixar um comentário? (opcional)</label>
+    <textarea id="ratingComment" class="rating-textarea" rows="3" maxlength="600"
+              placeholder="O que você mais gostou ou o que pode melhorar?"></textarea>
+    <div class="rating-actions">
+      <button class="rating-btn rating-btn-primary" id="ratingSubmit" disabled>Enviar</button>
+      <button class="rating-btn rating-btn-secondary" id="ratingCancel" type="button">Cancelar</button>
+    </div>
+    <p class="rating-error" id="ratingError" hidden></p>
+  </section>
+
+  {# ── 3) Obrigado ─────────────────────────────────────────────────────── #}
+  <section id="ratingThanks" class="rating-screen" hidden>
+    <h1 class="rating-title">Obrigado pela avaliação! ✨</h1>
+    <p class="rating-subtitle">Sua resposta nos ajuda a melhorar.</p>
+    <a class="rating-btn rating-btn-primary"
+       href="{{ url_for('core.home', slug=institution.slug) }}">
+      Voltar à tela inicial
+    </a>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  const SUBMIT_URL = "{{ url_for('rating.submit_rating', slug=institution.slug) }}";
+  const HOME_URL   = "{{ url_for('core.home', slug=institution.slug) }}";
+
+  const $ = (id) => document.getElementById(id);
+  const screens = ['ratingIntro', 'ratingForm', 'ratingThanks'];
+  function showScreen(id) { screens.forEach(s => $(s).hidden = (s !== id)); }
+
+  let stars = 0;
+
+  $('ratingBtnYes').addEventListener('click', () => showScreen('ratingForm'));
+  $('ratingCancel').addEventListener('click', () => location.href = HOME_URL);
+
+  // ── Estrelas: clique seleciona; UI mostra preenchidas ate o valor escolhido.
+  document.querySelectorAll('.rating-star').forEach(btn => {
+    btn.addEventListener('click', () => {
+      stars = parseInt(btn.dataset.stars, 10);
+      document.querySelectorAll('.rating-star').forEach(s => {
+        const v = parseInt(s.dataset.stars, 10);
+        s.classList.toggle('rating-star-on', v <= stars);
+        s.setAttribute('aria-checked', v === stars ? 'true' : 'false');
+      });
+      $('ratingSubmit').disabled = false;
+    });
+  });
+
+  // ── Submit ────────────────────────────────────────────────────────────
+  $('ratingSubmit').addEventListener('click', async () => {
+    if (stars < 1 || stars > 5) return;
+    $('ratingSubmit').disabled = true;
+    $('ratingError').hidden = true;
+    const comment = ($('ratingComment').value || '').trim();
+    try {
+      const r = await fetch(SUBMIT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stars, comment }),
+      });
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        $('ratingError').textContent = data.message || 'Não foi possível enviar.';
+        $('ratingError').hidden = false;
+        $('ratingSubmit').disabled = false;
+        return;
+      }
+      showScreen('ratingThanks');
+      // Volta para a Home apos uma janela curta de leitura.
+      setTimeout(() => { location.href = HOME_URL; }, 6000);
+    } catch (_) {
+      $('ratingError').textContent = 'Sem conexão. Tente novamente.';
+      $('ratingError').hidden = false;
+      $('ratingSubmit').disabled = false;
+    }
+  });
+})();
+</script>
+
+<style>
+  .rating-app { display:flex; justify-content:center; padding:32px 24px; min-height:60vh; }
+  .rating-screen { display:flex; flex-direction:column; align-items:center; gap:14px; max-width:560px; width:100%; text-align:center; }
+  .rating-title { font-size:30px; line-height:1.2; margin:0; }
+  .rating-subtitle { font-size:16px; opacity:.8; margin:0; }
+  .rating-stars { display:flex; gap:14px; justify-content:center; margin:14px 0; }
+  .rating-star {
+    font-size:56px; line-height:1; background:none; border:none; cursor:pointer;
+    color:rgba(255,255,255,.25); transition:color .12s, transform .12s;
+  }
+  .rating-star:hover, .rating-star-on { color:#fbbf24; transform:scale(1.05); }
+  .rating-label { font-size:14px; opacity:.8; margin-top:8px; align-self:flex-start; }
+  .rating-textarea {
+    width:100%; padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.15);
+    background:rgba(255,255,255,.05); color:inherit; font-size:16px; resize:vertical;
+  }
+  .rating-actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:18px; }
+  .rating-btn {
+    padding:14px 28px; font-size:16px; font-weight:600; border-radius:12px;
+    cursor:pointer; text-decoration:none; display:inline-block; border:1px solid currentColor;
+  }
+  .rating-btn-primary { background:var(--accent, #3b82f6); color:#fff; border-color:transparent; }
+  .rating-btn-primary:disabled { opacity:.4; cursor:not-allowed; }
+  .rating-btn-secondary { background:transparent; color:inherit; }
+  .rating-error { color:#fca5a5; font-size:14px; }
+</style>
+{% endblock %}

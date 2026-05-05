@@ -1,12 +1,18 @@
 {% extends "admin/base.html" %}
 
-{% if action == 'edit' %}
-  {% block title %}Editar {{ inst.name }}{% endblock %}
-  {% block topbar_title %}Editar Instituição{% endblock %}
-{% else %}
-  {% block title %}Nova Instituição{% endblock %}
-  {% block topbar_title %}Nova Instituição{% endblock %}
-{% endif %}
+{% set is_edit = (action == 'edit') %}
+
+{% block title %}
+  {% if is_edit %}
+    Editar {{ inst.name }}
+  {% else %}
+    Nova Instituição
+  {% endif %}
+{% endblock %}
+
+{% block topbar_title %}
+  {{ "Editar Instituição" if is_edit else "Nova Instituição" }}
+{% endblock %}
 
 {% block breadcrumb %}
   <a href="{{ url_for('admin_platform.institution_list') }}">Instituições</a>
@@ -199,7 +205,58 @@
     <button class="btn btn-primary" type="submit">
       {{ 'Salvar alterações' if action == 'edit' else 'Criar instituição' }}
     </button>
+    {% if is_edit %}
+    {# Pre-visualizar abre a Home do totem com as cores/tema digitados,
+       SEM persistir nada. Util pra validar branding antes de salvar
+       (Trello: Modulo 1 White Label - 1.4). #}
+    <button class="btn btn-secondary" type="button" id="previewBtn">
+      👁 Pré-visualizar
+    </button>
+    {% endif %}
     <a class="btn btn-secondary" href="{{ url_for('admin_platform.institution_list') }}">Cancelar</a>
   </div>
 </form>
+
+{% if is_edit %}
+<script>
+  // ── Pre-visualizacao em nova aba ─────────────────────────────────────────
+  // Usamos POST + form dinamico em vez de GET com querystring por dois motivos:
+  //   1. tagline e ai_context podem ter caracteres especiais que escaparia mal.
+  //   2. Mantemos o token CSRF da sessao atual (mesmo padrao do form principal).
+  (function () {
+    const btn = document.getElementById('previewBtn');
+    if (!btn) return;
+    const PREVIEW_URL = "{{ url_for('admin_platform.institution_preview', iid=inst.id) }}";
+    const CSRF = "{{ csrf_token() }}";
+
+    btn.addEventListener('click', function () {
+      const fields = ['primary_color','secondary_color','bg_color','text_color',
+                      'theme','tagline','ai_name'];
+      const f = document.createElement('form');
+      f.method = 'POST';
+      f.action = PREVIEW_URL;
+      f.target = '_blank';
+
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = '_csrf_token';
+      csrfInput.value = CSRF;
+      f.appendChild(csrfInput);
+
+      fields.forEach(name => {
+        const src = document.querySelector(`[name="${name}"]`);
+        if (!src) return;
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = name;
+        inp.value = src.value || '';
+        f.appendChild(inp);
+      });
+      document.body.appendChild(f);
+      f.submit();
+      f.remove();
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}

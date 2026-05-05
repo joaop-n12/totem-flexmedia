@@ -1,0 +1,57 @@
+{# Etapa 2 do login — codigo TOTP de 6 digitos ou codigo de backup. #}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Verificacao em duas etapas · FlexMedia</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body>
+
+<div class="login-page">
+  <main class="login-form-panel" style="grid-column: 1 / -1;">
+    <div class="login-box">
+      <h2 class="login-box-title">Verificacao em duas etapas</h2>
+      <p class="login-box-sub">
+        Digite o codigo de 6 digitos do seu app autenticador, ou um codigo
+        de backup no formato <code>xxxx-xxxx</code>.
+      </p>
+
+      {% if error %}
+      <div class="login-error">{{ error }}</div>
+      {% endif %}
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in messages %}
+        <div class="login-error">{{ msg }}</div>
+        {% endfor %}
+      {% endwith %}
+
+      <form method="post" action="{{ url_for('auth.totp_challenge') }}" autocomplete="off">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group" style="margin-bottom:24px;">
+          <label class="form-label">Codigo</label>
+          <input class="form-control" type="text" name="code"
+                 inputmode="numeric" pattern="[0-9a-fA-F\- ]*"
+                 placeholder="000000" autofocus required
+                 style="letter-spacing:6px;font-size:20px;text-align:center;">
+        </div>
+
+        <button class="btn btn-primary btn-block btn-lg" type="submit">
+          Confirmar e entrar
+        </button>
+      </form>
+
+      <p style="text-align:center;margin-top:18px;font-size:12.5px;">
+        <a href="{{ url_for('auth.logout') }}" style="color:var(--a-muted);">
+          Cancelar e voltar ao login
+        </a>
+      </p>
+    </div>
+  </main>
+</div>
+
+</body>
+</html>

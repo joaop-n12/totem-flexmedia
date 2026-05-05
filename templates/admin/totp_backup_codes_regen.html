@@ -1,0 +1,38 @@
+{# Confirmacao de regeneracao dos codigos de backup. Pede senha. #}
+{% extends "admin/base.html" %}
+{% block title %}Regerar codigos de backup{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Regerar codigos de backup</h1>
+  <p class="page-sub">
+    Voce tem <strong>{{ remaining }}</strong> codigo(s) restante(s).
+    Regerar invalida todos os codigos antigos. Confirme com sua senha atual.
+  </p>
+</div>
+
+<div class="card" style="max-width:480px;">
+  <div class="card-body">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+      <div class="alert alert-error">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="post" action="{{ url_for('auth.totp_backup_codes') }}" autocomplete="off">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-group">
+        <label class="form-label">Senha atual</label>
+        <input class="form-control" type="password" name="password"
+               autocomplete="current-password" required>
+      </div>
+
+      <button class="btn btn-primary" type="submit">Gerar novos codigos</button>
+      <a class="btn btn-link" href="{{ url_for('admin_platform.dashboard') if current_user.is_super_admin else url_for('admin_institution.dashboard', iid=current_user.institution_id) }}">
+        Cancelar
+      </a>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,147 +1,741 @@
 {% extends "base.html" %}
+{% block body_class %}page-home neural-home{% endblock %}
 {% block content %}
 
-<div class="totem-shell" style="min-height:calc(100vh - var(--topbar-h) - var(--bnav-h));">
+{# ───────────────────────────────────────────────────────────────────
+   Tela inicial do totem — Identidade visual Neural Crew.
+   Paleta: coral/laranja do cérebro (#e85d4e) + dourado/âmbar do texto
+   (#f5b34a) sobre grafite profundo (#0a1320). Suporta retrato e
+   paisagem com transição automática. Botões mantêm rotas originais
+   para preservar integração com backend (voice, zoo, mapa, programação).
+   ─────────────────────────────────────────────────────────────────── #}
 
-  <header class="totem-header">
-    {% if institution.logo_path %}
-    <img class="totem-logo" src="{{ url_for('static', filename=institution.logo_path) }}" alt="Logo">
-    {% endif %}
-    <div class="totem-brand">
-      <h1 class="totem-title">{{ institution.name }}</h1>
-      <p class="totem-subtitle">{{ institution.tagline or '' }}</p>
-    </div>
-    <div class="totem-clock-box">
-      <div class="totem-clock" id="totemClock">00:00</div>
-      <div class="totem-date"  id="totemDate">Carregando...</div>
-    </div>
-  </header>
+<style>
+  /* ── Paleta Neural Crew ── */
+  body.neural-home {
+    --nc-coral:        #e85d4e;   /* coral do cérebro */
+    --nc-coral-bright: #ff7a5c;   /* hover/glow */
+    --nc-coral-deep:   #b8392c;
+    --nc-amber:        #f5b34a;   /* dourado do texto */
+    --nc-amber-bright: #ffc966;
+    --nc-amber-deep:   #c98a28;
+    --nc-bg:           #0a1320;   /* grafite profundo */
+    --nc-bg-2:         #0f1a2b;   /* superfícies */
+    --nc-bg-3:         #16243a;   /* superfícies elevadas */
+    --nc-line:         rgba(245,179,74,0.12);
+    --nc-text:         #f4f1ea;
+    --nc-text-dim:     #8a96a8;
+  }
 
-  <main class="totem-main">
-    <div class="totem-grid">
+  /* ── Fundo dark com gradiente e glow central ── */
+  body.neural-home {
+    background:
+      radial-gradient(ellipse at 50% 30%, rgba(232,93,78,0.10) 0%, transparent 45%),
+      radial-gradient(ellipse at 50% 70%, rgba(245,179,74,0.08) 0%, transparent 50%),
+      radial-gradient(circle at 15% 85%, rgba(232,93,78,0.06), transparent 40%),
+      radial-gradient(circle at 85% 15%, rgba(245,179,74,0.06), transparent 40%),
+      linear-gradient(180deg, #060c17 0%, #0a1320 50%, #0d1828 100%) !important;
+    color: var(--nc-text);
+    overflow: hidden;
+  }
 
-      {% set icons = {'animais':'🐾','mapa':'🗺️','programacao':'📅','alimentacao':'🍽️','ia':'💬','lojas':'🛍️','produtos':'💊','quiz':'🎮'} %}
-      {% set labels = {'animais':'Animais','mapa':'Mapa','programacao':'Programação','alimentacao':'Alimentação','ia':'Assistente IA','lojas':'Lojas','produtos':'Produtos','quiz':'Quiz'} %}
-      {% set descs  = {'animais':'Conheça as espécies','mapa':'Encontre atrações','programacao':'Horários do dia','alimentacao':'Praça de alimentação','ia':'Pergunte por voz','lojas':'Encontre lojas','produtos':'Buscar produtos','quiz':'Jogar e aprender'} %}
-      {% set url_map = {
-        'animais':     url_for('zoo.especies',       slug=institution.slug),
-        'mapa':        url_for('core.mapa',          slug=institution.slug),
-        'programacao': url_for('core.programacao',   slug=institution.slug),
-        'alimentacao': url_for('core.alimentacao',   slug=institution.slug),
-        'ia':          url_for('voice.ia_page',      slug=institution.slug),
-        'lojas':       url_for('shopping.lojas',     slug=institution.slug),
-        'produtos':    url_for('pharmacy.produtos',  slug=institution.slug),
-      } %}
+  /* Canvas neural fica atrás de tudo */
+  #neuralCanvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.55;
+  }
 
-      {% for imod in institution.enabled_modules() %}
-        {% if imod.module_slug != 'home' and imod.module_slug in url_map %}
-        <a class="totem-card totem-card-{{ (loop.index0 % 4) + 1 }}"
-           href="{{ url_map[imod.module_slug] }}">
-          <div class="totem-icon-wrap">
-            <span class="totem-emoji">{{ icons.get(imod.module_slug, '📌') }}</span>
-          </div>
-          <div class="totem-card-title">{{ labels.get(imod.module_slug, imod.module_slug.title()) }}</div>
-          <div class="totem-card-desc">{{ descs.get(imod.module_slug, '') }}</div>
-          <div class="totem-card-accent"></div>
-        </a>
-        {% endif %}
-      {% endfor %}
+  /* Vinheta sutil pra dar profundidade */
+  body.neural-home::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.55) 100%);
+    pointer-events: none;
+    z-index: 1;
+  }
 
-    </div>
+  /* ── Topbar futurista ── */
+  body.neural-home .topbar {
+    background: rgba(10,19,32,0.80);
+    backdrop-filter: blur(18px) saturate(120%);
+    -webkit-backdrop-filter: blur(18px) saturate(120%);
+    border-bottom: 1px solid var(--nc-line);
+    box-shadow: 0 1px 0 rgba(245,179,74,0.10), 0 8px 32px rgba(0,0,0,0.4);
+    padding: 14px 28px;
+    position: relative;
+    z-index: 10;
+  }
+  body.neural-home .topbar .brand .logo {
+    height: 44px !important;
+    width: 44px !important;
+    border-radius: 10px !important;
+    object-fit: cover;
+    background: var(--nc-bg-2) !important;
+    border: 1px solid rgba(245,179,74,0.25);
+    box-shadow: 0 0 20px rgba(232,93,78,0.35), inset 0 0 0 1px rgba(255,255,255,0.04);
+  }
+  body.neural-home .brand-text { display: flex; flex-direction: column; gap: 2px; }
+  body.neural-home .brand-title {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--nc-amber);
+    text-transform: uppercase;
+    font-size: 15px;
+    line-height: 1;
+    text-shadow: 0 0 12px rgba(245,179,74,0.3);
+  }
+  body.neural-home .brand-subtitle {
+    color: var(--nc-text-dim);
+    font-weight: 500;
+    letter-spacing: 3px;
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+  body.neural-home .topbar-clock {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    padding: 6px 14px;
+    border-radius: 10px;
+    background: rgba(245,179,74,0.06);
+    border: 1px solid rgba(245,179,74,0.18);
+  }
+  body.neural-home .topbar-clock-time {
+    color: var(--nc-amber);
+    font-weight: 700;
+    font-size: 22px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 14px rgba(245,179,74,0.55);
+    letter-spacing: 1px;
+  }
+  body.neural-home .topbar-clock-date {
+    color: var(--nc-text-dim);
+    font-size: 11px;
+    margin-top: 4px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  body.neural-home .fs-btn {
+    color: var(--nc-text-dim);
+    border: 1px solid var(--nc-line);
+    background: rgba(245,179,74,0.04);
+    border-radius: 10px;
+    width: 38px; height: 38px;
+    transition: all 0.2s ease;
+  }
+  body.neural-home .fs-btn:hover {
+    color: var(--nc-amber);
+    border-color: var(--nc-amber);
+    box-shadow: 0 0 16px rgba(245,179,74,0.3);
+  }
+
+  /* ── Layout principal ── */
+  .nc-shell {
+    position: relative;
+    z-index: 2;
+    min-height: calc(100vh - 80px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 40px 28px 24px;
+    box-sizing: border-box;
+    gap: 32px;
+  }
+
+  /* ── Hero ── */
+  .nc-hero {
+    text-align: center;
+    margin-top: 20px;
+    position: relative;
+  }
+  /* Spotlight atrás do título */
+  .nc-hero::before {
+    content: "";
+    position: absolute;
+    top: -40px; left: 50%;
+    transform: translateX(-50%);
+    width: 600px; height: 240px;
+    background: radial-gradient(ellipse, rgba(232,93,78,0.18) 0%, transparent 60%);
+    filter: blur(40px);
+    pointer-events: none;
+    z-index: -1;
+  }
+  .nc-hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(245,179,74,0.06);
+    color: var(--nc-amber);
+    border: 1px solid rgba(245,179,74,0.32);
+    padding: 8px 22px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    backdrop-filter: blur(8px);
+  }
+  .nc-hero-eyebrow::before {
+    content: "";
+    width: 7px; height: 7px;
+    background: var(--nc-coral);
+    border-radius: 50%;
+    box-shadow: 0 0 12px var(--nc-coral), 0 0 4px var(--nc-coral);
+    animation: nc-pulse 2s ease-in-out infinite;
+  }
+  @keyframes nc-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.4; transform: scale(0.7); }
+  }
+  .nc-hero-title {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 900;
+    font-size: clamp(40px, 6vw, 72px);
+    line-height: 1;
+    margin: 0 0 16px;
+    color: var(--nc-text);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-shadow: 0 4px 30px rgba(0,0,0,0.6);
+  }
+  .nc-hero-title .accent {
+    background: linear-gradient(135deg, var(--nc-amber) 0%, var(--nc-coral) 60%, var(--nc-amber) 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    display: block;
+    animation: nc-shine 6s linear infinite;
+  }
+  @keyframes nc-shine {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+  .nc-hero-sub {
+    font-size: clamp(15px, 1.5vw, 19px);
+    color: var(--nc-text-dim);
+    margin: 0;
+    max-width: 640px;
+    margin-inline: auto;
+    letter-spacing: 0.5px;
+    line-height: 1.5;
+  }
+
+  /* ── Grade de botões ── */
+  .nc-grid {
+    display: grid;
+    gap: 22px;
+    width: 100%;
+    max-width: 1100px;
+    grid-template-columns: 1fr;
+  }
+
+  .nc-btn {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 38px 24px;
+    background:
+      linear-gradient(180deg, rgba(22,36,58,0.85) 0%, rgba(15,26,43,0.95) 100%);
+    border: 1px solid var(--nc-line);
+    border-radius: 22px;
+    color: var(--nc-text);
+    text-decoration: none;
+    text-align: center;
+    transition: transform 0.25s cubic-bezier(.2,.9,.3,1.2),
+                border-color 0.25s ease,
+                box-shadow 0.25s ease;
+    min-height: 190px;
+    overflow: hidden;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  /* Linha luminosa no topo */
+  .nc-btn::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 10%; right: 10%;
+    height: 1.5px;
+    background: linear-gradient(90deg, transparent, var(--nc-amber), transparent);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  /* Glow de fundo no hover */
+  .nc-btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 50% 0%, rgba(245,179,74,0.18), transparent 55%),
+      radial-gradient(circle at 50% 100%, rgba(232,93,78,0.12), transparent 60%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .nc-btn:hover, .nc-btn:active {
+    transform: translateY(-5px) scale(1.01);
+    border-color: rgba(245,179,74,0.55);
+    box-shadow:
+      0 20px 60px rgba(0,0,0,0.55),
+      0 0 0 1px rgba(245,179,74,0.30),
+      0 0 50px rgba(232,93,78,0.18);
+  }
+  .nc-btn:active { transform: translateY(-2px) scale(0.99); }
+  .nc-btn:hover::before, .nc-btn:active::before { opacity: 1; }
+  .nc-btn:hover::after,  .nc-btn:active::after  { opacity: 1; }
+
+  .nc-btn-icon-wrap {
+    width: 78px; height: 78px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 18px;
+    background:
+      radial-gradient(circle at 30% 20%, rgba(232,93,78,0.22), transparent 65%),
+      linear-gradient(135deg, rgba(245,179,74,0.10), rgba(232,93,78,0.06));
+    border: 1px solid rgba(245,179,74,0.22);
+    position: relative;
+    z-index: 1;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  .nc-btn:hover .nc-btn-icon-wrap {
+    transform: scale(1.06);
+    box-shadow: 0 0 30px rgba(245,179,74,0.35);
+  }
+  .nc-btn-icon {
+    width: 42px; height: 42px;
+    stroke: var(--nc-amber);
+    stroke-width: 1.8;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 8px rgba(245,179,74,0.45));
+  }
+  .nc-btn:hover .nc-btn-icon { stroke: var(--nc-amber-bright); }
+
+  .nc-btn-label {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    font-size: clamp(17px, 1.7vw, 22px);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--nc-text);
+    position: relative;
+    z-index: 1;
+    transition: color 0.2s ease;
+  }
+  .nc-btn-desc {
+    font-size: 12px;
+    color: var(--nc-text-dim);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    position: relative;
+    z-index: 1;
+  }
+  .nc-btn:hover .nc-btn-label { color: var(--nc-amber-bright); }
+
+  /* ── Footer ── */
+  .nc-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 1100px;
+    padding: 20px 8px 8px;
+    border-top: 1px solid var(--nc-line);
+    position: relative;
+    z-index: 2;
+    gap: 16px;
+  }
+  .nc-lang { display: flex; gap: 8px; }
+  .nc-lang-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--nc-line);
+    background: rgba(15,26,43,0.7);
+    color: var(--nc-text-dim);
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    backdrop-filter: blur(8px);
+  }
+  .nc-lang-btn .flag { font-size: 20px; line-height: 1; }
+  .nc-lang-btn:hover {
+    border-color: rgba(245,179,74,0.45);
+    color: var(--nc-text);
+  }
+  .nc-lang-btn.is-active {
+    background: rgba(245,179,74,0.12);
+    border-color: var(--nc-amber);
+    color: var(--nc-amber);
+    box-shadow: 0 0 14px rgba(245,179,74,0.25);
+  }
+  .nc-a11y-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    border-radius: 12px;
+    border: 1px solid var(--nc-line);
+    background: rgba(15,26,43,0.7);
+    color: var(--nc-text-dim);
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    backdrop-filter: blur(8px);
+  }
+  .nc-a11y-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .nc-a11y-btn:hover {
+    color: var(--nc-amber);
+    border-color: var(--nc-amber);
+    box-shadow: 0 0 16px rgba(245,179,74,0.25);
+  }
+
+  /* ── Modo acessibilidade (fonte aumentada) ── */
+  body.neural-home.a11y-large .nc-hero-title { font-size: clamp(48px, 7vw, 84px); }
+  body.neural-home.a11y-large .nc-btn-label  { font-size: clamp(20px, 2vw, 26px); }
+  body.neural-home.a11y-large .nc-btn        { min-height: 220px; }
+
+  /* ── Paisagem (>= 900px) → 2 colunas ── */
+  @media (min-width: 900px) and (orientation: landscape) {
+    .nc-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 26px;
+      max-width: 940px;
+    }
+    .nc-btn { min-height: 210px; padding: 42px 28px; }
+    .nc-btn-icon-wrap { width: 84px; height: 84px; }
+    .nc-btn-icon { width: 46px; height: 46px; }
+  }
+
+  /* Paisagem larga (>= 1400px) → 4 colunas em linha única */
+  @media (min-width: 1400px) and (orientation: landscape) {
+    .nc-grid {
+      grid-template-columns: repeat(4, 1fr);
+      max-width: 1240px;
+      gap: 22px;
+    }
+    .nc-btn { min-height: 240px; }
+  }
+
+  /* Totem retrato 1080x1920 — mais respiro */
+  @media (orientation: portrait) and (min-height: 1200px) {
+    .nc-shell { padding: 70px 40px 36px; gap: 48px; }
+    .nc-grid { gap: 28px; }
+    .nc-btn { min-height: 230px; }
+    .nc-btn-icon-wrap { width: 92px; height: 92px; }
+    .nc-btn-icon { width: 50px; height: 50px; }
+  }
+
+  /* Esconder footer global e bottom-nav (esta tela tem o próprio footer) */
+  body.neural-home > .page-wrapper > .footer { display: none; }
+  body.neural-home > .bottom-nav { display: none; }
+
+  /* Reduzir movimento se o usuário preferir */
+  @media (prefers-reduced-motion: reduce) {
+    .nc-hero-title .accent { animation: none; }
+    .nc-hero-eyebrow::before { animation: none; }
+    #neuralCanvas { display: none; }
+  }
+</style>
+
+{# Canvas com rede neural animada (fica atrás) #}
+<canvas id="neuralCanvas" aria-hidden="true"></canvas>
+
+<div class="nc-shell">
+
+  <section class="nc-hero" aria-label="Boas-vindas">
+    <div class="nc-hero-eyebrow">Sistema Online · Inteligência Ativa</div>
+    <h1 class="nc-hero-title">
+      Bem-vindo à
+      <span class="accent">Neural Crew Zoo</span>
+    </h1>
+    <p class="nc-hero-sub">Escolha uma opção para iniciar o atendimento</p>
+  </section>
+
+  {# ── Mapa de URLs preservando integração com o backend ────────────
+     Os endpoints originais continuam ativos:
+       zoo.especies      → animais
+       core.mapa         → mapa
+       core.programacao  → programação
+       voice.ia_page     → assistente de IA (consome /api/voice e /api/chat)
+     ────────────────────────────────────────────────────────────────── #}
+  {% set url_animais     = url_for('zoo.especies',     slug=institution.slug) %}
+  {% set url_mapa        = url_for('core.mapa',        slug=institution.slug) %}
+  {% set url_programacao = url_for('core.programacao', slug=institution.slug) %}
+  {% set url_ia          = url_for('voice.ia_page',    slug=institution.slug) %}
+
+  <main class="nc-grid" role="navigation" aria-label="Menu principal do totem">
+
+    {# Animais #}
+    <a class="nc-btn" data-key="animais" href="{{ url_animais }}" aria-label="Animais">
+      <span class="nc-btn-icon-wrap">
+        {# pata estilizada — line icon #}
+        <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
+          <ellipse cx="24" cy="32" rx="11" ry="9"/>
+          <ellipse cx="11" cy="20" rx="4" ry="5"/>
+          <ellipse cx="37" cy="20" rx="4" ry="5"/>
+          <ellipse cx="17" cy="11" rx="3.5" ry="4.5"/>
+          <ellipse cx="31" cy="11" rx="3.5" ry="4.5"/>
+        </svg>
+      </span>
+      <span class="nc-btn-label">Animais</span>
+      <span class="nc-btn-desc">Explore as espécies</span>
+    </a>
+
+    {# Mapa #}
+    <a class="nc-btn" data-key="mapa" href="{{ url_mapa }}" aria-label="Mapa">
+      <span class="nc-btn-icon-wrap">
+        <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M6 12 L18 8 L30 12 L42 8 L42 36 L30 40 L18 36 L6 40 Z"/>
+          <line x1="18" y1="8" x2="18" y2="36"/>
+          <line x1="30" y1="12" x2="30" y2="40"/>
+          <circle cx="24" cy="22" r="3.5"/>
+        </svg>
+      </span>
+      <span class="nc-btn-label">Mapa</span>
+      <span class="nc-btn-desc">Encontre as atrações</span>
+    </a>
+
+    {# Programação e Alimentação #}
+    <a class="nc-btn" data-key="programacao" href="{{ url_programacao }}" aria-label="Programação e alimentação">
+      <span class="nc-btn-icon-wrap">
+        <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
+          <rect x="7" y="10" width="34" height="32" rx="3"/>
+          <line x1="7" y1="18" x2="41" y2="18"/>
+          <line x1="15" y1="6" x2="15" y2="14"/>
+          <line x1="33" y1="6" x2="33" y2="14"/>
+          <circle cx="17" cy="27" r="2"/>
+          <circle cx="24" cy="27" r="2"/>
+          <circle cx="31" cy="27" r="2"/>
+          <circle cx="17" cy="34" r="2"/>
+          <circle cx="24" cy="34" r="2"/>
+        </svg>
+      </span>
+      <span class="nc-btn-label">Programação e Alimentação</span>
+      <span class="nc-btn-desc">Horários e atividades do dia</span>
+    </a>
+
+    {# Assistente IA — leva à rota voice.ia_page (já integrada com /api/chat e /api/voice) #}
+    <a class="nc-btn" data-key="ia" href="{{ url_ia }}" aria-label="Assistente de inteligência artificial">
+      <span class="nc-btn-icon-wrap">
+        {# cérebro estilizado — combina com a logo Neural Crew #}
+        <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M18 8 C13 8 10 12 11 16 C8 18 8 23 11 25 C9 28 11 33 15 33 L18 33 L18 8 Z"/>
+          <path d="M30 8 C35 8 38 12 37 16 C40 18 40 23 37 25 C39 28 37 33 33 33 L30 33 L30 8 Z"/>
+          <line x1="18" y1="14" x2="22" y2="14"/>
+          <line x1="18" y1="20" x2="22" y2="20"/>
+          <line x1="18" y1="26" x2="22" y2="26"/>
+          <line x1="26" y1="14" x2="30" y2="14"/>
+          <line x1="26" y1="20" x2="30" y2="20"/>
+          <line x1="26" y1="26" x2="30" y2="26"/>
+          <line x1="24" y1="33" x2="24" y2="40"/>
+          <circle cx="24" cy="42" r="2"/>
+        </svg>
+      </span>
+      <span class="nc-btn-label">Assistente IA</span>
+      <span class="nc-btn-desc">Pergunte por voz ou texto</span>
+    </a>
+
   </main>
 
-  <div class="sensor-bar">
-    <div class="sensor-bar-header"><span class="live-dot"></span> IoT · Ao Vivo</div>
-    <div class="sensor-tile">
-      <span class="sensor-tile-icon">🌡</span>
-      <div class="sensor-tile-info">
-        <span class="sensor-tile-label">Temperatura</span>
-        <span class="sensor-tile-value"><strong id="tempValue">--</strong>°C</span>
-      </div>
+  <footer class="nc-footer">
+    <div class="nc-lang" role="group" aria-label="Selecionar idioma">
+      <button type="button" class="nc-lang-btn is-active" data-lang="pt" aria-label="Português">
+        <span class="flag">🇧🇷</span><span class="code">PT</span>
+      </button>
+      <button type="button" class="nc-lang-btn" data-lang="en" aria-label="English">
+        <span class="flag">🇺🇸</span><span class="code">EN</span>
+      </button>
+      <button type="button" class="nc-lang-btn" data-lang="es" aria-label="Español">
+        <span class="flag">🇪🇸</span><span class="code">ES</span>
+      </button>
     </div>
-    <div class="sensor-tile">
-      <span class="sensor-tile-icon">💧</span>
-      <div class="sensor-tile-info">
-        <span class="sensor-tile-label">Umidade</span>
-        <span class="sensor-tile-value"><strong id="umidValue">--</strong>%</span>
-      </div>
-    </div>
-    <div class="sensor-tile">
-      <span class="sensor-tile-icon">💡</span>
-      <div class="sensor-tile-info">
-        <span class="sensor-tile-label">Luminosidade</span>
-        <span class="sensor-tile-value"><strong id="luzValue">--</strong> lux</span>
-      </div>
-    </div>
-    <div class="sensor-tile">
-      <span class="sensor-tile-icon">👤</span>
-      <div class="sensor-tile-info">
-        <span class="sensor-tile-label">Presença</span>
-        <span class="sensor-tile-value" id="presencaValue">--</span>
-      </div>
-    </div>
-  </div>
 
-  <footer class="totem-footer">Toque em uma opção para começar &nbsp;·&nbsp; Plataforma FlexMedia</footer>
-</div>
-
-{# Sleep overlay #}
-<div class="sleep-overlay" id="sleepOverlay" aria-hidden="true">
-  <div class="sleep-card">
-    {% if institution.logo_path %}
-    <img class="sleep-logo" src="{{ url_for('static', filename=institution.logo_path) }}" alt="Logo">
-    {% endif %}
-    <div class="sleep-title">{{ institution.name }}</div>
-    <div class="sleep-sub">Modo Descanso</div>
-    <div class="sleep-hint">Toque na tela para voltar</div>
-  </div>
+    <button type="button" class="nc-a11y-btn" id="ncA11yBtn" aria-label="Modo acessibilidade">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="4" r="2"/>
+        <path d="M5 9 L19 9"/>
+        <path d="M9 9 L9 13 L7 22"/>
+        <path d="M15 9 L15 13 L17 22"/>
+        <path d="M9 13 L15 13"/>
+      </svg>
+      Acessibilidade
+    </button>
+  </footer>
 </div>
 
 <script>
-  // Clock
-  (function(){
-    const dias=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
-    const meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-    function tick(){
-      const n=new Date();
-      document.getElementById('totemClock').textContent=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
-      document.getElementById('totemDate').textContent=`${dias[n.getDay()]}, ${n.getDate()} ${meses[n.getMonth()]} ${n.getFullYear()}`;
-    }
-    tick(); setInterval(tick,1000);
+  // ── Substitui a logo do topbar pela logo Neural Crew apenas nesta tela ──
+  (function () {
+    const wrap = document.querySelector('.topbar .brand');
+    if (!wrap) return;
+    const old = wrap.querySelector('.logo');
+    const img = document.createElement('img');
+    img.className = 'logo';
+    img.src = "{{ url_for('static', filename='images/logo.jpeg') }}";
+    img.alt = 'Neural Crew';
+    if (old) old.replaceWith(img);
+    else wrap.prepend(img);
+
+    // Atualiza textos da marca (sem tocar no banco, só visual nesta tela)
+    const title = wrap.querySelector('.brand-title');
+    const sub   = wrap.querySelector('.brand-subtitle');
+    if (title) title.textContent = 'NEURAL CREW';
+    if (sub)   sub.textContent   = 'TOTEM INTELIGENTE';
   })();
 
-  // Sensors
-  async function updateSensors(){
-    try{
-      const d=await fetch('/api/sensores').then(r=>r.json());
-      document.getElementById('tempValue').textContent=d.temperatura;
-      document.getElementById('umidValue').textContent=d.umidade;
-      document.getElementById('luzValue').textContent=d.luminosidade;
-      document.getElementById('presencaValue').textContent=d.presenca?'🟢 Detectado':'⚫ Ausente';
-    }catch(e){}
-  }
-  updateSensors(); setInterval(updateSensors,2000);
-
-  // Sleep mode (5 min)
-  (function(){
-    const SLEEP=5*60*1000;
-    const ov=document.getElementById('sleepOverlay');
-    let t=null;
-    const wake=()=>{ov.classList.remove('show');ov.setAttribute('aria-hidden','true');};
-    const reset=()=>{if(t)clearTimeout(t);if(ov.classList.contains('show'))wake();t=setTimeout(()=>{ov.classList.add('show');ov.setAttribute('aria-hidden','false');},SLEEP);};
-    ['mousemove','mousedown','click','touchstart','touchmove'].forEach(ev=>window.addEventListener(ev,reset,{passive:true}));
-    ov.addEventListener('click',reset); ov.addEventListener('touchstart',reset,{passive:true});
-    reset();
+  // ── Alternância de idioma (visual; i18n real virá depois) ──
+  (function () {
+    const btns = document.querySelectorAll('.nc-lang-btn');
+    btns.forEach(b => b.addEventListener('click', () => {
+      btns.forEach(x => x.classList.remove('is-active'));
+      b.classList.add('is-active');
+    }));
   })();
 
-  // Fullscreen (totem button)
-  (function(){
-    const btn=document.getElementById('totemFsBtn');
-    if(!btn)return;
-    btn.addEventListener('click',()=>{
-      if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
-      else document.exitFullscreen?.();
+  // ── Botão de acessibilidade (alterna fonte aumentada) ──
+  (function () {
+    const btn = document.getElementById('ncA11yBtn');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      document.body.classList.toggle('a11y-large');
     });
   })();
+
+  // ── Canvas: rede neural animada (otimizada para Pi 3) ─────────────────
+  // OTIMIZACOES vs versao anterior:
+  //   - Nodes 55 → 28 (Pi 3 / dispositivos lentos detectados via deviceMemory)
+  //   - shadowBlur removido (muito caro em GPUs fracas) → glow via segundo arc
+  //   - Throttle a ~30 FPS (humano nao percebe diferenca em fundos lentos)
+  //   - Pausa quando aba escondida (visibilitychange)
+  //   - Pausa quando offscreen (IntersectionObserver)
+  //   - dpr capado em 1.5 (evita 4K render no totem 1080p)
+  //   - usa squared-distance (evita sqrt no loop quente)
+  (function () {
+    const cvs = document.getElementById('neuralCanvas');
+    if (!cvs) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const ctx = cvs.getContext('2d', { alpha: true });
+    // deviceMemory < 2 (Pi 3 e similares) → metade dos nos
+    const lowMem  = (navigator.deviceMemory || 4) < 2;
+    const NODE_COUNT  = lowMem ? 18 : 28;
+    const MAX_DIST    = lowMem ? 130 : 160;
+    const MAX_DIST_SQ = MAX_DIST * MAX_DIST;
+    const FRAME_MS    = 1000 / 30; // 30 FPS
+
+    let w = 0, h = 0, dpr = 1, nodes = [];
+    let running = true, lastFrame = 0, rafId = 0;
+
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      w = cvs.clientWidth;
+      h = cvs.clientHeight;
+      cvs.width  = Math.floor(w * dpr);
+      cvs.height = Math.floor(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function init() {
+      resize();
+      nodes = Array.from({ length: NODE_COUNT }, () => ({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.22,
+        vy: (Math.random() - 0.5) * 0.22,
+        r: Math.random() * 1.4 + 0.7,
+        c: Math.random() > 0.5 ? '232,93,78' : '245,179,74'
+      }));
+    }
+
+    function tick(ts) {
+      rafId = requestAnimationFrame(tick);
+      if (!running) return;
+      // Throttle a 30 FPS
+      if (ts - lastFrame < FRAME_MS) return;
+      lastFrame = ts;
+
+      ctx.clearRect(0, 0, w, h);
+      const N = nodes.length;
+
+      // Linhas (loop quente — sem sqrt, sem shadowBlur)
+      ctx.lineWidth = 0.6;
+      for (let i = 0; i < N; i++) {
+        const a = nodes[i];
+        a.x += a.vx; a.y += a.vy;
+        if (a.x < 0 || a.x > w) a.vx = -a.vx;
+        if (a.y < 0 || a.y > h) a.vy = -a.vy;
+
+        for (let j = i + 1; j < N; j++) {
+          const b = nodes[j];
+          const dx = a.x - b.x, dy = a.y - b.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < MAX_DIST_SQ) {
+            const alpha = (1 - Math.sqrt(d2) / MAX_DIST) * 0.32;
+            ctx.strokeStyle = `rgba(245,179,74,${alpha})`;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Nodes (passada separada — evita troca de fillStyle a cada iteracao)
+      for (let i = 0; i < N; i++) {
+        const a = nodes[i];
+        // Glow leve sem shadowBlur (segundo arc maior + alpha menor)
+        ctx.fillStyle = `rgba(${a.c},0.18)`;
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, a.r * 3.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = `rgba(${a.c},0.9)`;
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    init();
+    let resizeT;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeT);
+      resizeT = setTimeout(() => { init(); }, 150);
+    }, { passive: true });
+
+    // Pausa quando aba esta em background
+    document.addEventListener('visibilitychange', () => {
+      running = !document.hidden;
+      lastFrame = 0;
+    });
+
+    rafId = requestAnimationFrame(tick);
+  })();
 </script>
+
 {% endblock %}

@@ -1,0 +1,68 @@
+{% extends "admin/base.html" %}
+{% block title %}Quiz — {{ inst.name }}{% endblock %}
+{% block topbar_title %}Quiz · {{ inst.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+  <div>
+    <h2 style="margin:0;">Perguntas do Quiz</h2>
+    <p style="color:var(--a-muted);margin:4px 0 0;font-size:14px;">
+      Total: {{ questions|length }} pergunta(s). O totem mostra até 5 aleatórias por sessão.
+    </p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('admin_institution.quiz_new', iid=inst.id) }}">+ Nova pergunta</a>
+</div>
+
+<div class="card" style="margin-top:18px;">
+  <div class="card-body" style="padding:0;">
+    <table class="table">
+      <thead>
+        <tr>
+          <th style="width:60px;">Ordem</th>
+          <th>Pergunta</th>
+          <th>Categoria</th>
+          <th style="width:120px;">Alternativas</th>
+          <th style="width:90px;">Status</th>
+          <th style="width:160px;">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for q in questions %}
+        <tr>
+          <td>{{ q.order }}</td>
+          <td>
+            {{ q.question }}
+            {% if q.curiosity %}
+            <div style="font-size:12px;color:var(--a-muted);margin-top:4px;">💡 {{ q.curiosity }}</div>
+            {% endif %}
+          </td>
+          <td>{{ q.category or '—' }}</td>
+          <td>{{ q.options|length }} ({{ q.correct_index + 1 }} correta)</td>
+          <td>
+            {% if q.active %}
+              <span class="badge badge-success">Ativa</span>
+            {% else %}
+              <span class="badge badge-muted">Oculta</span>
+            {% endif %}
+          </td>
+          <td>
+            <a class="btn btn-sm btn-secondary"
+               href="{{ url_for('admin_institution.quiz_edit', iid=inst.id, qid=q.id) }}">Editar</a>
+            <form method="post" style="display:inline;"
+                  action="{{ url_for('admin_institution.quiz_delete', iid=inst.id, qid=q.id) }}"
+                  onsubmit="return confirm('Remover esta pergunta?');">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-danger" type="submit">Remover</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center;color:var(--a-muted);padding:24px;">
+          Nenhuma pergunta cadastrada.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

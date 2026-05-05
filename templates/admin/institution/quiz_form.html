@@ -1,0 +1,81 @@
+{% extends "admin/base.html" %}
+{% set is_edit = (action == 'edit') %}
+{% block title %}{{ 'Editar' if is_edit else 'Nova' }} pergunta{% endblock %}
+{% block topbar_title %}Quiz · {{ inst.name }}{% endblock %}
+
+{% block content %}
+<form method="post">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h2>Pergunta</h2></div>
+    <div class="card-body">
+      <div class="form-group">
+        <label class="form-label">Pergunta *</label>
+        <input class="form-control" type="text" name="question" required maxlength="300"
+               value="{{ question.question if question else '' }}"
+               placeholder="Ex: Qual o animal mais rápido do zoológico?">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Categoria (opcional)</label>
+        <input class="form-control" type="text" name="category" maxlength="60"
+               value="{{ question.category if question and question.category else '' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Curiosidade (mostrada após a resposta)</label>
+        <textarea class="form-control" name="curiosity" rows="3" maxlength="600"
+                  placeholder="Trecho explicativo exibido no feedback.">{{ question.curiosity if question and question.curiosity else '' }}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <h2>Alternativas</h2>
+      <span style="color:var(--a-muted);font-size:12px;">
+        Marque a correta. Deixe linhas vazias para usar menos alternativas (mín. 2).
+      </span>
+    </div>
+    <div class="card-body">
+      {# Sempre 6 inputs no DOM — o servidor descarta os vazios. Marcar a
+         correta usa o mesmo `name` e value=indice (radio nativo). #}
+      {% set existing_opts = question.options if question else [] %}
+      {% set chosen = (question.correct_index if question else 0) %}
+      {% for i in range(6) %}
+      <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+        <input type="radio" name="correct_index" value="{{ i }}"
+               {{ 'checked' if i == chosen and existing_opts|length > i }}>
+        <input class="form-control" type="text" name="options" maxlength="120"
+               style="flex:1;"
+               placeholder="Alternativa {{ i + 1 }}{{ ' (obrigatória)' if i < 2 else '' }}"
+               value="{{ existing_opts[i] if existing_opts|length > i else '' }}">
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h2>Exibição</h2></div>
+    <div class="card-body">
+      <div class="form-group">
+        <label class="form-label">Ordem</label>
+        <input class="form-control" type="number" name="order" min="0" max="9999"
+               value="{{ question.order if question else 0 }}" style="max-width:120px;">
+      </div>
+      <div class="form-group">
+        <label class="form-check">
+          <input type="checkbox" name="active" {{ 'checked' if not question or question.active }}>
+          <span class="form-check-label">Pergunta ativa (visível no totem)</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">
+      {{ 'Salvar alterações' if is_edit else 'Criar pergunta' }}
+    </button>
+    <a class="btn btn-secondary" href="{{ url_for('admin_institution.quiz_list', iid=inst.id) }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

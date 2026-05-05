@@ -1,10 +1,28 @@
 """Core routes: institution selector, home, map, events, food."""
 import random
-from flask import Blueprint, render_template, redirect, url_for, abort, jsonify, g, send_from_directory, current_app
+from flask import Blueprint, render_template, redirect, url_for, abort, jsonify, g, request, send_from_directory, current_app
 from app.models import Institution, Event, MapArea
 from app.helpers import load_institution
+from app.services.i18n import SUPPORTED_LOCALES, set_locale
 
 core_bp = Blueprint("core", __name__)
+
+
+# ── Troca de idioma da sessao ─────────────────────────────────────────────────
+# Trello: Modulo 3 - Acessibilidade e Idiomas, criterios 3.1, 3.2, 3.6.
+@core_bp.route("/api/locale", methods=["POST"])
+def set_session_locale():
+    """Define o idioma da sessao atual.
+
+    Aceita JSON {"locale": "pt"|"en"} ou form. Retorna 400 se desconhecido.
+    Sem auth — visitante anonimo pode trocar idioma. Idempotente.
+    """
+    data = request.get_json(silent=True) or {}
+    locale = (data.get("locale") or request.form.get("locale") or "").strip().lower()
+    if not set_locale(locale):
+        return jsonify(error="locale_not_supported",
+                       supported=list(SUPPORTED_LOCALES.keys())), 400
+    return jsonify(ok=True, locale=locale)
 
 
 # Service worker precisa ser servido a partir da raiz para ter escopo global.

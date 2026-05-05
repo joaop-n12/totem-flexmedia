@@ -9,17 +9,17 @@
 
 O **Totem FlexMedia** é uma plataforma white label que permite operar totens interativos em múltiplas instituições — zoológicos, shoppings, farmácias, museus, aquários e parques — com uma única base de código.
 
-Cada instituição possui tema visual próprio, módulos configuráveis e um assistente de IA contextualizado com seu conteúdo (animais, lojas, produtos, eventos e FAQs).
+Cada instituição tem tema visual próprio, módulos configuráveis e um assistente de IA contextualizado com seu conteúdo (animais, lojas, produtos, eventos e FAQs).
 
 ---
 
 ## Como funciona a IA
 
-1. O visitante toca no botão e **fala sua pergunta** (ou digita)
+1. O visitante toca no botão e **fala** sua pergunta (ou digita)
 2. O áudio é transcrito pelo **OpenAI Whisper**
 3. A pergunta é processada pelo **GPT-4o-mini** com contexto da instituição
-4. A resposta é convertida em fala pelo **OpenAI TTS**
-5. O totem **responde em voz** com animação visual sincronizada
+4. A resposta volta em fala via **OpenAI TTS**
+5. O totem responde em voz com animação visual sincronizada
 
 ---
 
@@ -27,110 +27,111 @@ Cada instituição possui tema visual próprio, módulos configuráveis e um ass
 
 | Camada | Tecnologia |
 |--------|-----------|
-| Backend | Python, Flask, Flask-SQLAlchemy, Flask-Migrate, Flask-Login |
-| Autenticação | Flask-Login + Werkzeug (scrypt), Flask-Limiter |
-| IA / STT | OpenAI Whisper |
-| IA / Chat | GPT-4o-mini |
-| IA / TTS | OpenAI TTS |
-| Banco de dados | SQLite (dev) / PostgreSQL (prod) |
-| Frontend | HTML, CSS, JavaScript vanilla |
+| Backend | Python, Flask, Flask-SQLAlchemy, Flask-Migrate, Flask-Login, Flask-Limiter |
+| Auth | Werkzeug scrypt, **TOTP 2FA** (`pyotp` + `qrcode`), códigos de backup |
+| IA STT / Chat / TTS | OpenAI Whisper · GPT-4o-mini · OpenAI TTS |
+| Banco | SQLite (dev) · PostgreSQL via `psycopg[binary]` (prod) |
+| Cache / Rate limit | Redis (loopback) |
+| Frontend | HTML, CSS e JavaScript vanilla |
 | Servidor produção | Gunicorn + Nginx + systemd + Let's Encrypt |
-| Cache / Rate limit | Redis (local, loopback) |
 | Hardware alvo | **Raspberry Pi 3 B/B+** (piloto) — Pi 4 também suportado |
-| Kiosk | Chromium fullscreen + watchdog + unclutter (via `install_totem.sh`) |
+| Kiosk | Chromium fullscreen + watchdog + unclutter (`install_totem.sh`) |
 
 ---
 
-## Instalação
-
-### 1. Ambiente virtual
+## Início rápido (desenvolvimento)
 
 ```bash
+# 1. Ambiente virtual
 python -m venv venv
-venv\Scripts\activate        # Windows
-# source venv/bin/activate   # Linux/macOS
-```
+venv\Scripts\activate          # Windows
+# source venv/bin/activate     # Linux/macOS
 
-### 2. Dependências
-
-```bash
+# 2. Dependências
 pip install -r requirements.txt
+
+# 3. Configuração
+cp .env.example .env           # editar SECRET_KEY, OPENAI_API_KEY, SUPERADMIN_*
+
+# 4. Banco e seed
+flask --app app.py db upgrade  # aplica migrations
+python app.py                  # cria seed na primeira execução
 ```
 
-### 3. Variáveis de ambiente
+Acesse `http://localhost:5000`.
 
-Copie `.env.example` para `.env` e preencha os valores:
-
-```bash
-cp .env.example .env
-```
-
-Variáveis obrigatórias:
-
-| Variável | Descrição |
-|----------|-----------|
-| `SECRET_KEY` | Chave secreta do Flask (use `python -c "import secrets; print(secrets.token_hex(32))"`) |
-| `OPENAI_API_KEY` | Chave da API OpenAI |
-| `SUPERADMIN_EMAIL` | E-mail do primeiro super admin (seeded na primeira execução) |
-| `SUPERADMIN_PASSWORD` | Senha do super admin (mín. 10 caracteres) |
-
-Variáveis opcionais:
-
-| Variável | Descrição |
-|----------|-----------|
-| `DATABASE_URL` | Ex: `postgresql+psycopg://user:pw@host:5432/flexmedia` (se ausente, usa SQLite em `instance/`) |
-| `INTERACTION_LOG_RETENTION_DAYS` | Retenção LGPD de `InteractionLog` — default 90 (purga via `flask purge-logs`) |
-
-### 4. Executar
-
-```bash
-python run.py
-```
-
-Acesse: `http://localhost:5000`
-
-Para produção (Nginx + Gunicorn + SSL) o entrypoint é `wsgi.py` e o instalador
-automático é `deploy/install_production.sh` — ver [docs/OPERACAO.md](docs/OPERACAO.md).
-
-Na primeira execução o banco SQLite é criado em `instance/flexmedia.db` e a instituição de demonstração (Neural Crew Zoo) é semeada automaticamente a partir dos JSONs em `data/`.
-
-> **Atenção:** O super admin é criado **apenas uma vez**, na primeira execução. Se o banco já existir, o seed é ignorado. Para recriar, delete `instance/flexmedia.db` e reinicie.
+> Para guia detalhado (Raspberry Pi, VM Debian, troubleshooting) veja **[INSTALACAO.md](INSTALACAO.md)**.
 
 ---
 
-## Painel Administrativo
+## Variáveis de ambiente
 
-Acesse `/admin/login`.
+| Variável | Obrig. | Descrição |
+|----------|--------|-----------|
+| `SECRET_KEY` | sim | Chave Flask (`python -c "import secrets; print(secrets.token_hex(32))"`) |
+| `OPENAI_API_KEY` | sim | Chave OpenAI |
+| `SUPERADMIN_EMAIL` | sim | E-mail do primeiro super admin (seed) |
+| `SUPERADMIN_PASSWORD` | sim | Senha (mín. 10 caracteres) |
+| `DATABASE_URL` | não | Ex: `postgresql+psycopg://user:pw@host/flexmedia` (default: SQLite) |
+| `INTERACTION_LOG_RETENTION_DAYS` | não | Retenção LGPD — default 90 |
+| `REDIS_URL` | não | Para Flask-Limiter em produção (default: memória) |
 
-### Níveis de acesso
+---
+
+## Painel administrativo
+
+Acesse `/admin/login`. Suporta **2FA via TOTP** (Google Authenticator, Authy, 1Password) com códigos de backup.
 
 | Papel | Acesso |
 |-------|--------|
-| `super_admin` | Acesso global: todas as instituições, usuários, logs de auth e IA |
-| `client_admin` | Acesso restrito à sua instituição: conteúdo (animais, eventos, lojas, produtos, FAQs) e logs de IA |
+| `super_admin` | Global: instituições, usuários, dispositivos, logs de auditoria, IA |
+| `client_admin` | Restrito à própria instituição: conteúdo + logs de IA |
 
-- O `super_admin` é criado via variáveis de ambiente no `.env` (seed na primeira execução)
-- Admins de instituição são criados pelo super admin em `/admin/platform/users`
-- Cada `client_admin` só vê e edita dados da sua própria instituição (isolamento por tenant)
+- Super admin é criado **uma única vez** via `.env` na primeira execução.
+- Demais admins são criados em `/admin/platform/users` (super admin).
+- Senhas temporárias forçam troca no primeiro login (`must_change_password`).
+- Cada `client_admin` enxerga apenas dados da sua instituição.
 
 ---
 
 ## URLs principais
 
+### Totem (público)
 | URL | Descrição |
 |-----|-----------|
 | `/` | Redireciona para o seletor |
 | `/selector` | Seleção de instituição |
-| `/<slug>/` | Home do totem |
+| `/<slug>/` | Home |
 | `/<slug>/mapa` | Mapa interativo |
-| `/<slug>/programacao` | Eventos e programação |
-| `/<slug>/animais/especies` | Catálogo de animais (zoo) |
+| `/<slug>/programacao` | Eventos |
+| `/<slug>/animais/especies` | Catálogo (zoo) |
 | `/<slug>/lojas` | Lojas (shopping) |
 | `/<slug>/produtos` | Produtos (farmácia) |
 | `/<slug>/ia` | Assistente IA |
-| `/admin/login` | Login do painel administrativo |
+| `/privacidade` | Aviso LGPD |
+| `/offline` · `/sw.js` | Modo offline + service worker |
+
+### Admin
+| URL | Descrição |
+|-----|-----------|
+| `/admin/login` · `/admin/logout` | Login com 2FA opcional |
+| `/admin/totp/setup` | Cadastro do segundo fator |
+| `/admin/totp/backup-codes` | Códigos de recuperação |
 | `/admin/platform/` | Dashboard super admin |
+| `/admin/platform/institutions/` | CRUD instituições |
+| `/admin/platform/users/` | CRUD usuários |
+| `/admin/platform/devices/` | CRUD totens (API key + heartbeat) |
+| `/admin/platform/audit` | Trilha de auditoria |
+| `/admin/platform/logs` | Logs globais de IA |
 | `/admin/institutions/<id>/` | Dashboard client admin |
+
+### API
+| URL | Método | Descrição |
+|-----|--------|-----------|
+| `/api/voice` | POST | Áudio → resposta em áudio |
+| `/api/chat` | POST | Texto → texto |
+| `/api/heartbeat` | POST | Pulso do totem (HMAC + API key) |
+| `/health` | GET | Liveness / readiness |
 
 ---
 
@@ -152,90 +153,107 @@ Acesse `/admin/login`.
 ## Estrutura do projeto
 
 ```
-Totem_Flexmedia/
+totem_flexmedia/
 ├── app/
-│   ├── __init__.py              # App factory
-│   ├── extensions.py            # SQLAlchemy, Migrate, LoginManager, Limiter
-│   ├── helpers.py               # Decorators, CSRF, load_institution, build_ai_context
-│   ├── seed.py                  # Seed inicial (zoo + super admin)
-│   ├── models/                  # Institution, Animal, Event, Store, Product, FAQ, InteractionLog, User, AuthLog
+│   ├── __init__.py              # App factory + CLI (seed, init-db, purge-logs)
+│   ├── extensions.py            # db, migrate, login_manager, limiter
+│   ├── helpers.py               # CSRF, decoradores, load_institution, build_ai_context
+│   ├── twofa.py                 # TOTP, QR code, códigos de backup
+│   ├── seed.py                  # Seed inicial (zoo demo + super admin)
+│   ├── models/
+│   │   ├── institution.py       # Institution, Module, InstitutionModule
+│   │   ├── content.py           # Animal, Event, Store, Product, FAQ, MapArea
+│   │   ├── log.py               # InteractionLog
+│   │   ├── user.py              # User, AuthLog
+│   │   ├── device.py            # TotemDevice (API key + HMAC)
+│   │   └── audit.py             # AdminAuditLog
 │   └── routes/
-│       ├── core.py              # Home, mapa, programação, alimentação
-│       ├── zoo.py               # Animais
-│       ├── shopping.py          # Lojas
-│       ├── pharmacy.py          # Produtos
-│       ├── voice.py             # IA (voz + chat)
-│       ├── admin_auth.py        # Login / logout
-│       ├── admin_platform.py    # Super admin (instituições, usuários, logs globais)
-│       └── admin_institution.py # Client admin (conteúdo por instituição)
+│       ├── core.py              # Home, mapa, programação, alimentação, /sw.js
+│       ├── zoo.py · shopping.py · pharmacy.py
+│       ├── voice.py             # IA voz/chat (rate-limit + quota)
+│       ├── admin_auth.py        # Login, logout, 2FA, troca de senha
+│       ├── admin_platform.py    # Super admin (instituições, usuários, logs)
+│       ├── admin_institution.py # Client admin (conteúdo)
+│       ├── devices.py           # CRUD de totens + heartbeat
+│       └── health.py            # /health
 ├── templates/
-│   ├── base.html                # Layout totem
-│   ├── selector.html            # Seletor de instituição
-│   ├── admin/
-│   │   ├── base.html            # Layout admin
-│   │   ├── login.html           # Tela de login
-│   │   ├── platform/            # Templates super admin
-│   │   └── institution/         # Templates client admin
-│   ├── core/                    # Home, mapa, programação, alimentação
+│   ├── base.html · selector.html · privacidade.html · offline.html
+│   ├── 403.html · 404.html · 500.html
+│   ├── core/                    # home, mapa, programacao, alimentacao
 │   ├── modules/                 # zoo/, shopping/, pharmacy/
-│   └── voice/                   # Interface IA
+│   ├── voice/index.html         # Assistente (consentimento LGPD + microfone)
+│   └── admin/
+│       ├── base.html · login.html · change_password.html · forgot_password.html
+│       ├── totp_setup.html · totp_challenge.html
+│       ├── totp_backup_codes.html · totp_backup_codes_regen.html
+│       ├── platform/            # dashboard, institutions, users, devices, audit, logs
+│       └── institution/         # dashboard + CRUD por instituição
 ├── static/
-│   ├── css/style.css            # Estilos do totem
-│   ├── css/admin.css            # Estilos do painel admin
-│   ├── images/                  # Imagens dos animais
-│   └── uploads/                 # Uploads via admin
-├── data/
-│   ├── animais.json             # Seed zoo
-│   └── programacao.json         # Seed eventos
-├── instance/flexmedia.db        # Banco SQLite (auto-criado, não commitado)
-├── .env.example                 # Template de variáveis de ambiente
-├── config.py
-├── run.py
-└── requirements.txt
+│   ├── css/style.css            # Totem
+│   ├── css/admin.css            # Painel admin
+│   ├── js/sw.js                 # Service worker
+│   ├── images/                  # Assets do zoo demo + logo
+│   └── uploads/                 # Uploads via admin (gitignored)
+├── migrations/                  # Alembic (Flask-Migrate)
+├── tests/
+│   ├── conftest.py
+│   ├── test_smoke.py            # Rotas públicas
+│   ├── test_voice_api.py        # /api/chat e /api/voice (OpenAI mockada)
+│   ├── test_2fa.py              # TOTP + códigos de backup
+│   ├── test_security.py         # Política de senha, lockout, auditoria
+│   └── test_heartbeat.py        # /api/heartbeat (HMAC, API key)
+├── data/                        # Seed JSON (zoo demo)
+├── deploy/                      # Nginx + systemd + backup + install_production.sh
+├── docs/OPERACAO.md             # Manual de operação (Pi 3)
+├── instance/                    # SQLite + uploads (gitignored)
+├── logs/app.log                 # Log rotativo (gitignored)
+├── app.py                       # Entrypoint dev
+├── wsgi.py                      # Entrypoint prod (Gunicorn)
+├── gunicorn.conf.py
+├── install_totem.sh             # Configura Pi como kiosk
+├── INSTALACAO.md                # Guia passo a passo
+├── config.py · pytest.ini
+├── requirements.txt · requirements-dev.txt
+└── .env.example
 ```
 
 ---
 
 ## Segurança
 
-- Senhas protegidas com Werkzeug scrypt (Python ≥ 3.9)
-- CSRF protection em todos os formulários POST
-- Rate limiting: login (20/min, 100/h), voice API (10/min, 30/h), chat API (20/min, 60/h)
-- Isolamento de tenant: `client_admin` não pode acessar dados de outras instituições
-- Login timing-safe (previne enumeração de usuários por tempo de resposta)
-- Headers de segurança: `X-Frame-Options`, `X-Content-Type-Options`, `X-XSS-Protection`, `Referrer-Policy`
-- Admin panel: `Cache-Control: no-store`, `noindex, nofollow`
-- `SESSION_COOKIE_SECURE=True` em produção, `SESSION_COOKIE_HTTPONLY=True`, `SESSION_COOKIE_SAMESITE=Lax`
-- Parâmetro `next=` validado (só aceita paths `/admin/...`)
+- **Senhas** Werkzeug scrypt; política mínima de 10 caracteres validada em `validate_password_strength`.
+- **2FA TOTP** opcional para todos os admins (obrigatório para super admins via `REQUIRE_TOTP_FOR_SUPERADMIN`); códigos de backup hashados.
+- **CSRF** em todos os formulários POST (`generate_csrf_token` + `validate_csrf_token`).
+- **Lockout** progressivo após falhas de login + log em `AuthLog`.
+- **Login timing-safe** (mitiga enumeração de usuários).
+- **Rate limit** Flask-Limiter: login 20/min · voice 10/min · chat 20/min.
+- **Headers** `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Cache-Control: no-store` no admin.
+- **Cookies** `SESSION_COOKIE_SECURE=True` em prod, `HttpOnly`, `SameSite=Lax`.
+- **Tenant isolation** — `client_admin` não acessa outra instituição.
+- **Auditoria** — toda ação sensível (criar/editar/excluir, login, 2FA, devices) grava em `AdminAuditLog`.
+- **Heartbeat de totem** — HMAC SHA-256 com timestamp anti-replay (janela 5 min) + API key rotacionável.
 
 ---
 
 ## LGPD e experiência offline
 
 - `/privacidade` — aviso de coleta, uso da OpenAI, retenção e direitos do titular.
-- Assistente de IA exibe **modal de consentimento** antes do primeiro uso do microfone.
-- `static/js/sw.js` — service worker que cacheia estáticos e serve `/offline`
-  quando a rede cai (banner de status é exibido no layout público).
-- `InteractionLog` tem retenção configurável (default 90 dias).
-  Agende `flask purge-logs` no cron para cumprir a retenção.
+- Modal de consentimento antes do primeiro uso do microfone.
+- Service worker (`static/js/sw.js`) cacheia estáticos e serve `/offline` quando a rede cai.
+- `InteractionLog` com retenção configurável (default 90 dias). Agende `flask purge-logs` no cron.
 
 ---
 
 ## Quota de IA por instituição
 
-Cada `Institution` tem `daily_ai_quota` (limite diário de chamadas OpenAI).
-`app/routes/voice.py` incrementa `ai_calls_today` a cada chamada e, ao estourar,
-retorna **429 "limite diário atingido"** sem consultar a OpenAI — protegendo
-custo e disponibilidade.
+Cada `Institution` tem `daily_ai_quota`. `voice.py` incrementa `ai_calls_today` e, ao estourar, retorna **429 "limite diário"** sem chamar a OpenAI — protegendo custo e disponibilidade.
 
-Erros da OpenAI são diferenciados em `voice.py`:
-
-| Erro OpenAI                              | Resposta HTTP | Mensagem ao usuário |
-|------------------------------------------|---------------|---------------------|
-| `APIConnectionError` / `APITimeoutError` | 503           | "offline"           |
-| `RateLimitError`                         | 429           | "muita gente"       |
-| `AuthenticationError`                    | 503           | "indisponível" + log ERROR |
-| Quota tenant estourada                   | 429           | "limite diário"     |
+| Erro OpenAI | HTTP | Mensagem |
+|-------------|------|----------|
+| `APIConnectionError` / `APITimeoutError` | 503 | "offline" |
+| `RateLimitError` | 429 | "muita gente" |
+| `AuthenticationError` | 503 | "indisponível" + log ERROR |
+| Quota tenant estourada | 429 | "limite diário" |
 
 ---
 
@@ -246,25 +264,22 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-- `tests/test_smoke.py` — rotas públicas (home, selector, privacidade, offline, `/sw.js`, admin login).
-- `tests/test_voice_api.py` — `/api/chat` e `/api/voice` com OpenAI **mockada**
-  (nunca bate na API real em testes).
+OpenAI é sempre **mockada** — nunca bate na API real em testes.
 
 ---
 
 ## Deploy e operação
 
-Documentação operacional completa em **[docs/OPERACAO.md](docs/OPERACAO.md)**:
+Documentação operacional completa em **[docs/OPERACAO.md](docs/OPERACAO.md)** (instalação Pi 3, troca de chaves, restauração de backup, nova instituição).
 
-1. Instalação no Raspberry Pi 3 (servidor + kiosk).
-2. Troca de chaves e segredos (`.env`).
-3. Restauração de backup (SQLite e Postgres).
-4. Adicionar nova instituição (painel ou CLI).
+| Script | Função |
+|--------|--------|
+| `deploy/install_production.sh` | Nginx + Gunicorn + SSL + cron |
+| `deploy/backup.sh` | Backup diário (retenção 14 dias) |
+| `install_totem.sh` | Kiosk no Raspberry (Chromium fullscreen + watchdog) |
 
-Scripts auxiliares:
+---
 
-| Script                         | Função                                                    |
-|--------------------------------|-----------------------------------------------------------|
-| `deploy/install_production.sh` | Instalador end-to-end: Nginx + Gunicorn + SSL + cron      |
-| `deploy/backup.sh`             | Backup diário do banco (SQLite ou Postgres), retenção 14d |
-| `install_totem.sh`             | Configura o Raspberry como kiosk (Chromium fullscreen)    |
+## Licença
+
+Projeto acadêmico (Challenge FIAP × Flexmedia). Uso restrito conforme acordo entre as partes.

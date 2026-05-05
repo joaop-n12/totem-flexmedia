@@ -7,12 +7,15 @@ from flask_login import current_user
 
 from app.extensions import db
 from app.helpers import (
-    allowed_file, client_admin_required, save_upload,
-    validate_csrf_token,
+    allowed_file, bump_content_version, client_admin_required, save_upload,
+    tenant_get_or_404, tenant_query, validate_csrf_token,
 )
 from app.models import (
     Animal, Event, FAQ, Institution, InteractionLog,
-    Product, Store,
+    Product, QuizQuestion, Store,
+)
+from app.models.quiz import (
+    MAX_OPTIONS, MIN_OPTIONS, MAX_OPTION_LEN, MAX_QUESTION_LEN,
 )
 
 admin_institution_bp = Blueprint("admin_institution", __name__)
@@ -91,6 +94,7 @@ def animal_new(iid):
             ext = img.filename.rsplit(".", 1)[1].lower()
             a.imagem = save_upload(img, f"{inst.slug}/animals", f"{a.slug}.{ext}")
         db.session.add(a)
+        bump_content_version(iid)
         db.session.commit()
         flash(f"Animal '{a.nome}' adicionado.", "success")
         return redirect(url_for("admin_institution.animal_list", iid=iid))
@@ -103,7 +107,7 @@ def animal_new(iid):
 def animal_edit(iid, aid):
     inst   = Institution.query.get_or_404(iid)
     # filter_by garante que o animal pertence à instituição correta (isolamento de tenant)
-    animal = Animal.query.filter_by(id=aid, institution_id=iid).first_or_404()
+    animal = tenant_get_or_404(Animal, aid, iid)
     if request.method == "POST":
         validate_csrf_token()
         animal.nome         = request.form["nome"]
@@ -119,6 +123,7 @@ def animal_edit(iid, aid):
         if img and img.filename and allowed_file(img.filename):
             ext = img.filename.rsplit(".", 1)[1].lower()
             animal.imagem = save_upload(img, f"{inst.slug}/animals", f"{animal.slug}.{ext}")
+        bump_content_version(iid)
         db.session.commit()
         flash(f"Animal '{animal.nome}' atualizado.", "success")
         return redirect(url_for("admin_institution.animal_list", iid=iid))
@@ -130,8 +135,9 @@ def animal_edit(iid, aid):
 @client_admin_required
 def animal_delete(iid, aid):
     validate_csrf_token()
-    animal = Animal.query.filter_by(id=aid, institution_id=iid).first_or_404()
+    animal = tenant_get_or_404(Animal, aid, iid)
     db.session.delete(animal)
+    bump_content_version(iid)
     db.session.commit()
     flash("Animal removido.", "warning")
     return redirect(url_for("admin_institution.animal_list", iid=iid))
@@ -165,6 +171,7 @@ def event_new(iid):
             active    = "active" in request.form,
         )
         db.session.add(ev)
+        bump_content_version(iid)
         db.session.commit()
         flash(f"Evento '{ev.evento}' adicionado.", "success")
         return redirect(url_for("admin_institution.event_list", iid=iid))
@@ -176,7 +183,7 @@ def event_new(iid):
 @client_admin_required
 def event_edit(iid, eid):
     inst  = Institution.query.get_or_404(iid)
-    event = Event.query.filter_by(id=eid, institution_id=iid).first_or_404()
+    event = tenant_get_or_404(Event, eid, iid)
     if request.method == "POST":
         validate_csrf_token()
         event.evento    = request.form["evento"]
@@ -184,6 +191,7 @@ def event_edit(iid, eid):
         event.local     = request.form.get("local", "")
         event.descricao = request.form.get("descricao", "")
         event.active    = "active" in request.form
+        bump_content_version(iid)
         db.session.commit()
         flash(f"Evento '{event.evento}' atualizado.", "success")
         return redirect(url_for("admin_institution.event_list", iid=iid))
@@ -195,8 +203,9 @@ def event_edit(iid, eid):
 @client_admin_required
 def event_delete(iid, eid):
     validate_csrf_token()
-    event = Event.query.filter_by(id=eid, institution_id=iid).first_or_404()
+    event = tenant_get_or_404(Event, eid, iid)
     db.session.delete(event)
+    bump_content_version(iid)
     db.session.commit()
     flash("Evento removido.", "warning")
     return redirect(url_for("admin_institution.event_list", iid=iid))
@@ -245,7 +254,7 @@ def store_new(iid):
 @client_admin_required
 def store_edit(iid, sid):
     inst  = Institution.query.get_or_404(iid)
-    store = Store.query.filter_by(id=sid, institution_id=iid).first_or_404()
+    store = tenant_get_or_404(Store, sid, iid)
     if request.method == "POST":
         validate_csrf_token()
         store.name         = request.form["name"]
@@ -257,6 +266,7 @@ def store_edit(iid, sid):
         store.on_promotion = "on_promotion" in request.form
         store.promo_text   = request.form.get("promo_text", "")
         store.generate_slug()
+        bump_content_version(iid)
         db.session.commit()
         flash(f"Loja '{store.name}' atualizada.", "success")
         return redirect(url_for("admin_institution.store_list", iid=iid))
@@ -268,8 +278,9 @@ def store_edit(iid, sid):
 @client_admin_required
 def store_delete(iid, sid):
     validate_csrf_token()
-    store = Store.query.filter_by(id=sid, institution_id=iid).first_or_404()
+    store = tenant_get_or_404(Store, sid, iid)
     db.session.delete(store)
+    bump_content_version(iid)
     db.session.commit()
     flash("Loja removida.", "warning")
     return redirect(url_for("admin_institution.store_list", iid=iid))
@@ -311,6 +322,7 @@ def product_new(iid):
             sale_price  = sale_price,
         )
         db.session.add(p)
+        bump_content_version(iid)
         db.session.commit()
         flash(f"Produto '{p.name}' adicionado.", "success")
         return redirect(url_for("admin_institution.product_list", iid=iid))
@@ -322,7 +334,7 @@ def product_new(iid):
 @client_admin_required
 def product_edit(iid, pid):
     inst    = Institution.query.get_or_404(iid)
-    product = Product.query.filter_by(id=pid, institution_id=iid).first_or_404()
+    product = tenant_get_or_404(Product, pid, iid)
     if request.method == "POST":
         validate_csrf_token()
         product.name        = request.form["name"]
@@ -336,6 +348,7 @@ def product_edit(iid, pid):
             return render_template("admin/institution/product_form.html",
                                    inst=inst, product=product)
         product.on_sale     = "on_sale" in request.form
+        bump_content_version(iid)
         db.session.commit()
         flash(f"Produto '{product.name}' atualizado.", "success")
         return redirect(url_for("admin_institution.product_list", iid=iid))
@@ -348,8 +361,9 @@ def product_edit(iid, pid):
 @client_admin_required
 def product_delete(iid, pid):
     validate_csrf_token()
-    product = Product.query.filter_by(id=pid, institution_id=iid).first_or_404()
+    product = tenant_get_or_404(Product, pid, iid)
     db.session.delete(product)
+    bump_content_version(iid)
     db.session.commit()
     flash("Produto removido.", "warning")
     return redirect(url_for("admin_institution.product_list", iid=iid))
@@ -380,6 +394,7 @@ def faq_new(iid):
             category = request.form.get("category", "Geral"),
         )
         db.session.add(faq)
+        bump_content_version(iid)
         db.session.commit()
         flash("FAQ adicionada.", "success")
         return redirect(url_for("admin_institution.faq_list", iid=iid))
@@ -391,12 +406,13 @@ def faq_new(iid):
 @client_admin_required
 def faq_edit(iid, fid):
     inst = Institution.query.get_or_404(iid)
-    faq  = FAQ.query.filter_by(id=fid, institution_id=iid).first_or_404()
+    faq = tenant_get_or_404(FAQ, fid, iid)
     if request.method == "POST":
         validate_csrf_token()
         faq.question = request.form["question"]
         faq.answer   = request.form["answer"]
         faq.category = request.form.get("category", "Geral")
+        bump_content_version(iid)
         db.session.commit()
         flash("FAQ atualizada.", "success")
         return redirect(url_for("admin_institution.faq_list", iid=iid))
@@ -408,11 +424,135 @@ def faq_edit(iid, fid):
 @client_admin_required
 def faq_delete(iid, fid):
     validate_csrf_token()
-    faq = FAQ.query.filter_by(id=fid, institution_id=iid).first_or_404()
+    faq = tenant_get_or_404(FAQ, fid, iid)
     db.session.delete(faq)
+    bump_content_version(iid)
     db.session.commit()
     flash("FAQ removida.", "warning")
     return redirect(url_for("admin_institution.faq_list", iid=iid))
+
+
+# ── Quiz / Curiosidades ────────────────────────────────────────────────────────
+# Trello: Modulo 2 - Quiz [Baixa]. Conteudo gerenciado pelo client_admin
+# como qualquer outro (animais, eventos, etc.) — bump_content_version chamado
+# antes do commit para que o totem detecte e recarregue.
+
+def _parse_quiz_form(q, src):
+    """Aplica campos do form a uma QuizQuestion (nova ou existente).
+
+    Retorna lista de erros (vazia = ok). Validacao no servidor — front pode
+    facilitar mas nao e' fonte da verdade.
+    """
+    errors: list[str] = []
+    pergunta = (src.get("question") or "").strip()
+    if not pergunta:
+        errors.append("Pergunta é obrigatória.")
+    if len(pergunta) > MAX_QUESTION_LEN:
+        errors.append(f"Pergunta excede {MAX_QUESTION_LEN} caracteres.")
+
+    raw_opts = src.getlist("options") if hasattr(src, "getlist") else (src.get("options") or [])
+    opts = [(o or "").strip() for o in raw_opts]
+    opts = [o for o in opts if o]
+    if not (MIN_OPTIONS <= len(opts) <= MAX_OPTIONS):
+        errors.append(f"Forneça entre {MIN_OPTIONS} e {MAX_OPTIONS} alternativas não vazias.")
+    if any(len(o) > MAX_OPTION_LEN for o in opts):
+        errors.append(f"Alternativa excede {MAX_OPTION_LEN} caracteres.")
+
+    try:
+        correct_index = int(src.get("correct_index") or 0)
+    except (TypeError, ValueError):
+        correct_index = -1
+    if not (0 <= correct_index < len(opts)):
+        errors.append("Selecione qual alternativa é a correta.")
+
+    if errors:
+        return errors
+
+    q.question = pergunta
+    q.options = opts
+    q.correct_index = correct_index
+    q.curiosity = (src.get("curiosity") or "").strip() or None
+    q.category = (src.get("category") or "").strip() or None
+    q.order = _safe_order(src.get("order"))
+    q.active = "active" in src
+    return []
+
+
+def _safe_order(raw):
+    try:
+        return max(0, int(raw)) if raw not in (None, "") else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+@admin_institution_bp.route("/institutions/<int:iid>/quiz")
+@client_admin_required
+def quiz_list(iid):
+    inst = Institution.query.get_or_404(iid)
+    questions = (
+        tenant_query(QuizQuestion, iid)
+        .order_by(QuizQuestion.order, QuizQuestion.id)
+        .all()
+    )
+    return render_template("admin/institution/quiz_list.html",
+                           inst=inst, questions=questions)
+
+
+@admin_institution_bp.route("/institutions/<int:iid>/quiz/new", methods=["GET", "POST"])
+@client_admin_required
+def quiz_new(iid):
+    inst = Institution.query.get_or_404(iid)
+    if request.method == "POST":
+        validate_csrf_token()
+        q = QuizQuestion(institution_id=iid, options_json="[]")
+        errors = _parse_quiz_form(q, request.form)
+        if errors:
+            for e in errors:
+                flash(e, "error")
+            return render_template("admin/institution/quiz_form.html",
+                                   inst=inst, question=q, action="new")
+        db.session.add(q)
+        bump_content_version(iid)
+        db.session.commit()
+        flash("Pergunta adicionada.", "success")
+        return redirect(url_for("admin_institution.quiz_list", iid=iid))
+    return render_template("admin/institution/quiz_form.html",
+                           inst=inst, question=None, action="new")
+
+
+@admin_institution_bp.route("/institutions/<int:iid>/quiz/<int:qid>/edit",
+                             methods=["GET", "POST"])
+@client_admin_required
+def quiz_edit(iid, qid):
+    inst = Institution.query.get_or_404(iid)
+    q = tenant_get_or_404(QuizQuestion, qid, iid)
+    if request.method == "POST":
+        validate_csrf_token()
+        errors = _parse_quiz_form(q, request.form)
+        if errors:
+            for e in errors:
+                flash(e, "error")
+            return render_template("admin/institution/quiz_form.html",
+                                   inst=inst, question=q, action="edit")
+        bump_content_version(iid)
+        db.session.commit()
+        flash("Pergunta atualizada.", "success")
+        return redirect(url_for("admin_institution.quiz_list", iid=iid))
+    return render_template("admin/institution/quiz_form.html",
+                           inst=inst, question=q, action="edit")
+
+
+@admin_institution_bp.route("/institutions/<int:iid>/quiz/<int:qid>/delete",
+                             methods=["POST"])
+@client_admin_required
+def quiz_delete(iid, qid):
+    validate_csrf_token()
+    q = tenant_get_or_404(QuizQuestion, qid, iid)
+    db.session.delete(q)
+    bump_content_version(iid)
+    db.session.commit()
+    flash("Pergunta removida.", "warning")
+    return redirect(url_for("admin_institution.quiz_list", iid=iid))
 
 
 # ── Logs de interação ──────────────────────────────────────────────────────────

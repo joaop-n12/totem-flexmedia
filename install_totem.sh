@@ -33,6 +33,13 @@ source venv/bin/activate
 echo "Instalando dependencias Python..."
 pip install -r requirements.txt
 
+# Bibliotecas de hardware so funcionam num Pi de verdade.
+if [ -f /proc/device-tree/model ] && grep -qi "raspberry pi" /proc/device-tree/model; then
+  echo "Raspberry Pi detectado — instalando drivers de sensores..."
+  pip install -r requirements-pi.txt || \
+    echo "AVISO: requirements-pi.txt falhou (sensores ficarao em modo mock)."
+fi
+
 # --- 3. Arquivo .env -------------------------------------------------------
 if [ ! -f .env ]; then
   echo ""
@@ -86,6 +93,30 @@ EOF"
 sudo systemctl daemon-reload
 sudo systemctl enable totem-flexmedia
 sudo systemctl restart totem-flexmedia
+
+# --- 4.1 Daemon de sensores (PIR + DHT22) ----------------------------------
+# Roda independente do Flask. Le o /etc/totem/credenciais.env (gerado pela
+# tela de provisionamento de totens no painel admin).
+if [ -f /proc/device-tree/model ] && grep -qi "raspberry pi" /proc/device-tree/model; then
+  echo "Instalando totem-sensors.service..."
+  sudo cp "$PROJECT_DIR/deploy/totem-sensors.service" /etc/systemd/system/
+  sudo sed -i "s|/home/pi/totem_flexmedia|$PROJECT_DIR|g" /etc/systemd/system/totem-sensors.service
+  sudo sed -i "s|^User=pi|User=$USER|" /etc/systemd/system/totem-sensors.service
+  sudo systemctl daemon-reload
+  sudo systemctl enable totem-sensors
+  if [ -f /etc/totem/credenciais.env ]; then
+    sudo systemctl restart totem-sensors
+    echo "Daemon de sensores ativo."
+  else
+    echo "AVISO: /etc/totem/credenciais.env nao encontrado."
+    echo "       Provisione o totem no painel admin (Frota → Provisionar) e salve"
+    echo "       o segredo em /etc/totem/credenciais.env (chmod 600) com:"
+    echo "           TOTEM_API_KEY_ID=tk_..."
+    echo "           TOTEM_API_KEY_SECRET=..."
+    echo "           TOTEM_WAKE_SECRET=...   # mesmo valor do .env do Flask"
+    echo "       Depois: sudo systemctl start totem-sensors"
+  fi
+fi
 
 # --- 5. Script do kiosk (fullscreen, sem gestos, watchdog) -----------------
 echo "Criando script do kiosk..."
