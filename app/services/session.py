@@ -32,7 +32,7 @@ from typing import Optional
 ENGAGE_DISTANCE_CM = 80.0   # entra em ACTIVE quando usuario se aproxima
 LEAVE_DISTANCE_CM = 150.0   # sai de ACTIVE quando se afasta
 INVITE_TIMEOUT_S = 8.0      # INVITE sem aproximacao -> IDLE
-ACTIVE_TIMEOUT_S = 20.0     # ACTIVE sem refresh de distancia -> IDLE
+ACTIVE_TIMEOUT_S = 15.0     # ACTIVE sem refresh de distancia -> IDLE
 
 
 # ── Tipos publicos ─────────────────────────────────────────────────────────
