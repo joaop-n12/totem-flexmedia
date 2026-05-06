@@ -4,19 +4,18 @@ Consolidada num servico singleton porque o estado e' processo-local: o
 mesmo Gunicorn worker que recebe `/api/local/wake` (do daemon de sensores)
 tambem responde `/api/session/state` para o kiosk.
 
-Estados:
-    IDLE     — sem presenca detectada, totem em modo de descanso
-    INVITE   — PIR detectou movimento; convite visual ativo
-    ENGAGED  — HC-SR04 confirmou usuario proximo (< INVITE_DISTANCE_CM)
-    FAREWELL — usuario afastou-se; transicao curta antes de voltar a IDLE
+Estados (contrato consumido pelo overlay em templates/base.html):
+    idle    — sem presenca detectada, overlay "Aproxime-se" visivel
+    invite  — PIR detectou movimento; overlay "Vamos conversar?"
+    active  — HC-SR04 confirmou usuario proximo: overlay some, totem
+              dispara saudacao TTS e (se na home) navega para /voice
 
 Transicoes (simplificadas, fail-open):
-    IDLE     --motion-->        INVITE
-    INVITE   --dist < ENGAGE--> ENGAGED
-    INVITE   --timeout-->       IDLE
-    ENGAGED  --dist > LEAVE-->  FAREWELL
-    ENGAGED  --timeout-->       FAREWELL
-    FAREWELL --timeout-->       IDLE
+    idle    --motion-->        invite
+    invite  --dist <= ENGAGE-->  active
+    invite  --timeout-->       idle
+    active  --dist >= LEAVE-->  idle
+    active  --timeout-->       idle
 
 Thread-safety: lock unico no singleton. Volume de chamadas e' baixo
 (daemon manda heartbeat 1x/s + kiosk polla 1x/s) — lock simples basta.
@@ -30,11 +29,10 @@ from typing import Optional
 
 
 # ── Parametros ajustaveis ──────────────────────────────────────────────────
-ENGAGE_DISTANCE_CM = 80.0   # entra em ENGAGED quando usuario se aproxima
-LEAVE_DISTANCE_CM = 150.0   # sai de ENGAGED quando se afasta
+ENGAGE_DISTANCE_CM = 80.0   # entra em ACTIVE quando usuario se aproxima
+LEAVE_DISTANCE_CM = 150.0   # sai de ACTIVE quando se afasta
 INVITE_TIMEOUT_S = 8.0      # INVITE sem aproximacao -> IDLE
-ENGAGED_TIMEOUT_S = 60.0    # ENGAGED sem refresh de distancia -> FAREWELL
-FAREWELL_TIMEOUT_S = 4.0    # FAREWELL -> IDLE
+ACTIVE_TIMEOUT_S = 20.0     # ACTIVE sem refresh de distancia -> IDLE
 
 
 # ── Tipos publicos ─────────────────────────────────────────────────────────
@@ -77,9 +75,7 @@ class SessionStateMachine:
         s = self._snap.state
         if s == "invite" and elapsed > INVITE_TIMEOUT_S:
             self._transition("idle")
-        elif s == "engaged" and elapsed > ENGAGED_TIMEOUT_S:
-            self._transition("farewell")
-        elif s == "farewell" and elapsed > FAREWELL_TIMEOUT_S:
+        elif s == "active" and elapsed > ACTIVE_TIMEOUT_S:
             self._transition("idle")
 
     # — API publica usada por devices.py —
@@ -98,17 +94,18 @@ class SessionStateMachine:
             self._snap.last_distance_at = self._now()
 
             if distance_cm is None:
-                # fora de alcance — se estava ENGAGED, comeca a despedida.
-                if self._snap.state == "engaged":
-                    self._transition("farewell")
+                # fora de alcance — se estava ACTIVE, devolve a IDLE.
+                if self._snap.state == "active":
+                    self._transition("idle")
             elif distance_cm <= ENGAGE_DISTANCE_CM:
-                # usuario proximo — entra em ENGAGED a partir de qualquer estado
-                # exceto FAREWELL (ja em transicao para IDLE).
+                # usuario proximo — promove para ACTIVE a partir de qualquer
+                # estado de espera. Front-end reage escondendo overlay,
+                # tocando saudacao TTS e (se na home) navegando para /voice.
                 if self._snap.state in ("idle", "invite"):
-                    self._transition("engaged")
+                    self._transition("active")
             elif distance_cm >= LEAVE_DISTANCE_CM:
-                if self._snap.state == "engaged":
-                    self._transition("farewell")
+                if self._snap.state == "active":
+                    self._transition("idle")
 
             self._evaluate_timeout()
             return self._snap
