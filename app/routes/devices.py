@@ -43,6 +43,8 @@ from app.helpers import audit_log, super_admin_required, validate_csrf_token
 from app.models import AdminAuditLog, Institution, TotemDevice
 from app.models.audit import ACTION_DEVICE_CREATE, ACTION_DEVICE_REVOKE
 from app.models.device import generate_api_key_id, generate_api_key_secret
+from app.sensors.base import is_pi_hardware
+from app.services.session import get_state_machine
 
 devices_bp = Blueprint("devices", __name__)
 
@@ -218,13 +220,119 @@ def local_wake():
         return jsonify(error="invalid_wake_secret"), 401
 
     body = request.get_json(silent=True) or {}
+    sm = get_state_machine()
+
+    # Sprint 4: o daemon agora envia leituras consolidadas. O type controla
+    # o que alimentar na maquina de estados.
+    wake_type = (body.get("type") or "presence").lower()
+
+    if wake_type == "distance":
+        raw = body.get("distance_cm")
+        try:
+            d = None if raw is None else float(raw)
+        except (TypeError, ValueError):
+            return jsonify(error="invalid_distance"), 400
+        snap = sm.update_distance(d)
+    elif wake_type == "environment":
+        # PIR/DHT22 leitura ambiental — atualiza temp/humid sem mudar estado.
+        sm.update_environment(
+            temp_c=body.get("temp_c"),
+            humidity_pct=body.get("humidity_pct"),
+        )
+        snap = sm.snapshot()
+    else:
+        # presence (default) — promove IDLE→INVITE imediatamente (fail-open).
+        snap = sm.update_motion()
+
     payload = {
-        "type": "presence",
+        "type": "session_update" if wake_type != "presence" else "presence",
         "at": int(datetime.utcnow().timestamp()),
         "source": body.get("source", "pir"),
+        "session": snap.to_dict(),
     }
     n = _broadcast_wake(payload)
-    return jsonify(ok=True, listeners=n), 200
+    return jsonify(ok=True, listeners=n, session=snap.to_dict()), 200
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Sprint 4: Sessao de atendimento (HC-SR04 + maquina de estados)
+# ════════════════════════════════════════════════════════════════════════════
+
+@devices_bp.route("/api/session/state", methods=["GET"])
+def session_state():
+    """Snapshot publico do estado da sessao — kiosk polla a cada 1-2s.
+
+    Sem auth: apenas leitura de estado nao-sensivel (distancia, estado, temp).
+    Pensado para ser consumido pelo proprio totem em 127.0.0.1, mas tambem
+    serve como fonte para o painel admin observar em tempo real.
+    """
+    sm = get_state_machine()
+    snap = sm.tick()  # tick reavalia timeout antes de devolver
+    return jsonify(snap.to_dict()), 200
+
+
+@devices_bp.route("/api/sensors/mock", methods=["POST"])
+@limiter.limit("120 per minute")
+def sensors_mock():
+    """Injeta leituras simuladas na maquina de estados (apenas em modo mock).
+
+    Uso (dev/VM/demo): controlar a UI do totem sem hardware fisico.
+
+    Body JSON:
+      { "distance_cm": 45.0 }   -> alimenta HC-SR04 mock
+      { "distance_cm": null }   -> simula "fora de alcance"
+      { "motion": true }        -> simula PIR (promove IDLE→INVITE)
+
+    Seguranca:
+      1. Loopback-only (mesmo padrao do /api/local/wake).
+      2. Exige X-Wake-Secret (mesmo segredo usado pelo daemon local).
+      3. Recusa se o host for Pi REAL (is_pi_hardware()=True) — em campo, a
+         leitura tem que vir do sensor fisico, nao de chamada HTTP.
+    """
+    if not _is_loopback():
+        return jsonify(error="forbidden"), 403
+
+    if is_pi_hardware():
+        # Em campo, mock e' superficie de ataque sem necessidade.
+        return jsonify(error="mock_disabled_on_real_hardware"), 403
+
+    secret_expected = (current_app.config.get("TOTEM_WAKE_SECRET")
+                       or os.environ.get("TOTEM_WAKE_SECRET", ""))
+    if not secret_expected:
+        return jsonify(error="wake_secret_not_configured"), 503
+    secret_got = request.headers.get("X-Wake-Secret", "")
+    if not _hmac.compare_digest(secret_expected, secret_got):
+        return jsonify(error="invalid_wake_secret"), 401
+
+    body = request.get_json(silent=True) or {}
+    sm = get_state_machine()
+    snap = None
+
+    if "distance_cm" in body:
+        raw = body.get("distance_cm")
+        try:
+            d = None if raw is None else float(raw)
+        except (TypeError, ValueError):
+            return jsonify(error="invalid_distance"), 400
+        # Sanity: HC-SR04 fisico vai de ~2 a 400 cm. Negativo nunca.
+        if d is not None and (d < 0 or d > 1000):
+            return jsonify(error="distance_out_of_range"), 400
+        snap = sm.update_distance(d)
+
+    if body.get("motion") is True:
+        snap = sm.update_motion()
+
+    if snap is None:
+        snap = sm.snapshot()
+
+    # Avisa o kiosk via SSE para reagir imediatamente — sem precisar polling.
+    _broadcast_wake({
+        "type": "session_update",
+        "at": int(datetime.utcnow().timestamp()),
+        "session": snap.to_dict(),
+    })
+
+    return jsonify(ok=True, session=snap.to_dict()), 200
 
 
 @devices_bp.route("/api/local/wake-stream")

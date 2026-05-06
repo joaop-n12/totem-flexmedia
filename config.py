@@ -54,6 +54,24 @@ class Config:
         os.environ.get("HEARTBEAT_CLOCK_SKEW_SECONDS", "300")
     )
 
+    # ── Sprint 4: faixas de distancia para sessao de atendimento ─────────────
+    # HC-SR04 mede em cm. Valores documentados no PDF de entrega.
+    # ACTIVE  : <= 60 cm  → visitante alcanca a tela com a mao, inicia sessao.
+    # INVITE  : <= 150 cm → visitante a 1 passo, mostra convite.
+    # IDLE    : > 150 cm  → tela de espera.
+    SESSION_INVITE_MAX_CM = float(os.environ.get("SESSION_INVITE_MAX_CM", "150"))
+    SESSION_ACTIVE_MAX_CM = float(os.environ.get("SESSION_ACTIVE_MAX_CM", "60"))
+    # Tempo sem presenca para encerrar sessao automaticamente.
+    SESSION_TIMEOUT_SECONDS = float(os.environ.get("SESSION_TIMEOUT_SECONDS", "30"))
+    # Pulso TRIG e ECHO do HC-SR04. Default segue pinagem documentada.
+    HCSR04_TRIG_PIN = int(os.environ.get("HCSR04_TRIG_PIN", "23"))
+    HCSR04_ECHO_PIN = int(os.environ.get("HCSR04_ECHO_PIN", "24"))
+
+    # Modelo do sensor de temperatura/umidade. DHT11 (mais comum em kits
+    # academicos) ou DHT22 (mais preciso). Mesma biblioteca e pinagem; o
+    # driver ajusta classe da lib, faixa e precisao automaticamente.
+    DHT_MODEL = (os.environ.get("DHT_MODEL", "DHT22") or "DHT22").upper()
+
 
 class DevelopmentConfig(Config):
     DEBUG = True

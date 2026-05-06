@@ -50,6 +50,81 @@
   📡 {{ t('offline.banner') }}
 </div>
 
+{# ── Sprint 4 — Overlay de sessao orientada por sensores ────────────────────
+   NAO ha pagina /sessao dedicada. A sessao reage no proprio totem em
+   qualquer rota: o overlay aparece sobre a interface atual quando o
+   visitante esta longe (IDLE) ou se aproximando (INVITE) e DESAPARECE
+   quando entra em ACTIVE — momento em que o totem inicia proativamente
+   a interacao por voz (navega para o assistente, mantendo-se dentro do
+   sistema principal).
+   - Visivel apenas quando ha PIR/HC-SR04 ativos (config.SESSION_OVERLAY_ENABLED).
+   - z-index abaixo de modais LGPD (10000) e banners (9999) para nao mascarar.
+#}
+<div id="totemPresence" class="presence-overlay" data-state="idle" hidden aria-hidden="true">
+  <div class="presence-stage">
+    <div class="presence-pulse"></div>
+    <div class="presence-text">
+      <h2 class="presence-title"></h2>
+      <p class="presence-subtitle"></p>
+    </div>
+    <div class="presence-telemetry" aria-live="polite">
+      <span><b id="presDist">—</b><small>cm</small></span>
+      <span><b id="presTemp">—</b><small>°C</small></span>
+      <span><b id="presHum">—</b><small>%</small></span>
+    </div>
+  </div>
+</div>
+<style>
+  /* Overlay full-screen com fade e blur sobre o conteudo do totem.
+     IDLE: opaco (atrai). INVITE: convidativo. ACTIVE: hidden (libera UI). */
+  .presence-overlay {
+    position: fixed; inset: 0; z-index: 9000;
+    display: flex; align-items: center; justify-content: center;
+    color: #f0f0f0; font-family: 'Outfit', system-ui, sans-serif;
+    backdrop-filter: blur(14px) saturate(120%);
+    -webkit-backdrop-filter: blur(14px) saturate(120%);
+    background: radial-gradient(circle at 50% 50%, rgba(10,12,20,.78), rgba(0,0,0,.92));
+    transition: opacity .55s ease, visibility .55s ease;
+    cursor: default;
+  }
+  .presence-overlay[hidden] { display: none; }
+  .presence-overlay[data-state="invite"] {
+    background: radial-gradient(circle at 50% 50%, rgba(20,40,80,.78), rgba(5,15,35,.92));
+  }
+  .presence-stage { text-align: center; max-width: 900px; padding: 0 2rem; }
+  .presence-title {
+    font-size: clamp(2.4rem, 6vw, 4.5rem);
+    font-weight: 800; letter-spacing: -.02em; margin: 1.2rem 0 .4rem;
+  }
+  .presence-subtitle {
+    font-size: clamp(1.1rem, 2.4vw, 1.6rem); opacity: .82; font-weight: 400;
+  }
+  .presence-pulse {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #3b82f6; margin: 0 auto;
+    box-shadow: 0 0 0 0 rgba(59,130,246,.55);
+    animation: presencePulse 1.8s ease-out infinite;
+  }
+  .presence-overlay[data-state="invite"] .presence-pulse {
+    background: #fbbf24;
+    box-shadow: 0 0 0 0 rgba(251,191,36,.55);
+  }
+  @keyframes presencePulse {
+    0%   { transform: scale(.85); box-shadow: 0 0 0 0 rgba(59,130,246,.55); }
+    70%  { transform: scale(1.15); box-shadow: 0 0 0 24px rgba(59,130,246,0); }
+    100% { transform: scale(.85); box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+  }
+  .presence-telemetry {
+    display: inline-flex; gap: 1.6rem; margin-top: 2.2rem;
+    padding: .8rem 1.4rem; border-radius: 999px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.08);
+    font-variant-numeric: tabular-nums;
+  }
+  .presence-telemetry b { font-size: 1.1rem; font-weight: 600; margin-right: 4px; }
+  .presence-telemetry small { font-size: .75rem; opacity: .55; letter-spacing: .04em; }
+</style>
+
 {# Banner de pre-visualizacao do white-label (super_admin → Pre-visualizar). #}
 {# `preview_mode` so e' True quando a rota /admin/institutions/<iid>/preview  #}
 {# renderiza essa template. NUNCA aparece no totem em campo.                  #}
@@ -315,47 +390,204 @@
 </script>
 
 <script>
-  // ── Presenca via SSE (sensor PIR no Pi local) ────────────────────────────────
-  // O daemon de sensores (scripts/totem_sensor_daemon.py) avisa este Flask
-  // sempre que o PIR detecta um visitante. Aqui assinamos o stream para:
-  //  - Voltar para a Home se a tela estiver inativa em outra rota.
-  //  - Disparar o evento custom `flexmedia:presence` para qualquer pagina
-  //    que queira reagir (ex.: tocar audio de boas-vindas, animar attract).
-  // Falhas sao silenciosas — se Flask ou daemon nao estiverem rodando, o
-  // totem segue funcionando normalmente.
+  // ── Sprint 4 — Sessao orientada por sensores (PIR + HC-SR04 + DHT22) ─────────
+  // Centralizada: o totem REAGE em qualquer rota (home, animais, mapa, voz...).
+  // Nao ha pagina /sessao separada — o overlay sobe e desce sobre a UI atual.
+  //
+  // Comportamento por estado (snapshot vem de /api/session/state ou SSE):
+  //   IDLE   → overlay opaco com "Aproxime-se" (totem em modo atrair).
+  //   INVITE → overlay convidativo "Ola! Vamos conversar?" (presenca proxima).
+  //   ACTIVE → overlay desaparece + totem inicia proativamente o assistente
+  //            de voz (navega para a rota de voz da MESMA instituicao, sem
+  //            sair do sistema). Se voce ja estiver em /voz, dispara o evento
+  //            `flexmedia:totem-active` para o pagina chamar o microfone.
+  //
+  // Tres entradas independentes:
+  //   1. SSE em /api/local/wake-stream (loopback) — empurrado pelo daemon.
+  //   2. Polling em /api/session/state a cada 2s (fallback / cross-host).
+  //   3. PIR -> evento custom `flexmedia:presence` mantido para back-compat.
+  //
+  // Falhas sao silenciosas: sem Flask/daemon, o totem segue funcionando.
   (function () {
-    if (typeof EventSource === 'undefined') return;
-    const HOME_URL = "{{ url_for('core.home', slug=slug) if slug else url_for('core.selector') }}";
-    let lastTrigger = 0;
-    let lastInteraction = Date.now();
+    const HOME_URL  = "{{ url_for('core.home', slug=slug) if slug else url_for('core.selector') }}";
+    {% if institution and institution.has_module('ia') %}
+    const VOICE_URL = "{{ url_for('voice.ia_page', slug=slug) }}";
+    {% else %}
+    const VOICE_URL = null;
+    {% endif %}
+    const ON_VOICE_PAGE = ({{ 'true' if (request.endpoint or '') == 'voice.ia_page' else 'false' }});
+    const ON_HOME_PAGE  = ({{ 'true' if (request.endpoint or '') == 'core.home'     else 'false' }});
+
+    const overlay = document.getElementById('totemPresence');
+    const elTitle = overlay && overlay.querySelector('.presence-title');
+    const elSub   = overlay && overlay.querySelector('.presence-subtitle');
+    const elDist  = document.getElementById('presDist');
+    const elTemp  = document.getElementById('presTemp');
+    const elHum   = document.getElementById('presHum');
+
+    const COPY = {
+      idle:   { t: 'Aproxime-se para começar',  s: 'Toque ou caminhe até o totem para iniciar uma conversa.' },
+      invite: { t: 'Olá! Vamos conversar?',     s: 'Chegue mais perto — o assistente vai te atender.' },
+      active: { t: '',                          s: '' },
+    };
+
+    let lastState = null;
+    // Persistido em sessionStorage para nao reiniciar a saudacao a cada
+    // navegacao entre paginas — sem isso, ir de /home → /mapa → /voice
+    // re-disparava o greeting porque a closure JS perdia o estado.
+    const GREETING_TS_KEY = 'flexmedia_greeting_at';
+    const ACTIVE_TS_KEY   = 'flexmedia_active_at';
+    let activeTriggeredAt = parseInt(sessionStorage.getItem(ACTIVE_TS_KEY)   || '0', 10);
+    let greetingPlayedAt  = parseInt(sessionStorage.getItem(GREETING_TS_KEY) || '0', 10);
+    let lastInteraction   = Date.now();
+
+    // ── Saudacao proativa por proximidade ───────────────────────────────────
+    // Quando o sensor PIR/HC-SR04 promove o estado de IDLE para INVITE (ou
+    // direto para ACTIVE em aproximacoes rapidas), tocamos uma saudacao TTS
+    // pre-gerada — engajamento sem depender de toque/voz.
+    //
+    // Cooldown de 60s evita que o totem fique repetindo a frase enquanto a
+    // pessoa permanece em frente (PIR re-dispara a cada movimento).
+    {% if institution and institution.has_module('ia') %}
+    const GREETING_URL = "{{ url_for('voice.voice_greeting', slug=institution.slug) }}";
+    {% else %}
+    const GREETING_URL = null;
+    {% endif %}
+    const GREETING_COOLDOWN_MS = 60000;
+    let greetingAudio = null;
+
+    async function playProactiveGreeting() {
+      if (!GREETING_URL) return;
+      const now = Date.now();
+      if (now - greetingPlayedAt < GREETING_COOLDOWN_MS) return;
+      greetingPlayedAt = now;
+      try { sessionStorage.setItem(GREETING_TS_KEY, String(now)); } catch (_) {}
+      try {
+        const r = await fetch(GREETING_URL, { cache: 'no-store' });
+        if (!r.ok) return;
+        const ct = (r.headers.get('content-type') || '').toLowerCase();
+        let src;
+        if (ct.includes('application/json')) {
+          const data = await r.json();
+          if (!data || !data.tts_base64) return;
+          src = 'data:audio/mpeg;base64,' + data.tts_base64;
+        } else if (ct.startsWith('audio/')) {
+          // Fallback estatico (greeting_<locale>.mp3) — serve binario direto.
+          const blob = await r.blob();
+          src = URL.createObjectURL(blob);
+        } else {
+          return;
+        }
+        try { greetingAudio && greetingAudio.pause(); } catch (_) {}
+        greetingAudio = new Audio(src);
+        greetingAudio.crossOrigin = 'anonymous';
+        // Sincroniza animacao da onda com o audio: a pagina de voz ouve este
+        // evento e conecta um AnalyserNode no Audio antes do play() para que
+        // o canvas reaja ao espectro real do TTS — mesmo efeito visual da
+        // conversa por voz, sem duplicar codigo.
+        window.dispatchEvent(new CustomEvent('flexmedia:greeting-audio', {
+          detail: { audio: greetingAudio }
+        }));
+        // Kiosk Chromium roda com --autoplay-policy=no-user-gesture-required.
+        // Em dev o autoplay pode falhar — falha silenciosa, sem quebrar UI.
+        const p = greetingAudio.play();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      } catch (_) { /* offline / rede instavel — ignora */ }
+    }
+
     ["click","keydown","touchstart","mousemove"].forEach(ev =>
       window.addEventListener(ev, () => { lastInteraction = Date.now(); }, { passive: true })
     );
 
-    function connect() {
+    function applySnapshot(s) {
+      if (!s || !s.state || !overlay) return;
+      const st = s.state;
+      // Telemetria sempre atualizada (mesmo no overlay invisivel para debug).
+      if (elDist) elDist.textContent = (s.distance_cm == null ? '—' : s.distance_cm.toFixed(0));
+      if (elTemp) elTemp.textContent = (s.temp_c == null ? '—' : s.temp_c.toFixed(1));
+      if (elHum)  elHum.textContent  = (s.humidity_pct == null ? '—' : s.humidity_pct.toFixed(0));
+
+      if (st === lastState) return;
+      const previous = lastState;
+      lastState = st;
+
+      // Gatilho proativo: ao sair de IDLE (ou primeira leitura ja em INVITE/
+      // ACTIVE) significa que o sensor de proximidade detectou aproximacao.
+      // Toca a saudacao independentemente da rota atual — o cooldown evita
+      // sobreposicao quando o estado oscila INVITE↔ACTIVE.
+      if ((st === 'invite' || st === 'active') && previous !== 'invite' && previous !== 'active') {
+        playProactiveGreeting();
+      }
+
+      // IDLE / INVITE: overlay visivel; ACTIVE: liberado (totem interativo).
+      if (st === 'active') {
+        overlay.setAttribute('hidden', '');
+        overlay.setAttribute('aria-hidden', 'true');
+        // Inicia proativamente a interacao por voz UMA UNICA VEZ por sessao.
+        // Se ja estamos na pagina de voz, deixa a propria pagina escutar
+        // o evento e ativar o microfone.
+        const now = Date.now();
+        if (now - activeTriggeredAt > 30000) {
+          activeTriggeredAt = now;
+          try { sessionStorage.setItem(ACTIVE_TS_KEY, String(now)); } catch (_) {}
+          window.dispatchEvent(new CustomEvent('flexmedia:totem-active', { detail: s }));
+          // So redireciona para o assistente quando o visitante acaba de
+          // chegar (esta na home). Se ele ja escolheu outra funcionalidade
+          // — animais, mapa, programacao —, RESPEITA a tela atual. Sem isso,
+          // qualquer disparo de ACTIVE arrancava o usuario para o "Zoo AI".
+          if (VOICE_URL && !ON_VOICE_PAGE && ON_HOME_PAGE) {
+            location.href = VOICE_URL + '?auto=1';
+          }
+        }
+      } else {
+        overlay.setAttribute('data-state', st);
+        overlay.removeAttribute('hidden');
+        overlay.setAttribute('aria-hidden', 'false');
+        if (elTitle) elTitle.textContent = COPY[st].t;
+        if (elSub)   elSub.textContent   = COPY[st].s;
+      }
+
+      // Compat: continua emitindo o evento antigo de presenca para qualquer
+      // codigo legado que dependa dele.
+      if (st === 'invite' || st === 'active') {
+        window.dispatchEvent(new CustomEvent('flexmedia:presence', { detail: s }));
+      }
+    }
+
+    // ── Caminho 1: SSE ────────────────────────────────────────────────────
+    function connectSSE() {
+      if (typeof EventSource === 'undefined') return;
       let es;
       try { es = new EventSource('/api/local/wake-stream'); }
       catch (_) { return; }
-      es.addEventListener('presence', (e) => {
-        const now = Date.now();
-        // Throttle de 5s para nao spamar Home redirects.
-        if (now - lastTrigger < 5000) return;
-        lastTrigger = now;
-        // Tela ficou parada >30s e PIR detectou alguem novo? Volta pra Home.
-        if (now - lastInteraction > 30000 && location.pathname !== HOME_URL) {
-          location.href = HOME_URL;
-          return;
-        }
-        try { window.dispatchEvent(new CustomEvent('flexmedia:presence', { detail: JSON.parse(e.data) })); }
-        catch (_) {}
-      });
-      es.onerror = () => {
-        es.close();
-        // Reconnect com backoff curto — servidor pode estar reiniciando.
-        setTimeout(connect, 5000);
+
+      const handler = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data && data.session) applySnapshot(data.session);
+        } catch (_) {}
       };
+      es.addEventListener('presence',       handler);
+      es.addEventListener('session_update', handler);
+      es.onerror = () => { try { es.close(); } catch (_) {} setTimeout(connectSSE, 5000); };
     }
-    connect();
+    connectSSE();
+
+    // ── Caminho 2: polling de seguranca (2s) ──────────────────────────────
+    async function poll() {
+      try {
+        const r = await fetch('/api/session/state', { cache: 'no-store' });
+        if (r.ok) applySnapshot(await r.json());
+      } catch (_) { /* offline — proxima tentativa */ }
+    }
+    poll();
+    setInterval(poll, 2000);
+
+    // O redirect agressivo "presenca → home" foi removido: ele combinava
+    // com o auto-redirect ACTIVE→/voice e arrancava o visitante de qualquer
+    // funcionalidade no meio do uso (e ainda re-disparava a saudacao). O
+    // timeout natural de inatividade (60s, mais acima neste arquivo) ja
+    // devolve o totem para a home quando ninguem interage.
   })();
 </script>
 

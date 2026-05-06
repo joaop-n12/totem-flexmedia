@@ -8,6 +8,13 @@ from app.services.i18n import SUPPORTED_LOCALES, set_locale
 core_bp = Blueprint("core", __name__)
 
 
+# Sprint 4: a sessao orientada por sensores NAO tem rota dedicada.
+# Em vez disso, ela se manifesta como overlay global no `base.html` para
+# que o totem reaja proativamente em qualquer tela (home, animais, mapa,
+# voz, etc.). Ver bloco "Sessao orientada por sensores" no base.html e a
+# maquina de estados em `app/services/session.py`.
+
+
 # ── Troca de idioma da sessao ─────────────────────────────────────────────────
 # Trello: Modulo 3 - Acessibilidade e Idiomas, criterios 3.1, 3.2, 3.6.
 @core_bp.route("/api/locale", methods=["POST"])

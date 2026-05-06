@@ -264,5 +264,20 @@ async function sendText(){
 }
 sendTextBtn.addEventListener('click',sendText);
 textInput.addEventListener('keydown',e=>{if(e.key==='Enter')sendText();});
+
+// ── Sincronizacao da onda com a saudacao automatica ────────────────────
+// Quando o sensor de proximidade dispara e o base.html toca o TTS de
+// boas-vindas, ele emite `flexmedia:greeting-audio` com o elemento Audio
+// ANTES do play(). Conectamos o mesmo AnalyserNode usado pela conversa
+// por voz e mudamos o estado do avatar para 'speak', garantindo o mesmo
+// efeito visual (feixe/onda reagindo ao espectro real).
+window.addEventListener('flexmedia:greeting-audio', (ev) => {
+  const audio = ev.detail && ev.detail.audio;
+  if (!audio) return;
+  try { connectAnalyser(audio); } catch (_) { /* ja conectado ou bloqueado */ }
+  audio.addEventListener('play',  () => { setAvatarState('speak','Falando');   statusMsg.textContent=''; });
+  audio.addEventListener('ended', () => { analyser=null; setAvatarState('idle','Online'); statusMsg.textContent='Pronto para ouvir você'; });
+  if (audioCtx && audioCtx.state === 'suspended') { audioCtx.resume().catch(()=>{}); }
+});
 </script>
 {% endblock %}

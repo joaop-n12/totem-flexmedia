@@ -3,8 +3,9 @@ import logging
 import os
 import base64
 import tempfile
+import threading
 
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, current_app, render_template, request, jsonify, send_from_directory
 from openai import OpenAI, APIConnectionError, APITimeoutError, RateLimitError, AuthenticationError
 
 from app.extensions import db, limiter
@@ -19,6 +20,22 @@ voice_bp = Blueprint("voice", __name__)
 VOZES_PERMITIDAS = {"alloy", "echo", "fable", "onyx", "nova", "shimmer"}
 MAX_CHAT_LEN = 500   # chars accepted from user text
 MAX_LOG_LEN  = 1000  # chars stored in DB (response may be longer)
+
+# Saudacao proativa disparada pelo sensor de proximidade. Texto curto e
+# convidativo — proposito unico e' engajar quem se aproximou do totem sem
+# exigir toque ou fala primeiro.
+GREETING_TEXTS = {
+    "pt": "Seja bem-vindo! Gostaria de tirar alguma dúvida sobre a nossa visita?",
+    "en": "Welcome! Would you like to ask a question about your visit?",
+    "es": "¡Bienvenido! ¿Le gustaría hacer alguna pregunta sobre su visita?",
+    "fr": "Bienvenue ! Souhaitez-vous poser une question sur votre visite ?",
+}
+
+# Cache em memoria do TTS de saudacao por (slug, locale, voice). Evita gastar
+# chamadas OpenAI a cada presenca detectada — a frase e' fixa por locale.
+# Nao precisa de TTL: a frase nao muda; reinicio do worker zera tudo.
+_GREETING_CACHE: dict[tuple[str, str, str], bytes] = {}
+_GREETING_LOCK = threading.Lock()
 
 # Mensagens amigaveis exibidas no totem quando a IA esta indisponivel.
 # Sao diferenciadas por motivo para que o admin consiga diagnosticar via logs,
@@ -127,6 +144,85 @@ def voice_api(slug):
     finally:
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
+
+
+# ── Saudacao proativa por sensor de proximidade ───────────────────────────────
+#
+# Disparada pelo front (templates/base.html) quando a maquina de estados sai de
+# IDLE para INVITE ou ACTIVE — ou seja, quando o PIR/HC-SR04 detecta que alguem
+# se aproximou. Difere do /api/voice tradicional porque NAO espera entrada de
+# voz nem toque; o objetivo e' engajamento proativo.
+#
+# Seguranca/custo:
+#   - Texto fixo por locale (sem injecao de input do usuario na chamada IA).
+#   - Cache em memoria por (slug, locale, voice): primeira aproximacao gera,
+#     proximas reusam — quota diaria nao e' debitada para repeticoes.
+#   - Fallback estatico: se existir static/audio/greeting_<locale>.mp3, serve
+#     direto sem OpenAI (zero custo, zero dependencia de rede).
+#   - Gate de modulo IA + quota: respeitam as mesmas regras do voice_api.
+
+@voice_bp.route("/<slug>/api/voice/greeting", methods=["GET"])
+@limiter.limit("30 per minute; 200 per hour")
+def voice_greeting(slug):
+    inst = load_institution(slug)
+    if not inst.has_module("ia"):
+        return jsonify({"error": "module_disabled"}), 404
+
+    locale = get_locale()
+    text = GREETING_TEXTS.get(locale, GREETING_TEXTS["pt"])
+    voice = request.args.get("voice", "nova")
+    if voice not in VOZES_PERMITIDAS:
+        voice = "nova"
+
+    # 1) Fallback estatico — operador pode pre-gravar o audio e evitar OpenAI.
+    static_dir = os.path.join(current_app.root_path, "..", "static", "audio")
+    static_dir = os.path.abspath(static_dir)
+    static_name = f"greeting_{locale}.mp3"
+    if os.path.isfile(os.path.join(static_dir, static_name)):
+        return send_from_directory(static_dir, static_name, mimetype="audio/mpeg")
+
+    # 2) Cache em memoria — frase fixa, gera uma vez por (slug, locale, voice).
+    cache_key = (slug, locale, voice)
+    with _GREETING_LOCK:
+        cached = _GREETING_CACHE.get(cache_key)
+    if cached is not None:
+        return jsonify({"text": text, "tts_base64": base64.b64encode(cached).decode("utf-8")})
+
+    # 3) Gate de quota (so para a primeira geracao por locale do dia).
+    if inst.ai_quota_exceeded():
+        logger.warning("voice_greeting quota diaria atingida slug=%s", slug)
+        return jsonify({"error": "quota", "message": MSG_QUOTA_DIARIA, "text": text}), 429
+
+    try:
+        client = _get_client()
+        tts = client.audio.speech.create(model="tts-1", voice=voice, input=text)
+        audio_bytes = tts.read()
+        with _GREETING_LOCK:
+            _GREETING_CACHE[cache_key] = audio_bytes
+
+        # Loga como interacao "greeting" — alimenta as metricas de canal.
+        db.session.add(InteractionLog(
+            institution_id=inst.id,
+            input_text="(proximity-trigger)",
+            input_type="greeting",
+            response_text=text[:MAX_LOG_LEN],
+        ))
+        db.session.commit()
+
+        return jsonify({"text": text, "tts_base64": base64.b64encode(audio_bytes).decode("utf-8")})
+
+    except (APIConnectionError, APITimeoutError):
+        logger.warning("voice_greeting offline/timeout for slug=%s", slug)
+        return jsonify({"error": "offline", "message": MSG_OFFLINE, "text": text}), 503
+    except RateLimitError:
+        logger.warning("voice_greeting rate-limited for slug=%s", slug)
+        return jsonify({"error": "rate_limit", "message": MSG_RATE_LIMIT, "text": text}), 429
+    except AuthenticationError:
+        logger.error("voice_greeting auth error for slug=%s (chave OpenAI invalida?)", slug)
+        return jsonify({"error": "auth", "message": MSG_AUTH_ERROR, "text": text}), 503
+    except Exception:
+        logger.exception("voice_greeting error for slug=%s", slug)
+        return jsonify({"error": "generic", "message": MSG_GENERIC, "text": text}), 500
 
 
 # ── Text chat endpoint ─────────────────────────────────────────────────────────

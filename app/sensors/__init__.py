@@ -13,5 +13,13 @@ em desenvolvimento (laptop Windows/macOS) e em producao (Pi).
 from .base import SensorReading, is_pi_hardware
 from .pir import PirSensor
 from .dht22 import Dht22Sensor
+from .hcsr04 import DistanceReading, Hcsr04Sensor
 
-__all__ = ["SensorReading", "is_pi_hardware", "PirSensor", "Dht22Sensor"]
+__all__ = [
+    "SensorReading",
+    "is_pi_hardware",
+    "PirSensor",
+    "Dht22Sensor",
+    "DistanceReading",
+    "Hcsr04Sensor",
+]

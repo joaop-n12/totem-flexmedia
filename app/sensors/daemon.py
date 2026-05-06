@@ -35,6 +35,7 @@ import urllib.request
 
 from .base import SensorReading
 from .dht22 import Dht22Sensor
+from .hcsr04 import DistanceReading, Hcsr04Sensor
 from .pir import PirSensor
 
 logger = logging.getLogger("totem.sensor_daemon")
@@ -50,7 +51,11 @@ class SensorDaemon:
         api_key_secret: str,
         pir_pin: int = 17,
         dht_pin: int = 4,
+        hcsr04_trig_pin: int = 23,
+        hcsr04_echo_pin: int = 24,
         heartbeat_interval: float = 60.0,
+        distance_post_interval: float = 1.0,
+        distance_change_threshold_cm: float = 5.0,
     ) -> None:
         self.wake_url = wake_url
         self.wake_secret = wake_secret
@@ -60,13 +65,26 @@ class SensorDaemon:
         self.heartbeat_interval = heartbeat_interval
 
         self.pir = PirSensor(gpio_pin=pir_pin)
+        # Modelo do DHT vem do env DHT_MODEL (resolvido dentro do driver).
+        # Em Sprint 4 academico, definir DHT_MODEL=DHT11 no .env do Pi.
         self.dht = Dht22Sensor(gpio_pin=dht_pin)
+        self.hcsr04 = Hcsr04Sensor(
+            trig_pin=hcsr04_trig_pin,
+            echo_pin=hcsr04_echo_pin,
+        )
 
         # Estado compartilhado entre threads — protegido por lock simples.
         self._lock = threading.Lock()
         self._last_motion: datetime | None = None
         self._last_temp: float | None = None
         self._last_hum: float | None = None
+        self._last_distance: float | None = None
+        # Throttle do POST de distancia: evita 3-4 req/s para o Flask local.
+        # Manda quando muda significativamente OU quando passou tempo demais.
+        self._last_distance_post_ts = 0.0
+        self._last_distance_posted: float | None = None
+        self._distance_post_interval = distance_post_interval
+        self._distance_change_threshold = distance_change_threshold_cm
         self._stop = threading.Event()
 
     # ── callbacks dos sensores ─────────────────────────────────────────────
@@ -76,22 +94,12 @@ class SensorDaemon:
             return
         with self._lock:
             self._last_motion = reading.timestamp
-        # Wake local — falha silenciosa se Flask nao estiver rodando.
-        try:
-            payload = json.dumps({"ts": int(time.time())}).encode("utf-8")
-            req = urllib.request.Request(
-                self.wake_url,
-                data=payload,
-                method="POST",
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Wake-Secret": self.wake_secret,
-                },
-            )
-            urllib.request.urlopen(req, timeout=2).read()
-            logger.info("Presenca detectada — wake local enviado")
-        except (urllib.error.URLError, TimeoutError) as exc:
-            logger.warning("Wake local falhou: %s", exc)
+        self._post_wake({
+            "type": "presence",
+            "ts": int(time.time()),
+            "source": "pir",
+        })
+        logger.info("Presenca detectada — wake local enviado")
 
     def _on_env(self, reading: SensorReading) -> None:
         if reading.error:
@@ -102,6 +110,60 @@ class SensorDaemon:
                 self._last_temp = reading.temp_c
             if reading.humidity_pct is not None:
                 self._last_hum = reading.humidity_pct
+
+    def _on_distance(self, reading: DistanceReading) -> None:
+        """Recebe leitura do HC-SR04 e empurra para o Flask local quando vale.
+
+        Regra de throttle (if-else complementar exigido pelo enunciado):
+          - Se nunca postamos antes → posta.
+          - Se distancia mudou mais que `_distance_change_threshold` → posta.
+          - Se passou mais que `_distance_post_interval` segundos → posta.
+          - Caso contrario, engole para nao saturar o servidor.
+        """
+        d = reading.distance_cm
+        with self._lock:
+            self._last_distance = d
+            now = time.time()
+            prev = self._last_distance_posted
+            elapsed = now - self._last_distance_post_ts
+
+            should_post = False
+            if prev is None and d is not None:
+                should_post = True
+            elif d is None and prev is not None:
+                # Saiu do alcance — vale notificar.
+                should_post = True
+            elif d is not None and prev is not None:
+                if abs(d - prev) >= self._distance_change_threshold:
+                    should_post = True
+            if elapsed >= self._distance_post_interval and (d != prev):
+                should_post = True
+
+            if not should_post:
+                return
+
+            self._last_distance_posted = d
+            self._last_distance_post_ts = now
+
+        self._post_wake({"type": "distance", "distance_cm": d, "source": "hcsr04"})
+
+    def _post_wake(self, body: dict) -> None:
+        """POST autenticado em /api/local/wake. Falha silenciosa (Flask pode
+        estar reiniciando); proxima leitura tenta de novo."""
+        try:
+            payload = json.dumps(body, default=str).encode("utf-8")
+            req = urllib.request.Request(
+                self.wake_url,
+                data=payload,
+                method="POST",
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Wake-Secret": self.wake_secret,
+                },
+            )
+            urllib.request.urlopen(req, timeout=2).read()
+        except (urllib.error.URLError, TimeoutError) as exc:
+            logger.debug("Wake (%s) falhou: %s", body.get("type"), exc)
 
     # ── heartbeat para o servidor ──────────────────────────────────────────
 
@@ -154,16 +216,20 @@ class SensorDaemon:
     def start(self) -> None:
         self.pir.start(self._on_motion)
         self.dht.start(self._on_env)
+        self.hcsr04.start(self._on_distance)
         threading.Thread(
             target=self._heartbeat_loop, name="heartbeat", daemon=True,
         ).start()
-        logger.info("SensorDaemon online (pir mock=%s, dht mock=%s)",
-                    self.pir.mock_mode, self.dht.mock_mode)
+        logger.info(
+            "SensorDaemon online (pir mock=%s, dht mock=%s, hcsr04 mock=%s)",
+            self.pir.mock_mode, self.dht.mock_mode, self.hcsr04.mock_mode,
+        )
 
     def stop(self) -> None:
         self._stop.set()
         self.pir.stop()
         self.dht.stop()
+        self.hcsr04.stop()
 
 
 def _load_env_file(path: str) -> dict:
@@ -190,6 +256,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--pir-pin", type=int, default=17)
     parser.add_argument("--dht-pin", type=int, default=4)
+    parser.add_argument("--hcsr04-trig-pin", type=int, default=23)
+    parser.add_argument("--hcsr04-echo-pin", type=int, default=24)
     parser.add_argument("--heartbeat-interval", type=float, default=60.0)
     parser.add_argument("--log-level", default="INFO")
     args = parser.parse_args(argv)
@@ -214,6 +282,8 @@ def main(argv: list[str] | None = None) -> int:
         api_key_secret=env["TOTEM_API_KEY_SECRET"],
         pir_pin=args.pir_pin,
         dht_pin=args.dht_pin,
+        hcsr04_trig_pin=args.hcsr04_trig_pin,
+        hcsr04_echo_pin=args.hcsr04_echo_pin,
         heartbeat_interval=args.heartbeat_interval,
     )
 

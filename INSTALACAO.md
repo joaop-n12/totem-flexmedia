@@ -1,75 +1,89 @@
-# Instalação do Totem FlexMedia
+# Instalação do Totem FlexMedia — Passo a Passo Completo
 
-Guia passo a passo para instalar o projeto do zero — tanto em um Raspberry Pi real quanto em uma máquina virtual (VirtualBox) rodando Debian 12 ou Raspberry Pi OS.
+Guia validado para Raspberry Pi 3 B/B+ (Raspberry Pi OS 32 bits) e VMs Debian 12 / Raspberry Pi OS Desktop. Siga **na ordem** — cada passo valida o anterior antes de avançar.
 
-Este documento reproduz exatamente o caminho validado em uma VM Debian 12 (amd64).
+> ⚠️ **Regra de ouro**: nunca conecte ou desconecte sensores com o Pi ligado. Hardware sempre com energia desligada.
 
-## 📋 Pré-requisitos
+> 🔌 **Porta**: produção (kiosk + admin) sempre em **`8000`** (TCP, via Gunicorn). A porta `5000` só aparece se você rodar `python run.py` manualmente em modo dev — não é usada no totem.
 
-- Acesso à internet
-- Usuário com privilégios de sudo
-- Conta no GitHub com acesso ao repositório
-- Uma chave da API da OpenAI (https://platform.openai.com/api-keys)
+---
 
-## 1️⃣ Preparar o ambiente
+## 📋 Antes de começar
 
-1. Baixe o Raspberry Pi Imager: https://www.raspberrypi.com/software/
-2. Grave o Raspberry Pi OS (64-bit, Desktop) em um cartão SD de 16 GB ou mais.
-3. Antes de gravar, clique na engrenagem ⚙️ do Imager e configure:
-   - Usuário: `pi`
-   - Hostname: `totem`
-   - SSH habilitado
-   - Wi-Fi (se aplicável)
-4. Insira o SD no Raspberry, ligue e aguarde o boot inicial.
+Tenha em mãos:
 
-## 2️⃣ Instalar git e configurar SSH
+- Raspberry Pi 3 B/B+ + fonte oficial 5V/2.5A (fonte fraca = boot infinito)
+- Cartão microSD ≥ 16 GB classe 10
+- Monitor HDMI + teclado USB
+- Cabo de rede ou Wi-Fi disponível
+- **Chave da OpenAI** (https://platform.openai.com/api-keys) — começa com `sk-`
+- **Acesso ao GitHub** (chave SSH ou token) com permissão no repositório
 
-### 2.1 Atualizar o sistema e instalar git
+---
+
+## 1️⃣ Gravar o sistema no cartão SD
+
+1. Baixe o **Raspberry Pi Imager**: https://www.raspberrypi.com/software/
+2. Escolha:
+   - **Device**: Raspberry Pi 3
+   - **OS**: Raspberry Pi OS (Legacy, 32-bit) — Bookworm Desktop
+   - **Storage**: seu cartão SD
+3. Clique em **⚙️ (engrenagem)** antes de gravar:
+   - ✅ Set hostname: `totem`
+   - ✅ Set username and password — **usuário: `pi`** (o instalador procura por esse usuário)
+   - ✅ Configure wireless LAN (se for Wi-Fi)
+   - ✅ Enable SSH → "Use password authentication"
+   - ✅ Set locale: America/Sao_Paulo, teclado br
+4. Grave, espete o cartão no Pi, ligue, espere o desktop carregar (~2 min na primeira vez).
+
+> 💡 **VM em vez de Pi**: instale Debian 12 ou Raspberry Pi OS Desktop no VirtualBox. Use **VBoxSVGA + 128 MB VRAM, 3D desativado** (driver `vmwgfx` quebra o Chromium).
+
+---
+
+## 2️⃣ Atualizar o sistema e instalar o git
+
+Abra o terminal (no desktop ou via SSH `ssh pi@totem.local`):
 
 ```bash
-sudo apt update
+sudo apt update && sudo apt upgrade -y
 sudo apt install -y git
 ```
 
-### 2.2 Gerar chave SSH
+---
+
+## 3️⃣ Configurar acesso ao GitHub (SSH)
 
 ```bash
 ssh-keygen -t ed25519 -C "totem@raspberry"
 ```
 
-Aperte Enter 3 vezes (nome padrão, sem senha).
-
-### 2.3 Copiar a chave pública
+Aperte **Enter 3 vezes** (nome padrão, sem senha).
 
 ```bash
 cat ~/.ssh/id_ed25519.pub
 ```
 
-Selecione a linha inteira que aparece (começa com `ssh-ed25519`) e copie.
+Copie a linha inteira (começa com `ssh-ed25519`). No GitHub:
 
-### 2.4 Adicionar no GitHub
+1. https://github.com/settings/keys → **New SSH key**
+2. Title: `Totem Raspberry`
+3. Cole a chave → **Add SSH key**
 
-1. Acesse https://github.com/settings/keys
-2. Clique em "New SSH key"
-3. Title: `Totem Raspberry`
-4. Cole a chave no campo "Key"
-5. Clique em "Add SSH key"
-
-### 2.5 Testar a conexão
+Teste:
 
 ```bash
 ssh -T git@github.com
 ```
 
-Digite `yes` se perguntar. Deve aparecer:
+Se perguntar "Are you sure...", digite `yes`. Deve aparecer:
 
 ```
 Hi <seu-usuario>! You've successfully authenticated...
 ```
 
-## 3️⃣ Clonar o projeto
+---
 
-Sempre no seu HOME, clone já direto na branch correta:
+## 4️⃣ Clonar o projeto
 
 ```bash
 cd ~
@@ -77,230 +91,389 @@ git clone -b totem_tela_admin git@github.com:depaolii/totem_flexmedia.git totem_
 cd totem_flexmedia
 ```
 
-⚠️ **Importante:** a pasta deve se chamar exatamente `totem_flexmedia` (tudo minúsculo). O instalador procura por esse nome específico.
+> ⚠️ A pasta deve se chamar **exatamente `totem_flexmedia`** (minúsculo). O instalador também aceita rodar de qualquer pasta que contenha `wsgi.py` e `app/`, mas o systemd e o kiosk assumem `~/totem_flexmedia`.
 
-Confirme a estrutura:
+Confirme:
 
 ```bash
 ls
 ```
 
-Deve aparecer: `app/`, `run.py`, `wsgi.py`, `install_totem.sh`, `INSTALACAO.md` etc.
+Deve listar: `app/`, `run.py`, `wsgi.py`, `install_totem.sh`, `requirements.txt`, etc.
 
-## 4️⃣ Rodar o instalador automatizado
+---
+
+## 5️⃣ Corrigir line endings (só se você editou no Windows)
+
+Se você abriu o repositório no Windows antes, o `install_totem.sh` pode ter `\r\n` (CRLF) e o bash recusa com `/bin/bash^M: bad interpreter`. Prevenção:
+
+```bash
+sudo apt install -y dos2unix
+dos2unix install_totem.sh 2>/dev/null || sed -i 's/\r$//' install_totem.sh
+```
+
+---
+
+## 6️⃣ Rodar o instalador
 
 ```bash
 chmod +x install_totem.sh
 ./install_totem.sh
 ```
 
-O script vai:
+> ❌ **NÃO use `sudo ./install_totem.sh`** — o script se recusa a rodar como root. Ele chama `sudo` internamente quando precisa.
 
-- Instalar as dependências do sistema (Python, Chromium, libs C do Pillow)
-- Criar o virtualenv e instalar libs Python
-- Perguntar 3 dados para gerar o `.env`:
-  - `OPENAI_API_KEY` → sua chave da OpenAI
-  - Email do super admin → ex.: `admin@totem.com`
-  - Senha do super admin → escolha uma forte (anote!)
-- Criar o banco de dados (`flask init-db` + `flask seed`)
-- Configurar o systemd para subir o backend automaticamente
-- Instalar o Chromium em modo kiosk com autostart
+O que ele faz, na ordem:
 
-Leva 5-10 minutos. No final, aparece:
+| Etapa | O que acontece | Tempo |
+|-------|----------------|-------|
+| 0 | Pre-checks (não-root, sudo, pasta do projeto, detecta Pi) | instantâneo |
+| 1 | `apt install` de Python, Chromium, unclutter, git | 2-5 min |
+| 2 | Cria `venv/` e instala `requirements.txt` (+ `requirements-pi.txt` se for Pi) | 3-7 min |
+| 3 | Pergunta seus 3 segredos e gera `.env` (chmod 600) | 30 s |
+| 3.1 | `flask init-db` + `flask seed` (banco SQLite + zoo demo) | 10 s |
+| 4 | Cria `totem-flexmedia.service` (systemd) e sobe o backend | 5 s |
+| 4.1 | Se for Pi: instala `totem-sensors.service` (fica parado esperando credenciais) | 5 s |
+| 5 | Cria `~/.config/totem-kiosk.sh` (Chromium em loop) | instantâneo |
+| 6-8 | Autostart no LXDE/GNOME, desabilita screensaver | instantâneo |
+
+### O que digitar quando ele perguntar
 
 ```
-============================================
-  INSTALACAO CONCLUIDA
-============================================
+Cole sua OPENAI_API_KEY (comeca com 'sk-'): sk-proj-XXXXXXXX...
+Email do super admin (ex.: admin@totem.com): admin@flexmedia.com
+Senha do super admin (min. 10 caracteres): ************
+Confirme a senha: ************
 ```
 
-## 5️⃣ Verificar que tudo subiu
+> 🔐 **Anote essa senha**. Sem ela você não entra no painel admin (precisa restaurar via CLI). Veja [docs/OPERACAO.md](docs/OPERACAO.md) para reset.
 
-### 5.1 Backend está rodando?
+No final aparece:
+
+```
+=========================================
+  INSTALACAO CONCLUIDA COM SUCESSO
+=========================================
+
+Proximos passos:
+  1. Acesse o painel admin:  http://192.168.x.x:8000/admin/login
+  ...
+```
+
+---
+
+## 7️⃣ Validar o backend ANTES de seguir
+
+Não pule isso. Se algum check falhar, conserte agora — não adianta seguir.
 
 ```bash
+# 1. Servico ativo?
 sudo systemctl status totem-flexmedia
 ```
 
-A linha `Active:` deve estar verde com `active (running)`. Aperte `q` para sair.
-
-### 5.2 Backend está respondendo na porta 8000?
+A linha `Active:` precisa estar **verde com `active (running)`**. Aperte `q` para sair.
 
 ```bash
+# 2. Backend respondendo?
 curl -i http://localhost:8000/
 ```
 
-Deve aparecer algo como:
-
-```
-HTTP/1.1 302 FOUND
-Location: /zoo/
-```
-
-### 5.3 Todos os arquivos do kiosk estão no lugar?
+Esperado: `HTTP/1.1 302 FOUND` redirecionando para `/zoo/` ou `/selector`.
 
 ```bash
-systemctl is-enabled totem-flexmedia      # deve retornar "enabled"
-ls ~/.config/totem-kiosk.sh                # deve existir
-ls ~/.config/autostart/totem-kiosk.desktop # deve existir
-ls ~/totem_flexmedia/.env                  # deve existir (permissão 600)
-grep bind ~/totem_flexmedia/gunicorn.conf.py
-# deve mostrar: bind = os.environ.get("GUNICORN_BIND", "127.0.0.1:8000")
+# 3. Banco populado?
+ls -la instance/
 ```
 
-Se todos os checks passarem, siga para o passo 7.
-
-## 6️⃣ Reiniciar
+Deve ter `app.db` (~50 KB).
 
 ```bash
-sudo reboot
+# 4. .env protegido?
+ls -la .env
 ```
 
-O que deve acontecer:
+Permissão deve ser `-rw-------` (chmod 600).
 
-- Sistema reinicia (~30 s na VM, ~1-2 min no Pi real)
-- Backend sobe via systemd em paralelo
-- GNOME carrega
-- Chromium abre em fullscreen mostrando o tótem do zoo demo
+Se algo falhar, veja **🆘 Troubleshooting** no fim deste arquivo.
 
-## 7️⃣ Configurar conteúdo pelo painel admin
+---
 
-### 7.1 Descobrir o IP da máquina
+## 8️⃣ Provisionar o totem no painel admin
+
+Antes de conectar sensores, gere as credenciais HMAC do totem.
+
+### 8.1 Descubra o IP
 
 ```bash
 hostname -I
 ```
 
-### 7.2 Acessar o painel
+### 8.2 Acesse o painel
 
-No navegador (pode ser de outro computador na mesma rede):
+No próprio Pi (Chromium ainda não está em kiosk) ou de outro computador na mesma rede:
 
 ```
-http://<IP-DA-MAQUINA>:8000/admin/login
+http://<IP>:8000/admin/login
 ```
 
-Faça login com o email e a senha que você cadastrou no passo 4.
+Faça login com o email/senha do passo 6.
 
-### 7.3 O que dá pra configurar
+### 8.3 Crie o totem
 
-- ✅ Criar novas instituições (zoo, shopping, farmácia)
-- ✅ Personalizar cores, logo e textos de cada instituição
-- ✅ Cadastrar animais, eventos, lojas, produtos, FAQs
-- ✅ Ativar módulos (mapa, IA, etc.)
-- ✅ Ajustar quota diária de IA por instituição
+1. **Frota → Totens → + Novo Totem**
+2. Preencha nome (ex.: "Totem Recepção"), instituição
+3. Salve → a tela mostra **uma única vez**:
+   - `TOTEM_API_KEY_ID` (ex.: `tk_abc123...`)
+   - `TOTEM_API_KEY_SECRET` (ex.: `s_xyz789...`)
+4. **Copie os dois agora** — depois você não consegue mais ver o secret.
 
-Sem cadastrar conteúdo, o tótem continua mostrando apenas a instituição demo (Neural Crew Zoo).
+### 8.4 Salve as credenciais no Pi
+
+```bash
+sudo mkdir -p /etc/totem
+sudo nano /etc/totem/credenciais.env
+```
+
+Cole (ajustando os valores) e o `TOTEM_WAKE_SECRET` precisa ser **idêntico** ao que está em `~/totem_flexmedia/.env`:
+
+```
+TOTEM_API_KEY_ID=tk_abc123...
+TOTEM_API_KEY_SECRET=s_xyz789...
+TOTEM_WAKE_SECRET=<mesmo valor do .env do Flask>
+```
+
+Para descobrir o `TOTEM_WAKE_SECRET` que o instalador gerou:
+
+```bash
+grep TOTEM_WAKE_SECRET ~/totem_flexmedia/.env
+```
+
+Salve (Ctrl+O, Enter, Ctrl+X) e proteja:
+
+```bash
+sudo chmod 600 /etc/totem/credenciais.env
+```
+
+---
+
+## 9️⃣ Conectar os sensores físicos (só Pi real)
+
+> ⚠️ **DESLIGUE o Pi antes** — nunca conecte GPIO com energia.
+
+```bash
+sudo shutdown -h now
+```
+
+Espere o LED verde apagar, **tire o cabo de força**, então conecte:
+
+### PIR HC-SR501 (detector de presença)
+
+| PIR | GPIO Pi |
+|-----|---------|
+| VCC | Pino 2 (5V) |
+| GND | Pino 6 (GND) |
+| OUT | Pino 11 (GPIO 17) |
+
+### DHT22 (temperatura + umidade)
+
+| DHT22 | GPIO Pi |
+|-------|---------|
+| VCC | Pino 1 (3.3V) |
+| GND | Pino 9 (GND) |
+| DATA | Pino 7 (GPIO 4) — com resistor 10kΩ pull-up até VCC |
+
+Religue o cabo de força. Espere o boot.
+
+---
+
+## 🔟 Iniciar o daemon de sensores
+
+```bash
+sudo systemctl start totem-sensors
+sudo systemctl status totem-sensors
+```
+
+Deve estar `active (running)`. Confira leituras ao vivo:
+
+```bash
+journalctl -u totem-sensors -f
+```
+
+A cada poucos segundos aparece algo como:
+
+```
+PIR=0 temp=24.3°C umidade=58.1% (heartbeat OK)
+```
+
+`Ctrl+C` sai do journalctl (não para o daemon).
+
+---
+
+## 1️⃣1️⃣ Reboot final
+
+```bash
+sudo reboot
+```
+
+O que esperar:
+
+- Boot (~1-2 min no Pi 3)
+- `totem-flexmedia` sobe via systemd (porta 8000)
+- `totem-sensors` sobe e começa a postar heartbeats
+- Desktop carrega → **Chromium abre em fullscreen** mostrando o tótem
+- Cursor some após 100 ms
+
+---
+
+## 1️⃣2️⃣ Conteúdo: criar instituições
+
+Sem cadastrar conteúdo, o tótem mostra só o demo "Neural Crew Zoo". Pelo painel:
+
+- ✅ **Instituições**: criar zoo, museu, hotel etc. (white label)
+- ✅ **Personalização**: cores, logo, tagline, idioma padrão
+- ✅ **Conteúdo**: animais, eventos, lojas, produtos, FAQs, quiz
+- ✅ **Módulos**: ativar/desativar mapa, IA, quiz, avaliação por instituição
+- ✅ **Quota IA**: limite diário de chamadas OpenAI por instituição
+
+---
 
 ## 🆘 Troubleshooting
 
-### Chromium mostra "This site can't be reached"
-
-Backend não está ouvindo na porta 8000. Abra um terminal (Ctrl da direita + Alt + F2) e rode:
-
-```bash
-sudo systemctl status totem-flexmedia
-journalctl -u totem-flexmedia --no-pager -n 30
-```
-
-Se os logs mostrarem `Listening at: unix:/tmp/...`, confira o `gunicorn.conf.py`:
-
-```bash
-grep bind ~/totem_flexmedia/gunicorn.conf.py
-```
-
-Deve ser: `bind = os.environ.get("GUNICORN_BIND", "127.0.0.1:8000")`.
-
-### Kiosk abre mas mostra página 404
-
-A URL no script do kiosk está errada. Confira:
-
-```bash
-grep URL ~/.config/totem-kiosk.sh
-```
-
-Deve mostrar: `URL="http://localhost:8000/"` (sem `/totem`).
-
-Se estiver errado, edite com `nano ~/.config/totem-kiosk.sh` e reinicie o serviço.
-
-### Sair do kiosk para mexer no terminal
-
-Pressione **Ctrl da direita + Alt + F2** para abrir um terminal texto. Faça login com `pi`.
-
-Para voltar ao desktop gráfico: **Ctrl da direita + Alt + F1** (ou F7).
-
-### Matar o Chromium em loop
-
-```bash
-pkill chromium
-pkill -f totem-kiosk
-```
-
-### Ver logs do backend em tempo real
-
-```bash
-journalctl -u totem-flexmedia -f
-```
-
-### Reiniciar só o backend (sem reboot)
-
-```bash
-sudo systemctl restart totem-flexmedia
-```
-
-### Erro `vmwgfx Failed to send host log` (só VM)
-
-Driver gráfico errado. Desligue a VM e vá em **Configurações → Tela**: troque para **VBoxSVGA** com 3D desativado e 128 MB de VRAM.
-
-### Erro "Permissão negada" ao rodar `./install_totem.sh`
-
-Falta bit de executável. Rode:
-
-```bash
-chmod +x install_totem.sh
-```
-
-### Erro `/bin/bash^M: interpretador incorreto`
-
-Arquivo com line endings do Windows (CRLF). Corrija:
-
+### Erro `/bin/bash^M: bad interpreter`
+Line endings do Windows. Rode antes do instalador:
 ```bash
 sed -i 's/\r$//' install_totem.sh
 ```
 
-## 📚 Comandos úteis do dia a dia
+### Erro "Permissão negada" ao rodar `./install_totem.sh`
+```bash
+chmod +x install_totem.sh
+```
+
+### Instalador aborta com "Nao rode este script como root"
+Saia do sudo. Rode com seu usuário normal:
+```bash
+exit   # se estiver em sudo -i
+./install_totem.sh
+```
+
+### `flask init-db` falha com "no such command"
+O `venv` não foi ativado. Rode manualmente:
+```bash
+cd ~/totem_flexmedia
+source venv/bin/activate
+export FLASK_APP=wsgi.py
+set -a; source .env; set +a
+flask init-db && flask seed
+```
+
+### Chromium mostra "This site can't be reached"
+Backend não subiu. Diagnóstico:
+```bash
+sudo systemctl status totem-flexmedia
+journalctl -u totem-flexmedia --no-pager -n 50
+```
+Confira o bind do Gunicorn:
+```bash
+grep bind ~/totem_flexmedia/gunicorn.conf.py
+# precisa ser: bind = os.environ.get("GUNICORN_BIND", "127.0.0.1:8000")
+```
+
+### Daemon de sensores não sobe — `credenciais.env not found`
+Você pulou o passo 8. Crie `/etc/totem/credenciais.env` com `chmod 600` e:
+```bash
+sudo systemctl start totem-sensors
+```
+
+### `TOTEM_WAKE_SECRET` diferente entre `.env` e `credenciais.env`
+O daemon não consegue acordar o kiosk via SSE. Sincronize:
+```bash
+grep TOTEM_WAKE_SECRET ~/totem_flexmedia/.env
+sudo nano /etc/totem/credenciais.env   # cole o mesmo valor
+sudo systemctl restart totem-sensors
+```
+
+### Sair do kiosk pra mexer no terminal
+- **Ctrl direito + Alt + F2** → terminal texto (login `pi`)
+- **Ctrl direito + Alt + F1** ou **F7** → volta pro desktop
+- Matar Chromium em loop:
+  ```bash
+  pkill chromium && pkill -f totem-kiosk
+  ```
+
+### Esqueci a senha do super admin
+```bash
+cd ~/totem_flexmedia && source venv/bin/activate
+export FLASK_APP=wsgi.py
+flask shell
+```
+No shell:
+```python
+from app.extensions import db
+from app.models.user import User
+u = User.query.filter_by(email="admin@flexmedia.com").first()
+u.set_password("NovaSenhaForte123")
+u.must_change_password = False
+u.failed_logins = 0
+u.locked_until = None
+db.session.commit()
+```
+
+### VM: erro `vmwgfx Failed to send host log`
+Driver gráfico errado. Desligue, vá em **Configurações → Tela** do VirtualBox: **VBoxSVGA**, 128 MB VRAM, 3D **desativado**.
+
+---
+
+## 📚 Comandos do dia a dia
 
 | Ação | Comando |
 |------|---------|
-| Ver logs do backend ao vivo | `journalctl -u totem-flexmedia -f` |
+| Logs do backend ao vivo | `journalctl -u totem-flexmedia -f` |
+| Logs dos sensores | `journalctl -u totem-sensors -f` |
 | Reiniciar só o backend | `sudo systemctl restart totem-flexmedia` |
-| Testar se está rodando | `curl http://localhost:8000/` |
-| Matar kiosk pra sair | `pkill chromium && pkill -f totem-kiosk` |
-| Ir pro terminal texto | Ctrl da direita + Alt + F2 |
-| Voltar pro desktop | Ctrl da direita + Alt + F1 (ou F7) |
+| Reiniciar sensores | `sudo systemctl restart totem-sensors` |
+| Testar HTTP | `curl http://localhost:8000/` |
+| Sair do kiosk | Ctrl direito + Alt + F2 |
+| Voltar pro desktop | Ctrl direito + Alt + F1 |
 | IP da máquina | `hostname -I` |
+| Atualizar o código | `cd ~/totem_flexmedia && git pull && sudo systemctl restart totem-flexmedia` |
+| Backup do banco | `bash deploy/backup.sh` |
 
-## 🗂️ Estrutura principal após instalação
+---
+
+## 🗂️ Estrutura após instalação
 
 ```
 ~/totem_flexmedia/
-├── app/                # código Flask (rotas, models, helpers)
-├── static/             # CSS, JS, imagens
-├── templates/          # HTMLs (tótem + admin)
-├── venv/               # virtualenv (não commitar)
-├── .env                # segredos (chmod 600, NUNCA commitar)
-├── instance/           # banco SQLite (criado por `flask init-db`)
-├── gunicorn.conf.py    # config do Gunicorn (bind TCP 127.0.0.1:8000)
-├── run.py              # entrypoint dev (python run.py)
-├── wsgi.py             # entrypoint produção (Gunicorn)
-└── install_totem.sh    # instalador automatizado
+├── app/                # código Flask
+├── instance/app.db     # banco SQLite (criado por flask init-db)
+├── venv/               # virtualenv
+├── .env                # segredos (chmod 600)
+└── install_totem.sh
 
 ~/.config/
-├── totem-kiosk.sh                    # watchdog do Chromium kiosk
-└── autostart/totem-kiosk.desktop     # faz o kiosk abrir no login
+├── totem-kiosk.sh                   # watchdog do Chromium
+└── autostart/totem-kiosk.desktop    # autostart no login
 
 /etc/systemd/system/
-└── totem-flexmedia.service           # serviço do backend (auto-start)
+├── totem-flexmedia.service          # backend Flask
+└── totem-sensors.service            # daemon PIR + DHT22 (Pi only)
 
-/etc/gdm3/
-└── daemon.conf                        # autologin do GNOME
+/etc/totem/
+└── credenciais.env                  # API key + HMAC do totem (chmod 600)
 ```
+
+---
+
+## ✅ Checklist de instalação bem-sucedida
+
+- [ ] `sudo systemctl status totem-flexmedia` → `active (running)` (verde)
+- [ ] `curl http://localhost:8000/` → 302 ou 200
+- [ ] Login no admin funciona
+- [ ] Kiosk abre fullscreen depois do reboot
+- [ ] (Pi) `sudo systemctl status totem-sensors` → `active (running)`
+- [ ] (Pi) `journalctl -u totem-sensors -f` mostra `heartbeat OK`
+- [ ] `.env` com `chmod 600`
+- [ ] `/etc/totem/credenciais.env` com `chmod 600`
+
+Se todos os ✅ passaram, a instalação está pronta para produção. Veja [docs/OPERACAO.md](docs/OPERACAO.md) para troca de chaves, backup e nova instituição.
