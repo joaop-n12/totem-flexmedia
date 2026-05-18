@@ -1,14 +1,14 @@
 {% extends "admin/base.html" %}
-{% block title %}Instituições{% endblock %}
-{% block topbar_title %}Instituições{% endblock %}
+{% block title %}Clientes{% endblock %}
+{% block topbar_title %}Clientes{% endblock %}
 
 {% block content %}
 <div class="page-hd">
   <div>
-    <h1>Instituições</h1>
-    <div class="page-hd-sub">{{ institutions|length }} cadastradas</div>
+    <h1>Clientes</h1>
+    <div class="page-hd-sub">{{ institutions|length }} cadastrados</div>
   </div>
-  <a class="btn btn-primary" href="{{ url_for('admin_platform.institution_new') }}">+ Nova Instituição</a>
+  <a class="btn btn-primary" href="{{ url_for('admin_platform.institution_new') }}">+ Novo Cliente</a>
 </div>
 
 <div class="card">
@@ -70,8 +70,8 @@
           <td colspan="7">
             <div class="empty-state">
               <div class="empty-state-icon">🏛</div>
-              <div class="empty-state-title">Nenhuma instituição cadastrada</div>
-              <p>Clique em "Nova Instituição" para começar.</p>
+              <div class="empty-state-title">Nenhum cliente cadastrado</div>
+              <p>Clique em "Novo Cliente" para começar.</p>
             </div>
           </td>
         </tr>

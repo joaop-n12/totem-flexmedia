@@ -12,12 +12,12 @@
       <span style="width:7px;height:7px;border-radius:50%;background:var(--coral);box-shadow:0 0 10px var(--coral);"></span>
       Aviso LGPD
     </div>
-    <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;letter-spacing:-.3px;">Antes de comecar</h2>
+    <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;letter-spacing:-.3px;">Antes de começar</h2>
     <p style="line-height:1.6;color:var(--text-soft);font-size:14px;">
-      Suas perguntas sao enviadas de forma criptografada a <strong style="color:var(--accent);">OpenAI</strong>
-      para gerar a resposta. Mantemos a transcricao por no maximo
+      Suas perguntas são enviadas de forma criptografada à <strong style="color:var(--accent);">OpenAI</strong>
+      para gerar a resposta. Mantemos a transcrição por no máximo
       <strong style="color:var(--accent);">{{ config.INTERACTION_LOG_RETENTION_DAYS or 90 }} dias</strong>
-      e nao coletamos dados pessoais.
+      e não coletamos dados pessoais.
       <a href="{{ url_for('core.privacidade', slug=institution.slug) }}"
          style="color:var(--accent);text-decoration:underline;">Ler aviso completo</a>.
     </p>
@@ -26,7 +26,7 @@
         Aceito e continuar
       </button>
       <button id="lgpdDecline" onclick="history.back()" class="btn ghost" style="flex:1;min-width:140px;">
-        Nao, obrigado
+        Não, obrigado
       </button>
     </div>
   </div>
@@ -144,9 +144,11 @@
 .record-btn::before { content:'';position:absolute;inset:-8px;border-radius:50%;border:1px solid rgba(244,184,96,.1); }
 .record-btn:hover     { border-color:var(--accent);background:rgba(244,184,96,.1);transform:scale(1.05); }
 .record-btn.recording { border-color:#ff4444;background:rgba(255,68,68,.1);color:#ff8888;animation:recordPulse 1.2s ease infinite; }
-.record-btn.loading   { border-color:#60aaff;background:rgba(96,170,255,.1);color:#60aaff;animation:loadingPulse 1s ease infinite;cursor:not-allowed; }
+.record-btn.loading   { border-color:#60aaff;background:rgba(96,170,255,.1);color:#60aaff;animation:loadingPulse 1s ease infinite; }
+.record-btn.speaking  { border-color:#4dd9d0;background:rgba(77,217,208,.1);color:#4dd9d0;animation:speakPulse 1.5s ease infinite; }
 @keyframes recordPulse  { 0%,100%{box-shadow:0 0 20px rgba(255,68,68,.2);}50%{box-shadow:0 0 42px rgba(255,68,68,.5);} }
 @keyframes loadingPulse { 0%,100%{box-shadow:0 0 20px rgba(96,170,255,.2);}50%{box-shadow:0 0 42px rgba(96,170,255,.5);} }
+@keyframes speakPulse   { 0%,100%{box-shadow:0 0 20px rgba(77,217,208,.25);}50%{box-shadow:0 0 42px rgba(77,217,208,.55);} }
 .status-msg { font-size:.82em;color:var(--muted);letter-spacing:.4px;min-height:18px;text-align:center; }
 
 /* Divisor "ou" */
@@ -200,42 +202,107 @@ const recordBtn=document.getElementById('recordBtn'),
       textInput=document.getElementById('textInput'),sendTextBtn=document.getElementById('sendTextBtn');
 
 let selectedVoice='nova',isRecording=false,mediaRecorder,audioChunks=[];
+// Estado global do botao multi-estado (padrao Siri/ChatGPT Voice): um unico
+// botao serve tanto para iniciar a gravacao quanto para interromper qualquer
+// fase em andamento — gravacao, requisicao HTTP em voo ou reproducao do TTS
+// (inclusive a saudacao automatica disparada pelo sensor de proximidade).
+let currentAudio=null,currentAbort=null,currentStream=null;
+
+const ICON_MIC='<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>';
+const ICON_STOP='<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+
+// Aplica visual + label de instrucao conforme a fase atual.
+function setButtonMode(mode){
+  recordBtn.classList.remove('recording','loading','speaking');
+  recordBtn.disabled=false;
+  if(mode==='idle'){
+    recordBtn.innerHTML=ICON_MIC;
+    recordBtn.setAttribute('aria-label','Iniciar gravação');
+    statusMsg.textContent='Toque para falar';
+  }else if(mode==='recording'){
+    recordBtn.classList.add('recording');
+    recordBtn.innerHTML=ICON_STOP;
+    recordBtn.setAttribute('aria-label','Parar gravação');
+    statusMsg.textContent='Toque para parar de gravar';
+  }else if(mode==='loading'){
+    recordBtn.classList.add('loading');
+    recordBtn.innerHTML=ICON_STOP;
+    recordBtn.setAttribute('aria-label','Cancelar processamento');
+    statusMsg.textContent='Toque para cancelar';
+  }else if(mode==='speaking'){
+    recordBtn.classList.add('speaking');
+    recordBtn.innerHTML=ICON_STOP;
+    recordBtn.setAttribute('aria-label','Parar reproducao');
+    statusMsg.textContent='Toque para parar de ouvir';
+  }
+}
+
+// Interrompe a reproducao em curso (TTS de resposta ou saudacao automatica).
+function stopCurrentAudio(){
+  if(currentAudio){
+    try{currentAudio.pause();currentAudio.currentTime=0;}catch(_){}
+    currentAudio=null;
+  }
+  analyser=null;
+  setAvatarState('idle','Online');
+}
 
 function setAvatarState(state,label){avatarStatus.className='status-badge '+state;statusText.textContent=label;waveMode=state==='listen'?'listen':state==='speak'?'speak':'idle';}
 document.querySelectorAll('.voice-pill').forEach(pill=>{
   pill.addEventListener('click',()=>{document.querySelectorAll('.voice-pill').forEach(p=>p.classList.remove('active'));pill.classList.add('active');selectedVoice=pill.dataset.voice;});
 });
 
-// Voice recording
+// Despachante central: o mesmo clique trata as quatro situacoes possiveis.
+// A ordem importa — checamos primeiro o estado mais avancado do fluxo, para
+// que clicar enquanto o totem fala interrompa o audio antes de qualquer
+// outra coisa.
 recordBtn.addEventListener('click',async()=>{
+  if(currentAudio&&!currentAudio.paused){
+    stopCurrentAudio();setButtonMode('idle');return;
+  }
+  if(currentAbort){
+    currentAbort.abort();currentAbort=null;
+    if(currentStream){currentStream.getTracks().forEach(t=>t.stop());currentStream=null;}
+    setAvatarState('idle','Online');setButtonMode('idle');
+    statusMsg.textContent='Cancelado';return;
+  }
   if(isRecording){mediaRecorder.stop();return;}
+  await iniciarGravacao();
+});
+
+async function iniciarGravacao(){
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    currentStream=stream;
     mediaRecorder=new MediaRecorder(stream);audioChunks=[];isRecording=true;
-    recordBtn.classList.add('recording');
-    statusMsg.textContent='Gravando...';setAvatarState('listen','Ouvindo');
+    setButtonMode('recording');setAvatarState('listen','Ouvindo');
     mediaRecorder.ondataavailable=e=>audioChunks.push(e.data);
     mediaRecorder.onstop=async()=>{
-      isRecording=false;recordBtn.classList.remove('recording');
-      stream.getTracks().forEach(t=>t.stop());
-      recordBtn.classList.add('loading');recordBtn.disabled=true;
-      statusMsg.textContent='Processando...';setAvatarState('think','Pensando');
+      isRecording=false;
+      stream.getTracks().forEach(t=>t.stop());currentStream=null;
+      setButtonMode('loading');setAvatarState('think','Pensando');
       const blob=new Blob(audioChunks,{type:'audio/wav'});
       const form=new FormData();form.append('audio',blob,'audio.wav');form.append('voice',selectedVoice);
+      currentAbort=new AbortController();
       try{
-        const res=await fetch(`/${SLUG}/api/voice`,{method:'POST',body:form});
+        const res=await fetch(`/${SLUG}/api/voice`,{method:'POST',body:form,signal:currentAbort.signal});
+        currentAbort=null;
         const data=await res.json();
-        if(data.error){statusMsg.textContent='❌ '+data.error;setAvatarState('idle','Online');return;}
+        if(data.error){statusMsg.textContent='❌ '+data.error;setAvatarState('idle','Online');setButtonMode('idle');return;}
         userBubble.textContent=data.transcription;userBubble.classList.remove('hidden');
         botBubble.textContent=data.response;botBubble.classList.remove('hidden');
         const audio=new Audio('data:audio/mp3;base64,'+data.tts_base64);
         audio.crossOrigin='anonymous';connectAnalyser(audio);
-        recordBtn.classList.remove('loading');recordBtn.disabled=false;
-        audio.onplay=()=>{setAvatarState('speak','Falando');statusMsg.textContent='';};
-        audio.onended=()=>{analyser=null;setAvatarState('idle','Online');statusMsg.textContent='Pronto para ouvir você';};
+        currentAudio=audio;setButtonMode('speaking');
+        audio.onplay=()=>{setAvatarState('speak','Falando');statusMsg.textContent='Toque para parar de ouvir';};
+        audio.onended=()=>{currentAudio=null;analyser=null;setAvatarState('idle','Online');setButtonMode('idle');};
         if(audioCtx?.state==='suspended')await audioCtx.resume();
         audio.play();
-      }catch(err){statusMsg.textContent='❌ Erro de conexão';recordBtn.classList.remove('loading');recordBtn.disabled=false;setAvatarState('idle','Online');}
+      }catch(err){
+        currentAbort=null;
+        if(err.name==='AbortError')return;
+        statusMsg.textContent='❌ Erro de conexao';setAvatarState('idle','Online');setButtonMode('idle');
+      }
     };
     mediaRecorder.start();
   }catch(err){
@@ -246,9 +313,9 @@ recordBtn.addEventListener('click',async()=>{
       SecurityError:'Contexto inseguro — use localhost ao invés de 127.0.0.1',
     };
     statusMsg.textContent = msgs[err.name] || ('Erro: ' + err.name + ' — ' + err.message);
-    setAvatarState('idle','Online');
+    setAvatarState('idle','Online');setButtonMode('idle');
   }
-});
+}
 
 // Text chat
 async function sendText(){
@@ -268,15 +335,18 @@ textInput.addEventListener('keydown',e=>{if(e.key==='Enter')sendText();});
 // ── Sincronizacao da onda com a saudacao automatica ────────────────────
 // Quando o sensor de proximidade dispara e o base.html toca o TTS de
 // boas-vindas, ele emite `flexmedia:greeting-audio` com o elemento Audio
-// ANTES do play(). Conectamos o mesmo AnalyserNode usado pela conversa
-// por voz e mudamos o estado do avatar para 'speak', garantindo o mesmo
-// efeito visual (feixe/onda reagindo ao espectro real).
+// ANTES do play(). Registramos o audio como `currentAudio` para que o
+// botao multi-estado consiga interrompe-lo com um unico toque (mesma
+// experiencia da resposta de voz: o usuario nao precisa esperar a
+// saudacao terminar para fazer uma pergunta).
 window.addEventListener('flexmedia:greeting-audio', (ev) => {
   const audio = ev.detail && ev.detail.audio;
   if (!audio) return;
   try { connectAnalyser(audio); } catch (_) { /* ja conectado ou bloqueado */ }
-  audio.addEventListener('play',  () => { setAvatarState('speak','Falando');   statusMsg.textContent=''; });
-  audio.addEventListener('ended', () => { analyser=null; setAvatarState('idle','Online'); statusMsg.textContent='Pronto para ouvir você'; });
+  currentAudio = audio;
+  setButtonMode('speaking');
+  audio.addEventListener('play',  () => { setAvatarState('speak','Falando');   statusMsg.textContent='Toque para parar de ouvir'; });
+  audio.addEventListener('ended', () => { currentAudio=null; analyser=null; setAvatarState('idle','Online'); setButtonMode('idle'); });
   if (audioCtx && audioCtx.state === 'suspended') { audioCtx.resume().catch(()=>{}); }
 });
 </script>

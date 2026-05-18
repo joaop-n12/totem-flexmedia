@@ -1,27 +1,27 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-header">
-  <div class="page-eyebrow">Catalogo de especies</div>
-  <h2 class="page-title">Conheca os animais</h2>
-  <p class="page-desc">Escolha uma especie para descobrir os animais que vivem no parque.</p>
+  <div class="page-eyebrow">{{ t('zoo.species.eyebrow') }}</div>
+  <h2 class="page-title">{{ t('zoo.species.title') }}</h2>
+  <p class="page-desc">{{ t('zoo.species.desc') }}</p>
 </div>
 
 <div class="grid species-grid">
   {% for e in especies %}
   <a class="card species-card" href="{{ url_for('zoo.animais_lista', slug=institution.slug, especie_slug=e.slug) }}">
     <div class="species-thumb">
-      <img src="{{ url_for('static', filename='images/' ~ e.imagem) }}" alt="{{ e.nome }}" loading="lazy">
+      <img src="{{ url_for('static', filename='images/' ~ e.imagem) }}" alt="{{ e.nome|tr }}" loading="lazy">
     </div>
     <div class="card-body">
-      <h3 class="card-title">{{ e.nome }}</h3>
-      <p class="card-meta">📌 {{ e.count }} {{ 'animal' if e.count == 1 else 'animais' }}</p>
-      <p class="card-desc">Toque para explorar</p>
+      <h3 class="card-title">{{ e.nome|tr }}</h3>
+      <p class="card-meta">📌 {{ e.count }} {{ t('common.animal_singular') if e.count == 1 else t('common.animal_plural') }}</p>
+      <p class="card-desc">{{ t('common.touch_explore') }}</p>
     </div>
   </a>
   {% endfor %}
 </div>
 
 <div class="page-actions">
-  <a class="btn" href="{{ url_for('zoo.catalogo', slug=institution.slug) }}">📋 Ver Catálogo Completo</a>
+  <a class="btn" href="{{ url_for('zoo.catalogo', slug=institution.slug) }}">{{ t('zoo.species.view_catalog') }}</a>
 </div>
 {% endblock %}

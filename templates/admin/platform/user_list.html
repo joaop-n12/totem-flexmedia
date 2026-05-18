@@ -16,7 +16,7 @@
     <table>
       <thead>
         <tr>
-          <th>Nome / E-mail</th><th>Role</th><th>Instituição</th>
+          <th>Nome / E-mail</th><th>Role</th><th>Cliente</th>
           <th>Status</th><th>Último login</th><th>Criado em</th><th>Ações</th>
         </tr>
       </thead>
@@ -35,7 +35,7 @@
             {% endif %}
           </td>
           <td class="td-muted">
-            {{ u.institution.name if u.institution else '— (global)' }}
+            {{ u.institution.name if u.institution else '(teste)' }}
           </td>
           <td>
             {% if u.active %}

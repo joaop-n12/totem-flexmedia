@@ -4,29 +4,29 @@
   <div class="detail-media">
     <img class="detail-img"
          src="{{ url_for('static', filename='images/' ~ animal.imagem) }}"
-         alt="{{ animal.nome }}">
+         alt="{{ animal.nome|tr }}">
   </div>
   <div class="detail-info">
-    <div class="detail-eyebrow">{{ animal.especie or 'Animal' }}</div>
-    <h1 class="detail-title">{{ animal.nome }}</h1>
+    <div class="detail-eyebrow">{{ (animal.especie|tr) or t('zoo.detail.fallback') }}</div>
+    <h1 class="detail-title">{{ animal.nome|tr }}</h1>
 
     <div class="detail-meta-row">
       {% if animal.habitat %}
       <div class="detail-meta-item">
-        <span class="detail-meta-label">Habitat</span>
-        <span class="detail-meta-value">{{ animal.habitat }}</span>
+        <span class="detail-meta-label">{{ t('zoo.detail.habitat') }}</span>
+        <span class="detail-meta-value">{{ animal.habitat|tr }}</span>
       </div>
       {% endif %}
       {% if animal.area %}
       <div class="detail-meta-item">
-        <span class="detail-meta-label">Área</span>
-        <span class="detail-meta-value">{{ animal.area.replace('-', ' ').title() }}</span>
+        <span class="detail-meta-label">{{ t('zoo.detail.area') }}</span>
+        <span class="detail-meta-value">{{ animal.area.replace('-', ' ').title()|tr }}</span>
       </div>
       {% endif %}
     </div>
 
     {% if animal.descricao %}
-    <p class="detail-text">{{ animal.descricao }}</p>
+    <p class="detail-text">{{ animal.descricao|tr }}</p>
     {% endif %}
 
     <div class="detail-facts">
@@ -34,8 +34,8 @@
       <div class="detail-fact">
         <span class="detail-fact-icon">🍖</span>
         <div>
-          <div class="detail-fact-label">Alimentação</div>
-          <div class="detail-fact-value">{{ animal.alimentacao }}</div>
+          <div class="detail-fact-label">{{ t('zoo.detail.food') }}</div>
+          <div class="detail-fact-value">{{ animal.alimentacao|tr }}</div>
         </div>
       </div>
       {% endif %}
@@ -43,8 +43,8 @@
       <div class="detail-fact">
         <span class="detail-fact-icon">💡</span>
         <div>
-          <div class="detail-fact-label">Curiosidades</div>
-          <div class="detail-fact-value">{{ animal.curiosidades }}</div>
+          <div class="detail-fact-label">{{ t('zoo.detail.curiosities') }}</div>
+          <div class="detail-fact-value">{{ animal.curiosidades|tr }}</div>
         </div>
       </div>
       {% endif %}
@@ -52,15 +52,15 @@
       <div class="detail-fact">
         <span class="detail-fact-icon">🌿</span>
         <div>
-          <div class="detail-fact-label">Conservação</div>
-          <div class="detail-fact-value">{{ animal.conservacao }}</div>
+          <div class="detail-fact-label">{{ t('zoo.detail.conservation') }}</div>
+          <div class="detail-fact-value">{{ animal.conservacao|tr }}</div>
         </div>
       </div>
       {% endif %}
     </div>
 
     <div class="page-actions">
-      <a class="back-btn" href="{{ url_for('zoo.animais_lista', slug=institution.slug, especie_slug=animal.especie_slug) }}">← Voltar</a>
+      <a class="back-btn" href="{{ url_for('zoo.animais_lista', slug=institution.slug, especie_slug=animal.especie_slug) }}">← {{ t('common.back') }}</a>
     </div>
   </div>
 </div>

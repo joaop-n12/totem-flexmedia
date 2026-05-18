@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="page-header">
-  <div class="page-eyebrow">Especie</div>
-  <h2 class="page-title">{{ especie_nome }}</h2>
-  <p class="page-desc">Toque em um animal para ver detalhes, habitat e curiosidades.</p>
+  <div class="page-eyebrow">{{ t('zoo.list.eyebrow') }}</div>
+  <h2 class="page-title">{{ especie_nome|tr }}</h2>
+  <p class="page-desc">{{ t('zoo.list.desc') }}</p>
 </div>
 
 <form class="search" method="get" action="{{ url_for('zoo.animais_lista', slug=institution.slug, especie_slug=especie_slug) }}">
-  <input type="text" name="q" placeholder="Pesquisar animal..." value="{{ q }}" autocomplete="off">
-  <button class="btn" type="submit">Buscar</button>
-  <a class="btn ghost" href="{{ url_for('zoo.animais_lista', slug=institution.slug, especie_slug=especie_slug) }}">Ver todos</a>
+  <input type="text" name="q" placeholder="{{ t('zoo.list.search_ph') }}" value="{{ q }}" autocomplete="off">
+  <button class="btn" type="submit">{{ t('common.search_btn') }}</button>
+  <a class="btn ghost" href="{{ url_for('zoo.animais_lista', slug=institution.slug, especie_slug=especie_slug) }}">{{ t('common.view_all') }}</a>
 </form>
 
 <div class="grid animais-grid">
@@ -19,17 +19,17 @@
       <img class="card-img" src="{{ url_for('static', filename='images/' ~ animal.imagem) }}" alt="{{ animal.nome }}" loading="lazy">
     </div>
     <div class="card-body">
-      <h3 class="card-title">{{ animal.nome }}</h3>
-      <p class="card-meta">🌍 {{ animal.habitat }}</p>
-      <p class="card-desc">{{ animal.descricao }}</p>
+      <h3 class="card-title">{{ animal.nome|tr }}</h3>
+      <p class="card-meta">🌍 {{ animal.habitat|tr }}</p>
+      <p class="card-desc">{{ animal.descricao|tr }}</p>
     </div>
   </a>
   {% else %}
-  <p class="muted" style="text-align:center;padding:40px;grid-column:1/-1;">Nenhum animal encontrado.</p>
+  <p class="muted" style="text-align:center;padding:40px;grid-column:1/-1;">{{ t('common.no_animal_found') }}</p>
   {% endfor %}
 </div>
 
 <div class="page-actions">
-  <a class="back-btn" href="{{ url_for('zoo.especies', slug=institution.slug) }}">← Voltar</a>
+  <a class="back-btn" href="{{ url_for('zoo.especies', slug=institution.slug) }}">← {{ t('common.back') }}</a>
 </div>
 {% endblock %}

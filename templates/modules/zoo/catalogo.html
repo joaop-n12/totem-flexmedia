@@ -1,42 +1,52 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="catalog-header">
-  <div class="page-eyebrow">Catalogo completo</div>
-  <h2 class="page-title">Todos os animais</h2>
-  <p class="page-desc">{{ animais | length }} animais cadastrados — use a busca e os filtros para encontrar.</p>
+  <div class="page-eyebrow">{{ t('zoo.catalog.eyebrow') }}</div>
+  <h2 class="page-title">{{ t('zoo.catalog.title') }}</h2>
+  <p class="page-desc">{{ animais | length }} {{ t('common.animal_plural') }} — {{ t('zoo.catalog.desc') }}</p>
 </div>
 
 <div class="search-wrap">
   <span class="search-icon">🔍</span>
   <input id="catalogSearch" class="search-input" type="search" inputmode="search"
-         autocomplete="off" placeholder="Buscar animal…" aria-label="Buscar animal">
+         autocomplete="off" placeholder="{{ t('zoo.catalog.search_ph') }}" aria-label="{{ t('zoo.catalog.search_aria') }}">
   <button class="search-clear" id="searchClear" hidden>✕</button>
 </div>
 
 <div class="filter-section">
   <div class="filter-group">
-    <span class="filter-label">Espécie</span>
+    <span class="filter-label">{{ t('zoo.catalog.species') }}</span>
     <div class="filter-bar">
-      <button class="filter-chip active" data-group="especie" data-value="">Todos</button>
+      <button class="filter-chip active" data-group="especie" data-value="">{{ t('zoo.catalog.all') }}</button>
       {% for nome, slug in especies %}
-      <button class="filter-chip" data-group="especie" data-value="{{ slug }}">{{ nome }}</button>
+      <button class="filter-chip" data-group="especie" data-value="{{ slug }}">{{ nome|tr }}</button>
       {% endfor %}
     </div>
   </div>
   <div class="filter-group">
-    <span class="filter-label">Habitat</span>
+    <span class="filter-label">{{ t('zoo.catalog.habitat') }}</span>
     <div class="filter-bar">
-      <button class="filter-chip active" data-group="habitat" data-value="">Todos</button>
+      <button class="filter-chip active" data-group="habitat" data-value="">{{ t('zoo.catalog.all') }}</button>
       {% for h in habitats %}
-      <button class="filter-chip" data-group="habitat" data-value="{{ h|lower }}">{{ h }}</button>
+      <button class="filter-chip" data-group="habitat" data-value="{{ h|lower }}">{{ h|tr }}</button>
       {% endfor %}
     </div>
   </div>
 </div>
 
+{# i18n para strings injetadas via JS (contador dinamico). Centraliza num
+   bloco para a unica fonte de verdade continuar sendo o CATALOG do servidor. #}
+<script>
+  const I18N = {
+    animals:       "{{ t('common.animal_plural') }}",
+    of:            "{{ t('zoo.catalog.count_of') }}",
+    clearFilters:  "{{ t('common.clear_filters') }}",
+  };
+</script>
+
 <div class="catalog-meta">
-  <span id="resultCount">{{ animais|length }} animais</span>
-  <button class="catalog-clear-btn" id="clearAllFilters" hidden>Limpar filtros</button>
+  <span id="resultCount">{{ animais|length }} {{ t('common.animal_plural') }}</span>
+  <button class="catalog-clear-btn" id="clearAllFilters" hidden>{{ t('common.clear_filters') }}</button>
 </div>
 
 <div class="grid catalog-grid" id="catalogGrid">
@@ -52,10 +62,10 @@
            alt="{{ animal.nome }}" loading="lazy">
     </div>
     <div class="card-body">
-      <h3 class="card-title">{{ animal.nome }}</h3>
+      <h3 class="card-title">{{ animal.nome|tr }}</h3>
       <div class="card-tags">
-        {% if animal.especie %}<span class="animal-tag">{{ animal.especie }}</span>{% endif %}
-        {% if animal.habitat %}<span class="animal-tag animal-tag-habitat">{{ animal.habitat }}</span>{% endif %}
+        {% if animal.especie %}<span class="animal-tag">{{ animal.especie|tr }}</span>{% endif %}
+        {% if animal.habitat %}<span class="animal-tag animal-tag-habitat">{{ animal.habitat|tr }}</span>{% endif %}
       </div>
     </div>
   </a>
@@ -64,13 +74,13 @@
 
 <div class="catalog-empty" id="catalogEmpty" hidden>
   <div class="catalog-empty-icon">🔭</div>
-  <div class="catalog-empty-title">Nenhum animal encontrado</div>
-  <p class="catalog-empty-desc">Tente outros termos ou remova algum filtro.</p>
-  <button class="btn" id="emptyReset">Limpar filtros</button>
+  <div class="catalog-empty-title">{{ t('zoo.catalog.empty_title') }}</div>
+  <p class="catalog-empty-desc">{{ t('zoo.catalog.empty_desc') }}</p>
+  <button class="btn" id="emptyReset">{{ t('common.clear_filters') }}</button>
 </div>
 
 <div class="page-actions">
-  <a class="back-btn" href="{{ url_for('zoo.especies', slug=institution.slug) }}">← Voltar</a>
+  <a class="back-btn" href="{{ url_for('zoo.especies', slug=institution.slug) }}">← {{ t('common.back') }}</a>
 </div>
 
 <script>
@@ -89,7 +99,7 @@
                &&(!active.habitat||c.dataset.habitat===active.habitat);
       c.hidden=!show; if(show)v++;
     });
-    counter.textContent=v===cards.length?`${cards.length} animais`:`${v} de ${cards.length} animais`;
+    counter.textContent=v===cards.length?`${cards.length} ${I18N.animals}`:`${v} ${I18N.of} ${cards.length} ${I18N.animals}`;
     emptyState.hidden=v>0; grid.hidden=v===0;
     clearAll.hidden=!(q||active.especie||active.habitat);
   }

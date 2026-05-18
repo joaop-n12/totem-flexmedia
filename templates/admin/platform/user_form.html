@@ -45,7 +45,7 @@
           <select class="form-control" name="role" id="role-select"
                   onchange="toggleInstitution(this.value)">
             <option value="client_admin" {{ 'selected' if not user or user.role == 'client_admin' }}>
-              client_admin — Acesso à instituição vinculada
+              client_admin — Acesso ao cliente vinculado
             </option>
             <option value="super_admin" {{ 'selected' if user and user.role == 'super_admin' }}>
               super_admin — Acesso global à plataforma
@@ -55,7 +55,7 @@
 
         <div class="form-group" id="institution-field"
              style="{{ 'display:none' if user and user.role == 'super_admin' else '' }}">
-          <label class="form-label">Instituição vinculada</label>
+          <label class="form-label">Cliente vinculado</label>
           <select class="form-control" name="institution_id">
             <option value="">— Selecione —</option>
             {% for inst in institutions %}

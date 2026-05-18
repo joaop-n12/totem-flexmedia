@@ -296,7 +296,47 @@ def create_app(env: str = "default") -> Flask:
             current_locale=get_locale,
             locale_display=locale_display_name,
             supported_locales=SUPPORTED_LOCALES,
+            # Dev/teste sem hardware: oculta overlay e desliga polling de sensor.
+            totem_disable_sensors=bool(app.config.get("TOTEM_DISABLE_SENSORS")),
         )
+
+    # ── Filtro de traducao de conteudo do banco ────────────────────────────────
+    # Conteudo gerenciado pelo client_admin (nomes, descricoes, habitat...) e'
+    # cadastrado em PT. Quando o visitante escolhe EN/ES, este filtro traduz
+    # on-the-fly via TranslationIntegration (mesma camada que /<slug>/api/translate
+    # ja usa). Cache de 7 dias por (texto+idioma) — primeira visita estrangeira
+    # paga 1 chamada OpenAI por string, as proximas sao gratis. Falha silenciosa:
+    # se a integracao estiver offline/sem quota, devolve o PT original (UX
+    # nunca quebra por falha de tradutor).
+    #
+    # Uso no template: {{ animal.descricao|tr }}
+    @app.template_filter("tr")
+    def _translate_content_filter(text):
+        if not text:
+            return text
+        from app.services.i18n import DEFAULT_LOCALE, get_locale
+        locale = get_locale()
+        if locale == DEFAULT_LOCALE:
+            return text
+        try:
+            from app.services import registry as _reg
+            from app.services.translation import (
+                TranslationError, TranslationIntegration,
+            )
+            integration = _reg.get("translation")
+            if not isinstance(integration, TranslationIntegration):
+                return text
+            if not integration.is_available():
+                return text
+            result = integration.translate(
+                text=str(text), target=locale, source="pt",
+            )
+            return result.text
+        except TranslationError:
+            return text  # offline/rate_limit/auth → devolve PT
+        except Exception:  # noqa: BLE001 — defesa em profundidade
+            app.logger.exception("filtro tr() falhou; devolvendo texto original")
+            return text
 
     # ── Error handlers ───────────────────────────────────────────────────────────
     @app.errorhandler(403)

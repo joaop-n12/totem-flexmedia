@@ -1,13 +1,13 @@
 {# Confirmacao de regeneracao dos codigos de backup. Pede senha. #}
 {% extends "admin/base.html" %}
-{% block title %}Regerar codigos de backup{% endblock %}
+{% block title %}Regerar códigos de backup{% endblock %}
 
 {% block content %}
 <div class="page-header">
-  <h1 class="page-title">Regerar codigos de backup</h1>
+  <h1 class="page-title">Regerar códigos de backup</h1>
   <p class="page-sub">
-    Voce tem <strong>{{ remaining }}</strong> codigo(s) restante(s).
-    Regerar invalida todos os codigos antigos. Confirme com sua senha atual.
+    Você tem <strong>{{ remaining }}</strong> código(s) restante(s).
+    Regerar invalida todos os códigos antigos. Confirme com sua senha atual.
   </p>
 </div>
 
@@ -28,7 +28,7 @@
                autocomplete="current-password" required>
       </div>
 
-      <button class="btn btn-primary" type="submit">Gerar novos codigos</button>
+      <button class="btn btn-primary" type="submit">Gerar novos códigos</button>
       <a class="btn btn-link" href="{{ url_for('admin_platform.dashboard') if current_user.is_super_admin else url_for('admin_institution.dashboard', iid=current_user.institution_id) }}">
         Cancelar
       </a>

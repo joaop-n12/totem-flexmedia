@@ -30,17 +30,19 @@ def test_catalogo_tem_idiomas_minimos():
 
 
 def test_chaves_consistentes_entre_idiomas():
-    """Toda chave em PT deve existir em EN — e vice-versa.
+    """Toda chave deve existir em TODOS os idiomas suportados.
 
-    Sem isso, alguns trechos do totem ficariam em ingles e outros em
-    portugues quando o visitante alterna. Falha aqui = traducao incompleta.
+    Sem isso, alguns trechos do totem ficariam em outro idioma quando o
+    visitante alterna. Falha aqui = traducao incompleta. Generaliza para
+    qualquer idioma novo (es, fr, ...) ao inves de fixar PT vs EN.
     """
-    pt_keys = set(CATALOG["pt"])
-    en_keys = set(CATALOG["en"])
-    only_pt = pt_keys - en_keys
-    only_en = en_keys - pt_keys
-    assert not only_pt, f"chaves so em PT: {only_pt}"
-    assert not only_en, f"chaves so em EN: {only_en}"
+    base_keys = set(CATALOG[DEFAULT_LOCALE])
+    for locale in SUPPORTED_LOCALES:
+        loc_keys = set(CATALOG[locale])
+        faltando = base_keys - loc_keys
+        sobrando = loc_keys - base_keys
+        assert not faltando, f"chaves faltando em {locale}: {faltando}"
+        assert not sobrando, f"chaves extras em {locale}: {sobrando}"
 
 
 def test_strings_nao_estao_vazias():
@@ -187,6 +189,46 @@ def test_voice_chat_anexa_instrucao_de_idioma_quando_en(client):
         messages = kwargs["messages"]
         system = next(m for m in messages if m["role"] == "system")
         assert "English" in system["content"]
+
+
+def test_voice_chat_anexa_instrucao_de_idioma_quando_es(client):
+    """Homologacao Spanish: locale=es injeta 'Respond in Español' no prompt."""
+    client.post("/api/locale", json={"locale": "es"})
+
+    with patch("app.routes.voice._get_client") as fake_get:
+        fake_client = MagicMock()
+        msg = MagicMock(); msg.content = "¡Hola!"
+        choice = MagicMock(); choice.message = msg
+        chat_resp = MagicMock(); chat_resp.choices = [choice]
+        fake_client.chat.completions.create.return_value = chat_resp
+        fake_get.return_value = fake_client
+
+        r = client.post("/teste/api/chat", json={"message": "hola"})
+        assert r.status_code == 200
+
+        kwargs = fake_client.chat.completions.create.call_args.kwargs
+        system = next(m for m in kwargs["messages"] if m["role"] == "system")
+        # locale_display_name('es') == 'Español' → tem que aparecer no prompt.
+        assert "Español" in system["content"]
+        assert "Respond in" in system["content"]
+
+
+def test_endpoint_set_locale_aceita_es(client):
+    """Homologacao Spanish: /api/locale aceita 'es' e persiste na sessao."""
+    r = client.post("/api/locale", json={"locale": "es"})
+    assert r.status_code == 200
+    assert r.get_json()["locale"] == "es"
+
+    # Persistencia entre requests + render do banner traduzido (Trello 3.6).
+    r2 = client.get("/privacidade")
+    assert "Sin conexión".encode("utf-8") in r2.data
+
+
+def test_topbar_renderiza_botao_espanhol(client):
+    """Toggle de idioma deve expor o botao ES junto de PT/EN."""
+    r = client.get("/privacidade")
+    assert r.status_code == 200
+    assert b'data-locale="es"' in r.data
 
 
 def test_voice_chat_nao_anexa_instrucao_quando_pt(client):

@@ -16,7 +16,7 @@
     </a>
     {% if log_type == 'ai' %}
     <select class="form-control" style="width:200px;" onchange="location.href='{{ url_for('admin_platform.log_list', log_type='ai') }}&institution_id='+this.value">
-      <option value="">Todas as instituições</option>
+      <option value="">Todos os clientes</option>
       {% for inst in institutions %}
       <option value="{{ inst.id }}" {{ 'selected' if active_iid == inst.id }}>{{ inst.name }}</option>
       {% endfor %}
@@ -60,7 +60,7 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th>Data/Hora</th><th>Instituição</th><th>Tipo</th><th>Entrada</th><th>Resposta IA</th><th>Sessão</th></tr>
+        <tr><th>Data/Hora</th><th>Cliente</th><th>Tipo</th><th>Entrada</th><th>Resposta IA</th><th>Sessão</th></tr>
       </thead>
       <tbody>
         {% for log in ai_logs %}

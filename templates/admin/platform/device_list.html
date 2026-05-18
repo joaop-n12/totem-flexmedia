@@ -6,7 +6,7 @@
 <div class="page-header">
   <h2 style="margin:0;">Totens em campo</h2>
   <p style="color:var(--a-muted);margin:4px 0 0;font-size:14px;">
-    Considera-se <strong>online</strong> quem reportou heartbeat nos ultimos {{ threshold_min }} minutos.
+    Considera-se <strong>online</strong> quem reportou heartbeat nos últimos {{ threshold_min }} minutos.
   </p>
 </div>
 
@@ -18,7 +18,7 @@
     <form method="post" action="{{ url_for('devices.device_new') }}" class="form-inline">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
-        <label class="form-label">Instituicao</label>
+        <label class="form-label">Cliente</label>
         <select class="form-control" name="institution_id" required>
           <option value="">— escolher —</option>
           {% for inst in institutions %}
@@ -32,14 +32,14 @@
                placeholder="ex.: Totem entrada principal" required>
       </div>
       <div class="form-group">
-        <label class="form-label">Localizacao (opcional)</label>
+        <label class="form-label">Localização (opcional)</label>
         <input class="form-control" type="text" name="location" maxlength="200"
-               placeholder="Praca de alimentacao, Piso 2...">
+               placeholder="Praça de alimentação, Piso 2...">
       </div>
       <button class="btn btn-primary" type="submit">Gerar credenciais</button>
     </form>
     <p style="color:var(--a-muted);font-size:12.5px;margin-top:10px;">
-      O segredo sera mostrado <strong>uma unica vez</strong>. Salve-o no totem
+      O segredo será mostrado <strong>uma única vez</strong>. Salve-o no totem
       (chmod 600 /etc/totem/credenciais.env) imediatamente.
     </p>
   </div>
@@ -54,16 +54,16 @@
       <thead>
         <tr>
           <th>Nome</th>
-          <th>Instituicao</th>
+          <th>Cliente</th>
           <th>Status</th>
-          <th>Ultimo heartbeat</th>
+          <th>Último heartbeat</th>
           <th>IP</th>
-          <th>Versao</th>
+          <th>Versão</th>
           <th>CPU</th>
           <th>Ambiente</th>
-          <th>Presenca</th>
+          <th>Presença</th>
           <th>Disco livre</th>
-          <th>Acoes</th>
+          <th>Ações</th>
         </tr>
       </thead>
       <tbody>
@@ -109,7 +109,7 @@
           <td>
             {% if d.is_active %}
             <form method="post" action="{{ url_for('devices.device_revoke', did=d.id) }}"
-                  onsubmit="return confirm('Revogar a chave deste totem? Ele deixara de reportar.');"
+                  onsubmit="return confirm('Revogar a chave deste totem? Ele deixará de reportar.');"
                   style="display:inline;">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn-sm btn-danger" type="submit">Revogar</button>

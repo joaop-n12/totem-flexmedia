@@ -2,15 +2,15 @@
 {% block content %}
 
 <div class="page-header">
-  <div class="page-eyebrow">Mapa interativo</div>
-  <h2 class="page-title">Onde estamos no parque</h2>
-  <p class="page-desc">Toque nos pontos para explorar cada area. Use os botoes para dar zoom ou arraste com o dedo.</p>
+  <div class="page-eyebrow">{{ t('map.eyebrow') }}</div>
+  <h2 class="page-title">{{ t('map.title') }}</h2>
+  <p class="page-desc">{{ t('map.desc') }}</p>
 </div>
 
 <div class="map-toolbar">
-  <button class="btn" type="button" id="zoomInBtn">＋ Zoom</button>
-  <button class="btn ghost" type="button" id="zoomOutBtn">－ Zoom</button>
-  <button class="btn ghost" type="button" id="resetMapBtn">↺ Resetar</button>
+  <button class="btn" type="button" id="zoomInBtn">{{ t('map.zoom_in') }}</button>
+  <button class="btn ghost" type="button" id="zoomOutBtn">{{ t('map.zoom_out') }}</button>
+  <button class="btn ghost" type="button" id="resetMapBtn">{{ t('map.reset') }}</button>
 </div>
 
 <div class="map-frame" id="mapFrame">
@@ -24,7 +24,7 @@
         <button class="hotspot"
                 style="top:{{ area.y_pos }}%;left:{{ area.x_pos }}%;"
                 onclick="abrirArea('{{ area.slug }}')"
-                aria-label="{{ area.name }}"></button>
+                aria-label="{{ area.name|tr }}"></button>
         {% endfor %}
         {# fallback: hardcoded zoo hotspots if no DB areas #}
         {% if not areas %}

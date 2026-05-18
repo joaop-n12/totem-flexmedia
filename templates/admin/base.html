@@ -77,7 +77,7 @@
       </a>
       <a class="nav-item {% if 'institution' in (request.endpoint or '') and 'admin_platform' in (request.endpoint or '') %}active{% endif %}"
          href="{{ url_for('admin_platform.institution_list') }}">
-        <span class="nav-icon">{{ icon('building') }}</span> Instituições
+        <span class="nav-icon">{{ icon('building') }}</span> Clientes
       </a>
       <a class="nav-item {% if 'user' in (request.endpoint or '') and 'admin_platform' in (request.endpoint or '') %}active{% endif %}"
          href="{{ url_for('admin_platform.user_list') }}">

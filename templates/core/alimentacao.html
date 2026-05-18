@@ -8,9 +8,9 @@
 <section class="service-page">
 
   <div class="page-header">
-    <div class="page-eyebrow">Alimentacao</div>
-    <h2 class="page-title">Onde comer no {{ institution.name }}</h2>
-    <p class="page-desc">Restaurantes, lanchonetes e quiosques distribuidos pelo parque para voce nao perder nenhum momento do passeio.</p>
+    <div class="page-eyebrow">{{ t('food.eyebrow') }}</div>
+    <h2 class="page-title">{{ t('food.title_prefix') }} {{ institution.name }}</h2>
+    <p class="page-desc">{{ t('food.desc') }}</p>
   </div>
 
   {# ── Cards principais com locais de alimentacao ── #}
@@ -19,42 +19,42 @@
     <div class="service-card">
       <span class="service-card-icon">🍽️</span>
       <h3>Restaurante Central</h3>
-      <p>Refeicoes completas, self-service e prato executivo. Climatizado e proximo a Savana Africana.</p>
+      <p>Refeições completas, self-service e prato executivo. Climatizado e próximo a Savana Africana..</p>
       <span class="service-tag">11h00 - 16h00</span>
     </div>
 
     <div class="service-card">
       <span class="service-card-icon">🍔</span>
       <h3>Lanchonete da Trilha</h3>
-      <p>Hamburgueres, sanduiches naturais e batatas fritas. Otimo ponto para uma pausa rapida entre os recintos.</p>
+      <p>Hamburgueres, sanduíches naturais e batatas fritas. Ótimo ponto para uma pausa rápida entre os recintos.</p>
       <span class="service-tag">09h30 - 17h30</span>
     </div>
 
     <div class="service-card">
       <span class="service-card-icon">🍕</span>
       <h3>Quiosque da Pizza</h3>
-      <p>Fatias artesanais, esfihas e calzones. Mesas ao ar livre proximas ao Aviario.</p>
+      <p>Fatias artesanais, esfihas e calzones. Mesas ao ar livre próximas ao Aviário.</p>
       <span class="service-tag">10h00 - 17h00</span>
     </div>
 
     <div class="service-card">
       <span class="service-card-icon">🍦</span>
       <h3>Sorveteria Tropical</h3>
-      <p>Sorvetes artesanais, picoles de fruta e milk-shakes. Perfeito para os dias quentes.</p>
+      <p>Sorvetes artesanais, picolés de fruta e milk-shakes. Perfeito para os dias quentes.</p>
       <span class="service-tag">10h30 - 18h00</span>
     </div>
 
     <div class="service-card">
       <span class="service-card-icon">☕</span>
       <h3>Cafeteria do Mirante</h3>
-      <p>Cafes especiais, bolos caseiros, salgados e sucos naturais. Vista privilegiada do parque.</p>
+      <p>Cafés especiais, bolos caseiros, salgados e sucos naturais. Vista privilegiada do parque.</p>
       <span class="service-tag">08h00 - 17h00</span>
     </div>
 
     <div class="service-card">
       <span class="service-card-icon">🥨</span>
       <h3>Quiosques de Lanches</h3>
-      <p>Pipoca, algodao doce, agua, refrigerantes e lanches rapidos espalhados pelas areas de visitacao.</p>
+      <p>Pipoca, algodão-doce, água, refrigerantes e lanches rápidos espalhados pelas áreas de visitação.</p>
       <span class="service-tag">Diversos pontos</span>
     </div>
 
@@ -62,26 +62,24 @@
 
   {# ── Painel com dicas para o visitante ── #}
   <div class="info-panel" style="margin-top: 26px;">
-    <h3>Dicas para sua refeicao</h3>
+    <h3>{{ t('food.tips_title') }}</h3>
     <ul class="info-list">
-      <li>Aproveite os intervalos do passeio para evitar filas (12h - 14h sao os horarios de pico).</li>
-      <li>Bebidas em garrafa lacrada podem ser levadas para todas as areas externas.</li>
-      <li>O Restaurante Central possui menu infantil e opcoes vegetarianas.</li>
-      <li>Pets de assistencia sao bem-vindos em todos os pontos de alimentacao.</li>
-      <li>Cardapios completos com precos disponiveis em cada estabelecimento.</li>
+      <li>Aproveite os intervalos do passeio para evitar filas (12h - 14h são os horários de pico).</li>
+      <li>Bebidas em garrafa lacrada podem ser levadas para todas as áreas externas.</li>
+      <li>O Restaurante Central possui menu infantil e opções vegetarianas.</li>
+      <li>Pets de assistência são bem-vindos em todos os pontos de alimentação.</li>
+      <li>Cardápios completos com preços disponíveis em cada estabelecimento.</li>
     </ul>
   </div>
 
   {# Secao educativa sobre alimentacao dos animais (link cruzado p/ programacao). #}
   <div class="info-panel" style="margin-top: 22px;">
-    <h3>Alimentacao dos animais</h3>
+    <h3>{{ t('food.feed_title') }}</h3>
     <p style="color: var(--text-soft); line-height: 1.7; margin-bottom: 14px;">
-      Voce sabia? O zoologico tambem tem horarios especiais de alimentacao dos
-      animais, abertos ao publico. E uma oportunidade unica de ver os tratadores
-      em acao e aprender sobre a dieta de cada especie.
+      {{ t('food.feed_desc') }}
     </p>
     <a class="btn" href="{{ url_for('core.programacao', slug=institution.slug) }}">
-      Ver horarios de alimentacao dos animais
+      {{ t('food.feed_cta') }}
     </a>
   </div>
 

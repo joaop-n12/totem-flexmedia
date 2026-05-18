@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
-{% block title %}Métricas — {{ inst.name }}{% endblock %}
-{% block topbar_title %}Métricas — {{ inst.name }}{% endblock %}
+{% block title %}Métricas {{ inst.name }}{% endblock %}
+{% block topbar_title %}Métricas {{ inst.name }}{% endblock %}
 
 {% block content %}
 <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
@@ -170,7 +170,7 @@
 <div class="card" style="margin-top:18px;">
   <div class="card-header">
     <h3 style="margin:0;">Perguntas mais frequentes</h3>
-    <span style="color:var(--a-muted);font-size:12px;">Top 10 — entradas com mais de 4 caracteres</span>
+    <span style="color:var(--a-muted);font-size:12px;">Top 10 entradas com mais de 4 caracteres</span>
   </div>
   <div class="card-body" style="padding:0;">
     {% if metrics.top_questions %}
@@ -188,7 +188,7 @@
     </table>
     {% else %}
     <p style="color:var(--a-muted);padding:24px;text-align:center;">
-      Sem perguntas frequentes — instituição com pouco volume no período.
+      Sem perguntas frequentes — cliente com pouco volume no período.
     </p>
     {% endif %}
   </div>

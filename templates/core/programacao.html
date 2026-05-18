@@ -10,9 +10,9 @@
    ──────────────────────────────────────────────────────────────────── #}
 
 <div class="page-header">
-  <div class="page-eyebrow">Hoje no parque</div>
-  <h2 class="page-title">Programacao e Alimentacao</h2>
-  <p class="page-desc">Horarios das atividades especiais, apresentacoes e momentos de alimentacao dos animais.</p>
+  <div class="page-eyebrow">{{ t('schedule.eyebrow') }}</div>
+  <h2 class="page-title">{{ t('schedule.title') }}</h2>
+  <p class="page-desc">{{ t('schedule.desc') }}</p>
 </div>
 
 {# Detecta presenca de evento de alimentacao via namespace (escopo Jinja) #}
@@ -28,7 +28,7 @@
 <section style="margin-bottom: 32px;">
   <h3 style="font-size: 15px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase;
              color: var(--accent); margin: 0 0 14px; display: flex; align-items: center; gap: 10px;">
-    <span style="font-size: 22px;">🍖</span> Alimentacao dos animais
+    <span style="font-size: 22px;">🍖</span> {{ t('schedule.feed_title') }}
   </h3>
   <div class="stack">
     {% for ev in eventos %}
@@ -37,14 +37,14 @@
       <div class="event-card">
         <div class="event-time-col">
           <span class="event-time-value">{{ ev.horario }}</span>
-          <span class="event-time-label">Hoje</span>
+          <span class="event-time-label">{{ t('common.today') }}</span>
         </div>
         <div class="event-content">
-          <div class="event-name">{{ ev.evento }}</div>
-          <div class="event-location">📍 {{ ev.local }}</div>
+          <div class="event-name">{{ ev.evento|tr }}</div>
+          <div class="event-location">📍 {{ ev.local|tr }}</div>
           {% if ev.descricao %}
           <p style="font-size: 13px; color: var(--text-soft); margin-top: 6px; line-height: 1.55;">
-            {{ ev.descricao }}
+            {{ ev.descricao|tr }}
           </p>
           {% endif %}
         </div>
@@ -59,7 +59,7 @@
 <section style="margin-bottom: 24px;">
   <h3 style="font-size: 15px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase;
              color: var(--accent); margin: 0 0 14px; display: flex; align-items: center; gap: 10px;">
-    <span style="font-size: 22px;">📅</span> Atividades e apresentacoes
+    <span style="font-size: 22px;">📅</span> {{ t('schedule.activities') }}
   </h3>
   <div class="stack">
     {% set ns = namespace(count=0) %}
@@ -70,14 +70,14 @@
       <div class="event-card">
         <div class="event-time-col">
           <span class="event-time-value">{{ ev.horario }}</span>
-          <span class="event-time-label">Hoje</span>
+          <span class="event-time-label">{{ t('common.today') }}</span>
         </div>
         <div class="event-content">
-          <div class="event-name">{{ ev.evento }}</div>
-          <div class="event-location">📍 {{ ev.local }}</div>
+          <div class="event-name">{{ ev.evento|tr }}</div>
+          <div class="event-location">📍 {{ ev.local|tr }}</div>
           {% if ev.descricao %}
           <p style="font-size: 13px; color: var(--text-soft); margin-top: 6px; line-height: 1.55;">
-            {{ ev.descricao }}
+            {{ ev.descricao|tr }}
           </p>
           {% endif %}
         </div>
@@ -88,8 +88,8 @@
     {% if ns.count == 0 and not food_ns.has %}
     <div class="catalog-empty">
       <div class="catalog-empty-icon">📅</div>
-      <div class="catalog-empty-title">Nenhuma atividade programada</div>
-      <p class="catalog-empty-desc">Volte mais tarde para conferir o cronograma do dia.</p>
+      <div class="catalog-empty-title">{{ t('schedule.empty_title') }}</div>
+      <p class="catalog-empty-desc">{{ t('schedule.empty_desc') }}</p>
     </div>
     {% endif %}
   </div>
@@ -98,12 +98,12 @@
 {# Atalho para alimentacao do visitante (CTA) #}
 {% if institution.has_module('alimentacao') %}
 <div class="info-panel" style="margin-top: 24px;">
-  <h3>Procurando onde comer?</h3>
+  <h3>{{ t('schedule.food_cta_title') }}</h3>
   <p style="color: var(--text-soft); line-height: 1.7; margin-bottom: 14px;">
-    Veja todos os restaurantes, lanchonetes e quiosques disponiveis no parque.
+    {{ t('schedule.food_cta_desc') }}
   </p>
   <a class="btn" href="{{ url_for('core.alimentacao', slug=institution.slug) }}">
-    🍽️ Ver pontos de alimentacao
+    {{ t('schedule.food_cta_btn') }}
   </a>
 </div>
 {% endif %}

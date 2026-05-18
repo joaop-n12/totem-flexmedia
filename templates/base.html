@@ -57,7 +57,10 @@
    momento em que o totem inicia proativamente a interacao por voz (navega
    para o assistente, mantendo-se dentro do sistema principal).
    - z-index abaixo de modais LGPD (10000) e banners (9999) para nao mascarar.
+   - `totem_disable_sensors` (config TOTEM_DISABLE_SENSORS) suprime overlay
+     e JS de sensor para teste sem hardware (laptop/VM).
 #}
+{% if not totem_disable_sensors %}
 <div id="totemPresence" class="presence-overlay" data-state="idle" hidden aria-hidden="true">
   <div class="presence-stage">
     <div class="presence-pulse"></div>
@@ -115,6 +118,7 @@
   .presence-telemetry b { font-size: 1.1rem; font-weight: 600; margin-right: 4px; }
   .presence-telemetry small { font-size: .75rem; opacity: .55; letter-spacing: .04em; }
 </style>
+{% endif %}
 
 {# Banner de pre-visualizacao do white-label (super_admin → Pre-visualizar). #}
 {# `preview_mode` so e' True quando a rota /admin/institutions/<iid>/preview  #}
@@ -188,59 +192,59 @@
 {# ── Bottom navigation (only when inside an institution) ── #}
 {% if institution %}
 {% set enabled_mods = institution.enabled_modules() %}
-<nav class="bottom-nav" role="navigation" aria-label="Navegação principal">
+<nav class="bottom-nav" role="navigation" aria-label="{{ t('nav.home') }}">
 
   <a href="{{ url_for('core.home', slug=slug) }}"
-     class="bnav-item {% if nav_home %}active{% endif %}" aria-label="Home">
+     class="bnav-item {% if nav_home %}active{% endif %}" aria-label="{{ t('nav.home') }}">
     <span class="bnav-icon">🏠</span>
-    <span class="bnav-label">Home</span>
+    <span class="bnav-label">{{ t('nav.home') }}</span>
   </a>
 
   {% if institution.has_module('animais') %}
   <a href="{{ url_for('zoo.especies', slug=slug) }}"
-     class="bnav-item {% if nav_animais %}active{% endif %}" aria-label="Animais">
+     class="bnav-item {% if nav_animais %}active{% endif %}" aria-label="{{ t('nav.animals') }}">
     <span class="bnav-icon">🐾</span>
-    <span class="bnav-label">Animais</span>
+    <span class="bnav-label">{{ t('nav.animals') }}</span>
   </a>
   {% endif %}
 
   {% if institution.has_module('lojas') %}
   <a href="{{ url_for('shopping.lojas', slug=slug) }}"
-     class="bnav-item" aria-label="Lojas">
+     class="bnav-item" aria-label="{{ t('nav.stores') }}">
     <span class="bnav-icon">🛍️</span>
-    <span class="bnav-label">Lojas</span>
+    <span class="bnav-label">{{ t('nav.stores') }}</span>
   </a>
   {% endif %}
 
   {% if institution.has_module('produtos') %}
   <a href="{{ url_for('pharmacy.produtos', slug=slug) }}"
-     class="bnav-item" aria-label="Produtos">
+     class="bnav-item" aria-label="{{ t('nav.products') }}">
     <span class="bnav-icon">💊</span>
-    <span class="bnav-label">Produtos</span>
+    <span class="bnav-label">{{ t('nav.products') }}</span>
   </a>
   {% endif %}
 
   {% if institution.has_module('mapa') %}
   <a href="{{ url_for('core.mapa', slug=slug) }}"
-     class="bnav-item {% if nav_mapa %}active{% endif %}" aria-label="Mapa">
+     class="bnav-item {% if nav_mapa %}active{% endif %}" aria-label="{{ t('nav.map') }}">
     <span class="bnav-icon">🗺️</span>
-    <span class="bnav-label">Mapa</span>
+    <span class="bnav-label">{{ t('nav.map') }}</span>
   </a>
   {% endif %}
 
   {% if institution.has_module('programacao') %}
   <a href="{{ url_for('core.programacao', slug=slug) }}"
-     class="bnav-item {% if nav_prog %}active{% endif %}" aria-label="Programação">
+     class="bnav-item {% if nav_prog %}active{% endif %}" aria-label="{{ t('nav.schedule') }}">
     <span class="bnav-icon">📅</span>
-    <span class="bnav-label">Programação</span>
+    <span class="bnav-label">{{ t('nav.schedule') }}</span>
   </a>
   {% endif %}
 
   {% if institution.has_module('ia') %}
   <a href="{{ url_for('voice.ia_page', slug=slug) }}"
-     class="bnav-item {% if nav_voice %}active{% endif %}" aria-label="Assistente">
+     class="bnav-item {% if nav_voice %}active{% endif %}" aria-label="{{ t('nav.assistant') }}">
     <span class="bnav-icon">💬</span>
-    <span class="bnav-label">Assistente</span>
+    <span class="bnav-label">{{ t('nav.assistant') }}</span>
   </a>
   {% endif %}
 
@@ -380,6 +384,7 @@
   })();
 </script>
 
+{% if not totem_disable_sensors %}
 <script>
   // ── Sessao orientada por sensores (HC-SR04 + DHT11/DHT22) ───────────────────
   // Centralizada: o totem REAGE em qualquer rota (home, animais, mapa, voz...).
@@ -571,6 +576,7 @@
     // devolve o totem para a home quando ninguem interage.
   })();
 </script>
+{% endif %}
 
 <script>
   // ── Polling de versao de conteudo (sync remoto) ──────────────────────────────

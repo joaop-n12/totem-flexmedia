@@ -72,6 +72,15 @@ class Config:
     # driver ajusta classe da lib, faixa e precisao automaticamente.
     DHT_MODEL = (os.environ.get("DHT_MODEL", "DHT22") or "DHT22").upper()
 
+    # Bypass dos sensores fisicos para testes em laptop/VM. Quando True:
+    #   - overlay "Aproxime-se" nao e' renderizado no totem
+    #   - polling/SSE de /api/session/state nao roda no frontend
+    #   - saudacao TTS proativa e auto-redirect para /voice ficam inertes
+    # NUNCA ligar em producao (Pi 3 em campo).
+    TOTEM_DISABLE_SENSORS = (
+        os.environ.get("TOTEM_DISABLE_SENSORS", "0").lower() in ("1", "true", "yes")
+    )
+
 
 class DevelopmentConfig(Config):
     DEBUG = True

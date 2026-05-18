@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Verificacao em duas etapas · FlexMedia</title>
+  <title>Verificação em duas etapas · FlexMedia</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 </head>
 <body>
@@ -12,9 +12,9 @@
 <div class="login-page">
   <main class="login-form-panel" style="grid-column: 1 / -1;">
     <div class="login-box">
-      <h2 class="login-box-title">Verificacao em duas etapas</h2>
+      <h2 class="login-box-title">Verificação em duas etapas</h2>
       <p class="login-box-sub">
-        Digite o codigo de 6 digitos do seu app autenticador, ou um codigo
+        Digite o código de 6 dígitos do seu app autenticador, ou um código
         de backup no formato <code>xxxx-xxxx</code>.
       </p>
 
@@ -32,7 +32,7 @@
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
 
         <div class="form-group" style="margin-bottom:24px;">
-          <label class="form-label">Codigo</label>
+          <label class="form-label">Código</label>
           <input class="form-control" type="text" name="code"
                  inputmode="numeric" pattern="[0-9a-fA-F\- ]*"
                  placeholder="000000" autofocus required

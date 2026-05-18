@@ -469,12 +469,12 @@
 <div class="nc-shell">
 
   <section class="nc-hero" aria-label="Boas-vindas">
-    <div class="nc-hero-eyebrow">Sistema Online · Inteligência Ativa</div>
+    <div class="nc-hero-eyebrow">{{ t('home.status') }}</div>
     <h1 class="nc-hero-title">
-      Bem-vindo à
-      <span class="accent">Neural Crew Zoo</span>
+      {{ t('home.welcome') }}
+      <span class="accent">{{ institution.name }}</span>
     </h1>
-    <p class="nc-hero-sub">Escolha uma opção para iniciar o atendimento</p>
+    <p class="nc-hero-sub">{{ t('home.subtitle') }}</p>
   </section>
 
   {# ── Mapa de URLs preservando integração com o backend ────────────
@@ -503,8 +503,8 @@
           <ellipse cx="31" cy="11" rx="3.5" ry="4.5"/>
         </svg>
       </span>
-      <span class="nc-btn-label">Animais</span>
-      <span class="nc-btn-desc">Explore as espécies</span>
+      <span class="nc-btn-label">{{ t('nav.animals') }}</span>
+      <span class="nc-btn-desc">{{ t('home.animals_desc') }}</span>
     </a>
 
     {# Mapa #}
@@ -517,8 +517,8 @@
           <circle cx="24" cy="22" r="3.5"/>
         </svg>
       </span>
-      <span class="nc-btn-label">Mapa</span>
-      <span class="nc-btn-desc">Encontre as atrações</span>
+      <span class="nc-btn-label">{{ t('nav.map') }}</span>
+      <span class="nc-btn-desc">{{ t('home.map_desc') }}</span>
     </a>
 
     {# Programação e Alimentação #}
@@ -536,8 +536,8 @@
           <circle cx="24" cy="34" r="2"/>
         </svg>
       </span>
-      <span class="nc-btn-label">Programação e Alimentação</span>
-      <span class="nc-btn-desc">Horários e atividades do dia</span>
+      <span class="nc-btn-label">{{ t('home.schedule_full') }}</span>
+      <span class="nc-btn-desc">{{ t('home.schedule_desc') }}</span>
     </a>
 
     {# Assistente IA — leva à rota voice.ia_page (já integrada com /api/chat e /api/voice) #}
@@ -557,26 +557,28 @@
           <circle cx="24" cy="42" r="2"/>
         </svg>
       </span>
-      <span class="nc-btn-label">Assistente IA</span>
-      <span class="nc-btn-desc">Pergunte por voz ou texto</span>
+      <span class="nc-btn-label">{{ t('home.assistant_full') }}</span>
+      <span class="nc-btn-desc">{{ t('home.assistant_desc') }}</span>
     </a>
 
   </main>
 
   <footer class="nc-footer">
-    <div class="nc-lang" role="group" aria-label="Selecionar idioma">
-      <button type="button" class="nc-lang-btn is-active" data-lang="pt" aria-label="Português">
-        <span class="flag">🇧🇷</span><span class="code">PT</span>
-      </button>
-      <button type="button" class="nc-lang-btn" data-lang="en" aria-label="English">
-        <span class="flag">🇺🇸</span><span class="code">EN</span>
-      </button>
-      <button type="button" class="nc-lang-btn" data-lang="es" aria-label="Español">
-        <span class="flag">🇪🇸</span><span class="code">ES</span>
-      </button>
+    {# Botoes reais — fazem POST /api/locale e recarregam (estado fica na sessao).
+       O `is-active` reflete o locale corrente vindo do servidor (current_locale).
+       Bandeiras: BR/US/ES como ja existia no design Neural Crew. #}
+    {% set _lang_flags = {'pt': '🇧🇷', 'en': '🇺🇸', 'es': '🇪🇸'} %}
+    <div class="nc-lang" role="group" aria-label="{{ t('common.language') }}">
+      {% for code, label in supported_locales.items() %}
+        <button type="button"
+                class="nc-lang-btn {% if current_locale() == code %}is-active{% endif %}"
+                data-lang="{{ code }}" aria-label="{{ label }}">
+          <span class="flag">{{ _lang_flags.get(code, '🌐') }}</span><span class="code">{{ code|upper }}</span>
+        </button>
+      {% endfor %}
     </div>
 
-    <button type="button" class="nc-a11y-btn" id="ncA11yBtn" aria-label="Modo acessibilidade">
+    <button type="button" class="nc-a11y-btn" id="ncA11yBtn" aria-label="{{ t('home.a11y') }}">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="4" r="2"/>
         <path d="M5 9 L19 9"/>
@@ -584,7 +586,7 @@
         <path d="M15 9 L15 13 L17 22"/>
         <path d="M9 13 L15 13"/>
       </svg>
-      Acessibilidade
+      {{ t('home.a11y') }}
     </button>
   </footer>
 </div>
@@ -609,12 +611,27 @@
     if (sub)   sub.textContent   = 'TOTEM INTELIGENTE';
   })();
 
-  // ── Alternância de idioma (visual; i18n real virá depois) ──
+  // ── Alternancia de idioma REAL: POST /api/locale + reload ─────────────
+  // Persiste na sessao (Trello Modulo 3 - Acessibilidade, criterio 3.6).
+  // Reload e' a forma mais simples de re-renderizar todas as strings t(...)
+  // sem manter dois catalogos (server-side e client-side).
   (function () {
-    const btns = document.querySelectorAll('.nc-lang-btn');
-    btns.forEach(b => b.addEventListener('click', () => {
+    const url = "{{ url_for('core.set_session_locale') }}";
+    const btns = document.querySelectorAll('.nc-lang-btn[data-lang]');
+    btns.forEach(b => b.addEventListener('click', async () => {
+      const locale = b.dataset.lang;
+      // Feedback visual imediato (otimista) — se o POST falhar, o reload
+      // do servidor reverte para o locale ativo na sessao.
       btns.forEach(x => x.classList.remove('is-active'));
       b.classList.add('is-active');
+      try {
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ locale }),
+        });
+        if (r.ok) location.reload();
+      } catch (_) { /* offline: mantem visual ate proxima request */ }
     }));
   })();
 

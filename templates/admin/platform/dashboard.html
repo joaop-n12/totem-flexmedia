@@ -9,7 +9,7 @@
     <div class="stat-icon blue">🏛</div>
     <div class="stat-info">
       <div class="stat-value">{{ stats.institutions }}</div>
-      <div class="stat-label">Instituições</div>
+      <div class="stat-label">Clientes</div>
     </div>
   </div>
   <div class="stat-card">
@@ -40,7 +40,7 @@
   <!-- Institutions com métricas dos últimos N dias -->
   <div class="card">
     <div class="card-header">
-      <h2>Instituições <small style="color:var(--a-muted);font-weight:400;">(uso nos últimos {{ period_days }} dias)</small></h2>
+      <h2>Clientes <small style="color:var(--a-muted);font-weight:400;">(uso nos últimos {{ period_days }} dias)</small></h2>
       <a class="btn btn-primary btn-sm" href="{{ url_for('admin_platform.institution_new') }}">+ Nova</a>
     </div>
     <div class="table-wrap">
@@ -85,7 +85,7 @@
           </tr>
           {% else %}
           <tr><td colspan="5" style="text-align:center;color:var(--a-muted);padding:32px;">
-            Nenhuma instituição.
+            Nenhum cliente.
           </td></tr>
           {% endfor %}
         </tbody>
