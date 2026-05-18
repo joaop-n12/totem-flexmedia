@@ -1,21 +1,19 @@
-"""Maquina de estados da sessao de atendimento do totem (Sprint 4).
+"""Maquina de estados da sessao de atendimento do totem.
 
 Consolidada num servico singleton porque o estado e' processo-local: o
 mesmo Gunicorn worker que recebe `/api/local/wake` (do daemon de sensores)
 tambem responde `/api/session/state` para o kiosk.
 
 Estados (contrato consumido pelo overlay em templates/base.html):
-    idle    — sem presenca detectada, overlay "Aproxime-se" visivel
-    invite  — PIR detectou movimento; overlay "Vamos conversar?"
-    active  — HC-SR04 confirmou usuario proximo: overlay some, totem
-              dispara saudacao TTS e (se na home) navega para /voice
+    idle    — visitante longe (ou sem leitura), overlay "Aproxime-se" visivel
+    active  — HC-SR04 detectou usuario proximo: overlay some, totem dispara
+              saudacao TTS e (se na home) navega para /voice
 
 Transicoes (simplificadas, fail-open):
-    idle    --motion-->        invite
-    invite  --dist <= ENGAGE-->  active
-    invite  --timeout-->       idle
-    active  --dist >= LEAVE-->  idle
-    active  --timeout-->       idle
+    idle    --dist <= ENGAGE-->  active
+    active  --dist >= LEAVE-->   idle
+    active  --dist = None  -->   idle
+    active  --timeout-->         idle
 
 Thread-safety: lock unico no singleton. Volume de chamadas e' baixo
 (daemon manda heartbeat 1x/s + kiosk polla 1x/s) — lock simples basta.
@@ -31,7 +29,6 @@ from typing import Optional
 # ── Parametros ajustaveis ──────────────────────────────────────────────────
 ENGAGE_DISTANCE_CM = 80.0   # entra em ACTIVE quando usuario se aproxima
 LEAVE_DISTANCE_CM = 150.0   # sai de ACTIVE quando se afasta
-INVITE_TIMEOUT_S = 8.0      # INVITE sem aproximacao -> IDLE
 ACTIVE_TIMEOUT_S = 15.0     # ACTIVE sem refresh de distancia -> IDLE
 
 
@@ -43,7 +40,6 @@ class SessionSnapshot:
     distance_cm: Optional[float] = None
     temp_c: Optional[float] = None
     humidity_pct: Optional[float] = None
-    last_motion_at: Optional[float] = None
     last_distance_at: Optional[float] = None
     state_since: float = field(default_factory=lambda: datetime.utcnow().timestamp())
 
@@ -72,21 +68,10 @@ class SessionStateMachine:
         """Reavalia o estado em funcao do tempo decorrido. Sem efeitos colaterais
         alem da propria transicao."""
         elapsed = self._now() - self._snap.state_since
-        s = self._snap.state
-        if s == "invite" and elapsed > INVITE_TIMEOUT_S:
-            self._transition("idle")
-        elif s == "active" and elapsed > ACTIVE_TIMEOUT_S:
+        if self._snap.state == "active" and elapsed > ACTIVE_TIMEOUT_S:
             self._transition("idle")
 
     # — API publica usada por devices.py —
-    def update_motion(self) -> SessionSnapshot:
-        """PIR detectou presenca. Promove IDLE -> INVITE (fail-open)."""
-        with self._lock:
-            self._snap.last_motion_at = self._now()
-            if self._snap.state == "idle":
-                self._transition("invite")
-            return self._snap
-
     def update_distance(self, distance_cm: Optional[float]) -> SessionSnapshot:
         """HC-SR04 reportou nova leitura. None = fora de alcance."""
         with self._lock:
@@ -98,10 +83,10 @@ class SessionStateMachine:
                 if self._snap.state == "active":
                     self._transition("idle")
             elif distance_cm <= ENGAGE_DISTANCE_CM:
-                # usuario proximo — promove para ACTIVE a partir de qualquer
-                # estado de espera. Front-end reage escondendo overlay,
-                # tocando saudacao TTS e (se na home) navegando para /voice.
-                if self._snap.state in ("idle", "invite"):
+                # usuario proximo — promove para ACTIVE. Front-end reage
+                # escondendo overlay, tocando saudacao TTS e (se na home)
+                # navegando para /voice.
+                if self._snap.state == "idle":
                     self._transition("active")
             elif distance_cm >= LEAVE_DISTANCE_CM:
                 if self._snap.state == "active":
@@ -115,7 +100,7 @@ class SessionStateMachine:
         temp_c: Optional[float] = None,
         humidity_pct: Optional[float] = None,
     ) -> None:
-        """DHT22 reportou ambiente. Nao muda estado — apenas telemetria."""
+        """DHT11/DHT22 reportou ambiente. Nao muda estado — apenas telemetria."""
         with self._lock:
             if temp_c is not None:
                 try:

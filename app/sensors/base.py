@@ -16,14 +16,13 @@ from typing import Literal
 
 @dataclass(frozen=True)
 class SensorReading:
-    """Snapshot imutavel de uma leitura de sensor.
+    """Snapshot imutavel de uma leitura de sensor de ambiente (DHT11/DHT22).
 
-    Campos opcionais (None) significam "sensor nao tem esse dado" — ex.: PIR
-    so devolve `motion`, DHT22 so devolve `temp_c`/`humidity_pct`.
+    Campos opcionais (None) significam "sensor falhou nesta leitura" — DHT
+    falha em ~10% das leituras por timing, normal.
     """
-    source: Literal["pir", "dht22"]
+    source: Literal["dht22"]
     timestamp: datetime
-    motion: bool | None = None
     temp_c: float | None = None
     humidity_pct: float | None = None
     error: str | None = None

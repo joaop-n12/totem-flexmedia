@@ -1,5 +1,5 @@
 [Unit]
-Description=Totem FlexMedia — Daemon de sensores (PIR + DHT22)
+Description=Totem FlexMedia — Daemon de sensores (DHT11/DHT22 + HC-SR04)
 After=network-online.target totem-flexmedia.service
 Wants=network-online.target
 

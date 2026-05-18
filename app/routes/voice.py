@@ -148,9 +148,9 @@ def voice_api(slug):
 
 # ── Saudacao proativa por sensor de proximidade ───────────────────────────────
 #
-# Disparada pelo front (templates/base.html) quando a maquina de estados sai de
-# IDLE para INVITE ou ACTIVE — ou seja, quando o PIR/HC-SR04 detecta que alguem
-# se aproximou. Difere do /api/voice tradicional porque NAO espera entrada de
+# Disparada pelo front (templates/base.html) quando a maquina de estados entra
+# em ACTIVE — ou seja, quando o HC-SR04 detecta que alguem se aproximou.
+# Difere do /api/voice tradicional porque NAO espera entrada de
 # voz nem toque; o objetivo e' engajamento proativo.
 #
 # Seguranca/custo:

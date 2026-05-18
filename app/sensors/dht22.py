@@ -118,8 +118,9 @@ class Dht22Sensor:
         if self._callback is None:
             return
         try:
-            # source mantido como 'dht22' para nao quebrar o schema do
-            # SensorReading (Literal). O modelo real fica em self.model.
+            # source fica como 'dht22' tanto para DHT11 quanto DHT22 — o
+            # consumidor (daemon/heartbeat) so se importa com temp/humid.
+            # O modelo real fica em self.model.
             self._callback(SensorReading(
                 source="dht22",
                 timestamp=datetime.utcnow(),

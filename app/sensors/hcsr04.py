@@ -29,8 +29,9 @@ from .base import is_pi_hardware
 
 logger = logging.getLogger(__name__)
 
-# Reading distance e' separado do SensorReading do base.py para nao misturar
-# campos de PIR/DHT — o daemon agrega tudo no estado consolidado.
+# DistanceReading e' separado do SensorReading do base.py — distancia tem
+# semantica e cadencia (sub-segundo) diferentes do DHT (a cada 1-2s). O
+# daemon agrega tudo no estado consolidado.
 DistanceCallback = Callable[["DistanceReading"], None]
 
 

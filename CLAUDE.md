@@ -78,10 +78,10 @@ app/services/               # Integracoes externas plugaveis (registry pattern)
                             #   get_locale, set_locale (sessao). Sem Babel.
 
 app/sensors/                # Drivers de sensores fisicos do totem (Pi-only)
-├── __init__.py             # Exports do pacote (PirSensor, Dht22Sensor)
+├── __init__.py             # Exports do pacote (Dht22Sensor, Hcsr04Sensor)
 ├── base.py                 # SensorReading + is_pi_hardware()
-├── pir.py                  # PIR HC-SR501 — RPi.GPIO + fallback mock
-├── dht22.py                # DHT22 — adafruit-circuitpython-dht + mock
+├── dht22.py                # DHT11/DHT22 — adafruit-circuitpython-dht + mock
+├── hcsr04.py               # HC-SR04 ultrassonico — RPi.GPIO + mock
 └── daemon.py               # SensorDaemon: agrega leituras, posta wake local
                             #   e envia heartbeat HMAC ao servidor
 
@@ -154,7 +154,7 @@ tests/
 ├── test_2fa.py             # Setup de TOTP, códigos de backup, challenge
 ├── test_security.py        # Política de senha, lockout, auditoria, CSRF
 ├── test_heartbeat.py       # /api/heartbeat (HMAC, API key, anti-replay)
-├── test_sensors.py         # PIR/DHT22 mocks, /api/local/wake (loopback +
+├── test_sensors.py         # DHT11/DHT22 mock, /api/local/wake (loopback +
 │                           #   secret), telemetria de sensores no heartbeat
 ├── test_translation.py     # Registry, cache, classificacao de erros e rota
 │                           #   POST /<slug>/api/translate (OpenAI mockada)
@@ -233,13 +233,17 @@ README.md                   # Apresentação pública do projeto
 - **2FA**: códigos de backup armazenados como hash (Werkzeug); só são exibidos uma vez ao gerar.
 - **CSRF**: usar `generate_csrf_token` (helpers) no template e `validate_csrf_token()` no início de cada POST do admin.
 - **Heartbeat de totem**: validar HMAC SHA-256 com janela anti-replay de 5 minutos.
-- **Sensores fisicos (PIR + DHT22)**: nunca rodar dentro do worker Gunicorn.
-  Sempre via `scripts/totem_sensor_daemon.py` como systemd unit separada
-  (`totem-sensors.service`). Em laptop/CI/servidor remoto, `is_pi_hardware()`
-  retorna False e os modulos caem em mock automaticamente.
+- **Sensores fisicos (DHT11/DHT22 + HC-SR04)**: nunca rodar dentro do worker
+  Gunicorn. Sempre via `scripts/totem_sensor_daemon.py` como systemd unit
+  separada (`totem-sensors.service`). Em laptop/CI/servidor remoto,
+  `is_pi_hardware()` retorna False e os modulos caem em mock automaticamente.
+  O piloto NAO usa mais o PIR HC-SR501; a presenca/aproximacao e' detectada
+  apenas pelo HC-SR04 (`/api/local/wake` recebe `type=distance`) — sem
+  saudacoes disparadas por simples passagem distante.
 - **/api/local/wake**: loopback-only + `X-Wake-Secret` (env `TOTEM_WAKE_SECRET`).
-  Fail-closed se o segredo nao estiver configurado. Usado pelo daemon de
-  sensores (mesmo host) para acordar o kiosk via SSE.
+  Fail-closed se o segredo nao estiver configurado. Aceita apenas
+  `type=distance` (HC-SR04) e `type=environment` (DHT). Usado pelo daemon
+  de sensores (mesmo host) para acordar o kiosk via SSE.
 - **Integracoes externas (tradução, visão, analytics)**: sempre via
   `app.services.registry`. Para adicionar uma nova, criar a classe em
   `app/services/<nome>.py` (com `name`, `is_available`, `health_check`) e

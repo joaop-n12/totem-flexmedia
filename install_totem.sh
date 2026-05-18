@@ -70,7 +70,8 @@ sudo apt install -y \
   chromium chromium-l10n \
   unclutter xdotool \
   fonts-noto-color-emoji \
-  curl git
+  curl git \
+  libpq-dev build-essential python3-dev
 ok "Dependencias de sistema instaladas"
 
 # --- 2. Projeto e virtualenv -----------------------------------------------
@@ -133,8 +134,13 @@ if [ ! -f .env ]; then
   {
     echo "# Gerado por install_totem.sh em $(date -Iseconds)"
     echo "OPENAI_API_KEY=$api_key"
+    echo "FLASK_ENV=production"
     echo "FLASK_DEBUG=false"
     echo "SECRET_KEY=$(python3 -c 'import secrets;print(secrets.token_hex(32))')"
+    # Chave Fernet para campos criptografados em repouso (ex.: api_key_secret
+    # de totens). Obrigatoria em producao — validate_runtime() em config.py
+    # recusa subir o app sem ela.
+    echo "FIELD_ENCRYPTION_KEY=$(python3 -c 'from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())')"
     echo "SUPERADMIN_EMAIL=$admin_email"
     echo "SUPERADMIN_PASSWORD=$admin_pass"
     echo "TOTEM_WAKE_SECRET=$(python3 -c 'import secrets;print(secrets.token_hex(32))')"
@@ -148,9 +154,23 @@ else
   if ! grep -q "^GUNICORN_BIND=" .env; then
     echo "GUNICORN_BIND=127.0.0.1:8000" >> .env
     ok "GUNICORN_BIND=127.0.0.1:8000 adicionado ao .env existente"
-  else
-    ok ".env ja existe — preservando valores atuais"
   fi
+  # Idem para FIELD_ENCRYPTION_KEY — instalacoes anteriores ao hardening de
+  # campos criptografados nao tinham essa chave; sem ela validate_runtime()
+  # derruba o app em producao.
+  if ! grep -q "^FIELD_ENCRYPTION_KEY=" .env && ! grep -q "^FIELD_ENCRYPTION_KEYS=" .env; then
+    fek=$(python3 -c 'from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())')
+    echo "FIELD_ENCRYPTION_KEY=$fek" >> .env
+    ok "FIELD_ENCRYPTION_KEY gerado e adicionado ao .env existente"
+  fi
+  # Garante FLASK_ENV=production — sem isso o factory usa DevelopmentConfig
+  # e o validate_runtime() nem roda (o que mascara a falta de FIELD_ENCRYPTION_KEY
+  # ate o primeiro deploy real).
+  if ! grep -q "^FLASK_ENV=" .env; then
+    echo "FLASK_ENV=production" >> .env
+    ok "FLASK_ENV=production adicionado ao .env existente"
+  fi
+  ok ".env ja existe — segredos preservados"
 fi
 
 # --- 3.1 Banco de dados (cria tabelas + seed inicial) ----------------------
@@ -191,11 +211,11 @@ sudo systemctl enable totem-flexmedia
 sudo systemctl restart totem-flexmedia
 ok "Servico totem-flexmedia ativo (porta 8000)"
 
-# --- 4.1 Daemon de sensores (PIR + DHT22) ----------------------------------
+# --- 4.1 Daemon de sensores (DHT11/DHT22 + HC-SR04) ------------------------
 # Roda independente do Flask. Le o /etc/totem/credenciais.env (gerado pela
 # tela de provisionamento de totens no painel admin).
 if [ "$IS_PI" -eq 1 ] && [ -f "$PROJECT_DIR/deploy/totem-sensors.service" ]; then
-  passo "Instalando daemon de sensores (PIR + DHT22)"
+  passo "Instalando daemon de sensores (DHT11/DHT22 + HC-SR04)"
   sudo cp "$PROJECT_DIR/deploy/totem-sensors.service" /etc/systemd/system/
   sudo sed -i "s|/home/pi/totem_flexmedia|$PROJECT_DIR|g" /etc/systemd/system/totem-sensors.service
   sudo sed -i "s|^User=pi|User=$USER|" /etc/systemd/system/totem-sensors.service

@@ -70,11 +70,10 @@ class TotemDevice(db.Model):
     cpu_temp_c      = db.Column(db.Float, nullable=True)
     free_disk_mb    = db.Column(db.Integer, nullable=True)
     uptime_seconds  = db.Column(db.Integer, nullable=True)
-    # Telemetria do daemon de sensores (DHT22 + PIR). Opcional — totens sem
-    # sensor fisico simplesmente nao reportam esses campos.
+    # Telemetria do daemon de sensores (DHT11/DHT22 ambiente). Opcional —
+    # totens sem sensor fisico simplesmente nao reportam esses campos.
     ambient_temp_c       = db.Column(db.Float, nullable=True)
     ambient_humidity_pct = db.Column(db.Float, nullable=True)
-    last_motion_at       = db.Column(db.DateTime, nullable=True)
     created_at      = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     institution = db.relationship(

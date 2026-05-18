@@ -266,21 +266,28 @@ sudo shutdown -h now
 
 Espere o LED verde apagar, **tire o cabo de força**, então conecte:
 
-### PIR HC-SR501 (detector de presença)
+### DHT11 / DHT22 (temperatura + umidade)
 
-| PIR | GPIO Pi |
+| DHT | GPIO Pi |
 |-----|---------|
-| VCC | Pino 2 (5V) |
-| GND | Pino 6 (GND) |
-| OUT | Pino 11 (GPIO 17) |
-
-### DHT22 (temperatura + umidade)
-
-| DHT22 | GPIO Pi |
-|-------|---------|
 | VCC | Pino 1 (3.3V) |
 | GND | Pino 9 (GND) |
 | DATA | Pino 7 (GPIO 4) — com resistor 10kΩ pull-up até VCC |
+
+> ℹ️ DHT11 e DHT22 usam a mesma pinagem e a mesma biblioteca. Escolha o modelo
+> via `DHT_MODEL=DHT11` (ou `DHT22`) no `.env`. Padrão é `DHT22`.
+
+### HC-SR04 (sensor ultrassônico de distância)
+
+| HC-SR04 | GPIO Pi |
+|---------|---------|
+| VCC  | Pino 2 (5V) |
+| TRIG | Pino 16 (GPIO 23) |
+| ECHO | Pino 18 (GPIO 24) — com divisor resistivo 1kΩ/2kΩ até 3.3V |
+| GND  | Pino 6 (GND) |
+
+> ⚠️ O pino ECHO entrega 5V. Sem o divisor resistivo, o GPIO do Pi (tolerante
+> a 3.3V) pode ser danificado a longo prazo.
 
 Religue o cabo de força. Espere o boot.
 
@@ -302,7 +309,7 @@ journalctl -u totem-sensors -f
 A cada poucos segundos aparece algo como:
 
 ```
-PIR=0 temp=24.3°C umidade=58.1% (heartbeat OK)
+temp=24.3°C umidade=58.1% distancia=120cm (heartbeat OK)
 ```
 
 `Ctrl+C` sai do journalctl (não para o daemon).
@@ -457,7 +464,7 @@ Driver gráfico errado. Desligue, vá em **Configurações → Tela** do Virtual
 
 /etc/systemd/system/
 ├── totem-flexmedia.service          # backend Flask
-└── totem-sensors.service            # daemon PIR + DHT22 (Pi only)
+└── totem-sensors.service            # daemon DHT11/DHT22 + HC-SR04 (Pi only)
 
 /etc/totem/
 └── credenciais.env                  # API key + HMAC do totem (chmod 600)

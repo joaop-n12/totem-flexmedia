@@ -50,14 +50,12 @@
   📡 {{ t('offline.banner') }}
 </div>
 
-{# ── Sprint 4 — Overlay de sessao orientada por sensores ────────────────────
+{# ── Overlay de sessao orientada pelo sensor de aproximacao (HC-SR04) ───────
    NAO ha pagina /sessao dedicada. A sessao reage no proprio totem em
    qualquer rota: o overlay aparece sobre a interface atual quando o
-   visitante esta longe (IDLE) ou se aproximando (INVITE) e DESAPARECE
-   quando entra em ACTIVE — momento em que o totem inicia proativamente
-   a interacao por voz (navega para o assistente, mantendo-se dentro do
-   sistema principal).
-   - Visivel apenas quando ha PIR/HC-SR04 ativos (config.SESSION_OVERLAY_ENABLED).
+   visitante esta longe (IDLE) e DESAPARECE quando entra em ACTIVE —
+   momento em que o totem inicia proativamente a interacao por voz (navega
+   para o assistente, mantendo-se dentro do sistema principal).
    - z-index abaixo de modais LGPD (10000) e banners (9999) para nao mascarar.
 #}
 <div id="totemPresence" class="presence-overlay" data-state="idle" hidden aria-hidden="true">
@@ -76,7 +74,7 @@
 </div>
 <style>
   /* Overlay full-screen com fade e blur sobre o conteudo do totem.
-     IDLE: opaco (atrai). INVITE: convidativo. ACTIVE: hidden (libera UI). */
+     IDLE: opaco (atrai). ACTIVE: hidden (libera UI). */
   .presence-overlay {
     position: fixed; inset: 0; z-index: 9000;
     display: flex; align-items: center; justify-content: center;
@@ -88,9 +86,6 @@
     cursor: default;
   }
   .presence-overlay[hidden] { display: none; }
-  .presence-overlay[data-state="invite"] {
-    background: radial-gradient(circle at 50% 50%, rgba(20,40,80,.78), rgba(5,15,35,.92));
-  }
   .presence-stage { text-align: center; max-width: 900px; padding: 0 2rem; }
   .presence-title {
     font-size: clamp(2.4rem, 6vw, 4.5rem);
@@ -104,10 +99,6 @@
     background: #3b82f6; margin: 0 auto;
     box-shadow: 0 0 0 0 rgba(59,130,246,.55);
     animation: presencePulse 1.8s ease-out infinite;
-  }
-  .presence-overlay[data-state="invite"] .presence-pulse {
-    background: #fbbf24;
-    box-shadow: 0 0 0 0 rgba(251,191,36,.55);
   }
   @keyframes presencePulse {
     0%   { transform: scale(.85); box-shadow: 0 0 0 0 rgba(59,130,246,.55); }
@@ -390,22 +381,20 @@
 </script>
 
 <script>
-  // ── Sprint 4 — Sessao orientada por sensores (PIR + HC-SR04 + DHT22) ─────────
+  // ── Sessao orientada por sensores (HC-SR04 + DHT11/DHT22) ───────────────────
   // Centralizada: o totem REAGE em qualquer rota (home, animais, mapa, voz...).
   // Nao ha pagina /sessao separada — o overlay sobe e desce sobre a UI atual.
   //
   // Comportamento por estado (snapshot vem de /api/session/state ou SSE):
   //   IDLE   → overlay opaco com "Aproxime-se" (totem em modo atrair).
-  //   INVITE → overlay convidativo "Ola! Vamos conversar?" (presenca proxima).
   //   ACTIVE → overlay desaparece + totem inicia proativamente o assistente
   //            de voz (navega para a rota de voz da MESMA instituicao, sem
   //            sair do sistema). Se voce ja estiver em /voz, dispara o evento
   //            `flexmedia:totem-active` para o pagina chamar o microfone.
   //
-  // Tres entradas independentes:
+  // Duas entradas independentes:
   //   1. SSE em /api/local/wake-stream (loopback) — empurrado pelo daemon.
   //   2. Polling em /api/session/state a cada 2s (fallback / cross-host).
-  //   3. PIR -> evento custom `flexmedia:presence` mantido para back-compat.
   //
   // Falhas sao silenciosas: sem Flask/daemon, o totem segue funcionando.
   (function () {
@@ -427,7 +416,6 @@
 
     const COPY = {
       idle:   { t: 'Aproxime-se para começar',  s: 'Toque ou caminhe até o totem para iniciar uma conversa.' },
-      invite: { t: 'Olá! Vamos conversar?',     s: 'Chegue mais perto — o assistente vai te atender.' },
       active: { t: '',                          s: '' },
     };
 
@@ -442,12 +430,12 @@
     let lastInteraction   = Date.now();
 
     // ── Saudacao proativa por proximidade ───────────────────────────────────
-    // Quando o sensor PIR/HC-SR04 promove o estado de IDLE para INVITE (ou
-    // direto para ACTIVE em aproximacoes rapidas), tocamos uma saudacao TTS
-    // pre-gerada — engajamento sem depender de toque/voz.
+    // Quando o HC-SR04 promove o estado de IDLE para ACTIVE (visitante se
+    // aproximou), tocamos uma saudacao TTS pre-gerada — engajamento sem
+    // depender de toque/voz.
     //
-    // Cooldown de 60s evita que o totem fique repetindo a frase enquanto a
-    // pessoa permanece em frente (PIR re-dispara a cada movimento).
+    // Cooldown evita que o totem fique repetindo a frase enquanto a pessoa
+    // permanece em frente (oscilacoes de leitura podem re-disparar).
     {% if institution and institution.has_module('ia') %}
     const GREETING_URL = "{{ url_for('voice.voice_greeting', slug=institution.slug) }}";
     {% else %}
@@ -511,15 +499,14 @@
       const previous = lastState;
       lastState = st;
 
-      // Gatilho proativo: ao sair de IDLE (ou primeira leitura ja em INVITE/
-      // ACTIVE) significa que o sensor de proximidade detectou aproximacao.
-      // Toca a saudacao independentemente da rota atual — o cooldown evita
-      // sobreposicao quando o estado oscila INVITE↔ACTIVE.
-      if ((st === 'invite' || st === 'active') && previous !== 'invite' && previous !== 'active') {
+      // Gatilho proativo: ao entrar em ACTIVE significa que o HC-SR04
+      // detectou aproximacao. Toca a saudacao independentemente da rota
+      // atual — o cooldown evita sobreposicao em oscilacoes de leitura.
+      if (st === 'active' && previous !== 'active') {
         playProactiveGreeting();
       }
 
-      // IDLE / INVITE: overlay visivel; ACTIVE: liberado (totem interativo).
+      // IDLE: overlay visivel; ACTIVE: liberado (totem interativo).
       if (st === 'active') {
         overlay.setAttribute('hidden', '');
         overlay.setAttribute('aria-hidden', 'true');
@@ -543,14 +530,9 @@
         overlay.setAttribute('data-state', st);
         overlay.removeAttribute('hidden');
         overlay.setAttribute('aria-hidden', 'false');
-        if (elTitle) elTitle.textContent = COPY[st].t;
-        if (elSub)   elSub.textContent   = COPY[st].s;
-      }
-
-      // Compat: continua emitindo o evento antigo de presenca para qualquer
-      // codigo legado que dependa dele.
-      if (st === 'invite' || st === 'active') {
-        window.dispatchEvent(new CustomEvent('flexmedia:presence', { detail: s }));
+        const copy = COPY[st] || COPY.idle;
+        if (elTitle) elTitle.textContent = copy.t;
+        if (elSub)   elSub.textContent   = copy.s;
       }
     }
 
@@ -567,7 +549,6 @@
           if (data && data.session) applySnapshot(data.session);
         } catch (_) {}
       };
-      es.addEventListener('presence',       handler);
       es.addEventListener('session_update', handler);
       es.onerror = () => { try { es.close(); } catch (_) {} setTimeout(connectSSE, 5000); };
     }

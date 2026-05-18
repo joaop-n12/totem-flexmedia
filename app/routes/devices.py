@@ -1,11 +1,11 @@
 """Monitoramento da frota de totens.
 
 Endpoint publico (porem autenticado por HMAC):
-  POST /api/heartbeat    — totem reporta status (incl. telemetria PIR/DHT22)
+  POST /api/heartbeat    — totem reporta status (incl. telemetria DHT11/DHT22)
 
 Endpoint local-only (consumido pelo daemon de sensores rodando no proprio Pi):
-  POST /api/local/wake   — daemon avisa o Flask local de presenca; Flask faz
-                            fan-out via SSE para o kiosk acordar.
+  POST /api/local/wake   — daemon avisa o Flask local de aproximacao
+                            (HC-SR04); Flask faz fan-out via SSE para o kiosk.
   GET  /api/local/wake-stream — SSE consumido pelo kiosk (event-stream).
 
 Endpoints admin (super_admin):
@@ -123,7 +123,7 @@ def heartbeat():
     new_cpu = _maybe_float(payload.get("cpu_temp_c"))
     new_disk = _maybe_int(payload.get("free_disk_mb"))
     new_uptime = _maybe_int(payload.get("uptime_seconds"))
-    # Telemetria de sensores fisicos (PIR + DHT22) — opcional.
+    # Telemetria de sensores fisicos (DHT11/DHT22 ambiente) — opcional.
     new_temp = _maybe_float(payload.get("ambient_temp_c"))
     new_hum = _maybe_float(payload.get("ambient_humidity_pct"))
 
@@ -138,18 +138,13 @@ def heartbeat():
     if new_uptime is not None:
         device.uptime_seconds = new_uptime
     if new_temp is not None:
-        # Sanity-check: DHT22 spec e' -40..80 °C. Fora disso e' ruido.
+        # Sanity-check: DHT22 spec e' -40..80 °C (DHT11 e' subconjunto).
+        # Fora disso e' ruido.
         if -40.0 <= new_temp <= 80.0:
             device.ambient_temp_c = new_temp
     if new_hum is not None:
         if 0.0 <= new_hum <= 100.0:
             device.ambient_humidity_pct = new_hum
-    motion_iso = payload.get("last_motion_at")
-    if isinstance(motion_iso, str) and motion_iso:
-        try:
-            device.last_motion_at = datetime.fromisoformat(motion_iso.replace("Z", ""))
-        except ValueError:
-            pass
     db.session.commit()
 
     # Devolve eventuais comandos pendentes para o totem (placeholder p/ OTA futuro).
@@ -193,7 +188,7 @@ def _broadcast_wake(payload: dict) -> int:
             q.put_nowait(msg)
             delivered += 1
         except queue.Full:
-            # Cliente lento — descartar e' ok. PIR re-dispara em segundos.
+            # Cliente lento — descartar e' ok. HC-SR04 re-dispara em segundos.
             pass
     return delivered
 
@@ -222,9 +217,10 @@ def local_wake():
     body = request.get_json(silent=True) or {}
     sm = get_state_machine()
 
-    # Sprint 4: o daemon agora envia leituras consolidadas. O type controla
-    # o que alimentar na maquina de estados.
-    wake_type = (body.get("type") or "presence").lower()
+    # O daemon envia leituras consolidadas. O type controla o que alimentar
+    # na maquina de estados. Sem PIR no piloto: distancia (HC-SR04) e' o
+    # unico gatilho de mudanca de estado; environment so atualiza telemetria.
+    wake_type = (body.get("type") or "distance").lower()
 
     if wake_type == "distance":
         raw = body.get("distance_cm")
@@ -234,20 +230,19 @@ def local_wake():
             return jsonify(error="invalid_distance"), 400
         snap = sm.update_distance(d)
     elif wake_type == "environment":
-        # PIR/DHT22 leitura ambiental — atualiza temp/humid sem mudar estado.
+        # DHT11/DHT22 leitura ambiental — atualiza temp/humid sem mudar estado.
         sm.update_environment(
             temp_c=body.get("temp_c"),
             humidity_pct=body.get("humidity_pct"),
         )
         snap = sm.snapshot()
     else:
-        # presence (default) — promove IDLE→INVITE imediatamente (fail-open).
-        snap = sm.update_motion()
+        return jsonify(error="unknown_wake_type"), 400
 
     payload = {
-        "type": "session_update" if wake_type != "presence" else "presence",
+        "type": "session_update",
         "at": int(datetime.utcnow().timestamp()),
-        "source": body.get("source", "pir"),
+        "source": body.get("source", "hcsr04"),
         "session": snap.to_dict(),
     }
     n = _broadcast_wake(payload)
@@ -281,7 +276,6 @@ def sensors_mock():
     Body JSON:
       { "distance_cm": 45.0 }   -> alimenta HC-SR04 mock
       { "distance_cm": null }   -> simula "fora de alcance"
-      { "motion": true }        -> simula PIR (promove IDLE→INVITE)
 
     Seguranca:
       1. Loopback-only (mesmo padrao do /api/local/wake).
@@ -319,9 +313,6 @@ def sensors_mock():
             return jsonify(error="distance_out_of_range"), 400
         snap = sm.update_distance(d)
 
-    if body.get("motion") is True:
-        snap = sm.update_motion()
-
     if snap is None:
         snap = sm.snapshot()
 
@@ -337,11 +328,11 @@ def sensors_mock():
 
 @devices_bp.route("/api/local/wake-stream")
 def local_wake_stream():
-    """SSE stream consumido pelo kiosk para reagir a presenca.
+    """SSE stream consumido pelo kiosk para reagir a aproximacao.
 
     O browser do kiosk faz `new EventSource('/api/local/wake-stream')` e
-    recebe eventos JSON `{type: "presence", ...}`. Sem auth porque so o
-    kiosk em 127.0.0.1 acessa.
+    recebe eventos JSON `{type: "session_update", ...}`. Sem auth porque so
+    o kiosk em 127.0.0.1 acessa.
     """
     if not _is_loopback():
         return jsonify(error="forbidden"), 403
@@ -359,7 +350,7 @@ def local_wake_stream():
                 # detectar desconexao do client (Flask fecha o gerador).
                 try:
                     msg = q.get(timeout=15)
-                    yield f"event: presence\ndata: {msg}\n\n"
+                    yield f"event: session_update\ndata: {msg}\n\n"
                 except queue.Empty:
                     yield ": keep-alive\n\n"
         finally:

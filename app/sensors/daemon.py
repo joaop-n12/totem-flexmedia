@@ -1,10 +1,10 @@
 """Daemon de sensores que roda no Raspberry Pi (NAO no servidor remoto).
 
 Funcoes:
-  1. Le PIR e DHT22 via threads.
-  2. Em PIR alta: POST local em http://127.0.0.1:8000/api/local/wake (shared
-     secret no .env do totem) — Flask faz fan-out via SSE para o kiosk
-     acordar/iniciar interacao.
+  1. Le DHT11/DHT22 (ambiente) e HC-SR04 (distancia) via threads.
+  2. Em mudancas relevantes de distancia: POST local em
+     http://127.0.0.1:8000/api/local/wake (shared secret no .env do totem) —
+     Flask faz fan-out via SSE para o kiosk reagir.
   3. Agrega temp/humid e envia ao servidor central junto com o heartbeat
      HMAC. Reusa o segredo (api_key_secret) que ja existe no totem.
 
@@ -14,7 +14,7 @@ Por que separar do Flask?
   - Daemon e' systemd service independente; resiliencia maior.
 
 Em laptop/CI, o daemon roda em mock e ainda exercita o caminho HTTP — util
-para desenvolver a UI de wake-up sem Pi fisico.
+para desenvolver a UI de aproximacao sem Pi fisico.
 """
 from __future__ import annotations
 
@@ -28,7 +28,6 @@ import signal
 import sys
 import threading
 import time
-from datetime import datetime
 
 import urllib.error
 import urllib.request
@@ -36,7 +35,6 @@ import urllib.request
 from .base import SensorReading
 from .dht22 import Dht22Sensor
 from .hcsr04 import DistanceReading, Hcsr04Sensor
-from .pir import PirSensor
 
 logger = logging.getLogger("totem.sensor_daemon")
 
@@ -49,7 +47,6 @@ class SensorDaemon:
         heartbeat_url: str,
         api_key_id: str,
         api_key_secret: str,
-        pir_pin: int = 17,
         dht_pin: int = 4,
         hcsr04_trig_pin: int = 23,
         hcsr04_echo_pin: int = 24,
@@ -64,7 +61,6 @@ class SensorDaemon:
         self.api_key_secret = api_key_secret
         self.heartbeat_interval = heartbeat_interval
 
-        self.pir = PirSensor(gpio_pin=pir_pin)
         # Modelo do DHT vem do env DHT_MODEL (resolvido dentro do driver).
         # Em Sprint 4 academico, definir DHT_MODEL=DHT11 no .env do Pi.
         self.dht = Dht22Sensor(gpio_pin=dht_pin)
@@ -75,7 +71,6 @@ class SensorDaemon:
 
         # Estado compartilhado entre threads — protegido por lock simples.
         self._lock = threading.Lock()
-        self._last_motion: datetime | None = None
         self._last_temp: float | None = None
         self._last_hum: float | None = None
         self._last_distance: float | None = None
@@ -89,21 +84,9 @@ class SensorDaemon:
 
     # ── callbacks dos sensores ─────────────────────────────────────────────
 
-    def _on_motion(self, reading: SensorReading) -> None:
-        if not reading.motion:
-            return
-        with self._lock:
-            self._last_motion = reading.timestamp
-        self._post_wake({
-            "type": "presence",
-            "ts": int(time.time()),
-            "source": "pir",
-        })
-        logger.info("Presenca detectada — wake local enviado")
-
     def _on_env(self, reading: SensorReading) -> None:
         if reading.error:
-            logger.debug("DHT22 leitura com erro: %s", reading.error)
+            logger.debug("DHT leitura com erro: %s", reading.error)
             return
         with self._lock:
             if reading.temp_c is not None:
@@ -173,7 +156,6 @@ class SensorDaemon:
                 "app_version": os.environ.get("TOTEM_APP_VERSION", "sensor-daemon"),
                 "ambient_temp_c": self._last_temp,
                 "ambient_humidity_pct": self._last_hum,
-                "last_motion_at": self._last_motion.isoformat() if self._last_motion else None,
             }
         return json.dumps(payload, default=str).encode("utf-8")
 
@@ -214,20 +196,18 @@ class SensorDaemon:
     # ── ciclo de vida ──────────────────────────────────────────────────────
 
     def start(self) -> None:
-        self.pir.start(self._on_motion)
         self.dht.start(self._on_env)
         self.hcsr04.start(self._on_distance)
         threading.Thread(
             target=self._heartbeat_loop, name="heartbeat", daemon=True,
         ).start()
         logger.info(
-            "SensorDaemon online (pir mock=%s, dht mock=%s, hcsr04 mock=%s)",
-            self.pir.mock_mode, self.dht.mock_mode, self.hcsr04.mock_mode,
+            "SensorDaemon online (dht mock=%s, hcsr04 mock=%s)",
+            self.dht.mock_mode, self.hcsr04.mock_mode,
         )
 
     def stop(self) -> None:
         self._stop.set()
-        self.pir.stop()
         self.dht.stop()
         self.hcsr04.stop()
 
@@ -254,7 +234,6 @@ def main(argv: list[str] | None = None) -> int:
         help="Arquivo com TOTEM_API_KEY_ID, TOTEM_API_KEY_SECRET, TOTEM_WAKE_SECRET, "
              "TOTEM_HEARTBEAT_URL e TOTEM_WAKE_URL."
     )
-    parser.add_argument("--pir-pin", type=int, default=17)
     parser.add_argument("--dht-pin", type=int, default=4)
     parser.add_argument("--hcsr04-trig-pin", type=int, default=23)
     parser.add_argument("--hcsr04-echo-pin", type=int, default=24)
@@ -280,7 +259,6 @@ def main(argv: list[str] | None = None) -> int:
         heartbeat_url=env.get("TOTEM_HEARTBEAT_URL", "http://127.0.0.1:8000/api/heartbeat"),
         api_key_id=env["TOTEM_API_KEY_ID"],
         api_key_secret=env["TOTEM_API_KEY_SECRET"],
-        pir_pin=args.pir_pin,
         dht_pin=args.dht_pin,
         hcsr04_trig_pin=args.hcsr04_trig_pin,
         hcsr04_echo_pin=args.hcsr04_echo_pin,
