@@ -86,7 +86,9 @@
     -webkit-backdrop-filter: blur(14px) saturate(120%);
     background: radial-gradient(circle at 50% 50%, rgba(10,12,20,.78), rgba(0,0,0,.92));
     transition: opacity .55s ease, visibility .55s ease;
-    cursor: default;
+    cursor: pointer;
+    touch-action: manipulation;     /* sem delay de 300ms no tap em Android */
+    -webkit-tap-highlight-color: transparent;
   }
   .presence-overlay[hidden] { display: none; }
   .presence-stage { text-align: center; max-width: 900px; padding: 0 2rem; }
@@ -433,6 +435,12 @@
     let activeTriggeredAt = parseInt(sessionStorage.getItem(ACTIVE_TS_KEY)   || '0', 10);
     let greetingPlayedAt  = parseInt(sessionStorage.getItem(GREETING_TS_KEY) || '0', 10);
     let lastInteraction   = Date.now();
+    // Tap-through: quando o sensor nao alcanca o visitante (cenario tipico do
+    // Fully Kiosk acessando o Pi via LAN — o SSE de wake e' loopback-only e
+    // nunca chega ao Android), o overlay ficaria preso em IDLE bloqueando
+    // todo o resto da UI. Permite ao usuario "destravar" tocando no proprio
+    // overlay. Sensor real assumindo ACTIVE depois reseta o flag.
+    let userDismissedOverlay = false;
 
     // ── Saudacao proativa por proximidade ───────────────────────────────────
     // Quando o HC-SR04 promove o estado de IDLE para ACTIVE (visitante se
@@ -513,6 +521,9 @@
 
       // IDLE: overlay visivel; ACTIVE: liberado (totem interativo).
       if (st === 'active') {
+        // Sensor finalmente viu alguem — pode reativar o overlay se o usuario
+        // recuar (ciclo natural). Tap manual fica obsoleto.
+        userDismissedOverlay = false;
         overlay.setAttribute('hidden', '');
         overlay.setAttribute('aria-hidden', 'true');
         // Inicia proativamente a interacao por voz UMA UNICA VEZ por sessao.
@@ -532,6 +543,11 @@
           }
         }
       } else {
+        // Se o usuario ja dispensou manualmente nesta sessao, NAO volta a
+        // cobrir a UI enquanto sensor permanecer em idle — a 'inactivity'
+        // redirect (60s) ja devolve o totem para home, momento em que a
+        // pagina recarrega e o overlay volta naturalmente para o proximo.
+        if (userDismissedOverlay) return;
         overlay.setAttribute('data-state', st);
         overlay.removeAttribute('hidden');
         overlay.setAttribute('aria-hidden', 'false');
@@ -540,6 +556,26 @@
         if (elSub)   elSub.textContent   = copy.s;
       }
     }
+
+    // Tap-through no overlay — destrava UI quando o sensor nao alcanca
+    // (Fully Kiosk em dispositivo separado, ou sensor com defeito). Usa
+    // pointerup para cobrir mouse + touch + caneta numa unica linha;
+    // 'click' tambem funcionaria mas pointerup dispara mais cedo no ciclo
+    // e ja inclui touch em WebViews antigos do Android.
+    function dismissOverlay() {
+      userDismissedOverlay = true;
+      overlay.setAttribute('hidden', '');
+      overlay.setAttribute('aria-hidden', 'true');
+      // Marca como se ja tivessemos disparado ACTIVE — evita a saudacao
+      // TTS automatica caso o sensor depois reporte ACTIVE genuino: o
+      // usuario ja esta na UI, nao precisa de boas-vindas.
+      activeTriggeredAt = Date.now();
+      try { sessionStorage.setItem(ACTIVE_TS_KEY, String(activeTriggeredAt)); } catch (_) {}
+    }
+    overlay.addEventListener('pointerup', dismissOverlay);
+    // Fallback para WebViews que nao implementam Pointer Events (Fully Kiosk
+    // em Android antigo). Sem ambos, o tap em alguns dispositivos morria.
+    overlay.addEventListener('touchend', (e) => { e.preventDefault(); dismissOverlay(); }, { passive: false });
 
     // ── Caminho 1: SSE ────────────────────────────────────────────────────
     function connectSSE() {

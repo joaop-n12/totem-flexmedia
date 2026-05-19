@@ -141,6 +141,13 @@
   color:rgba(221,238,247,.85);
   display:flex;align-items:center;justify-content:center;
   cursor:pointer;transition:all .25s;position:relative;
+  /* touch-action: manipulation evita o delay de 300ms do duplo-toque em
+     Android WebView (Fully Kiosk). -webkit-tap-highlight-color tira o flash
+     azul que confunde em telas touch. user-select tira o long-press menu. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .record-btn::before { content:'';position:absolute;inset:-8px;border-radius:50%;border:1px solid rgba(244,184,96,.1); }
 .record-btn:hover     { border-color:var(--accent);background:rgba(244,184,96,.1);transform:scale(1.05); }
@@ -271,25 +278,84 @@ recordBtn.addEventListener('click',async()=>{
   await iniciarGravacao();
 });
 
+// Detecta o melhor formato suportado pelo MediaRecorder do navegador atual.
+// Chromium/Chrome/Edge/Fully Kiosk: webm/opus (default). Safari: mp4/aac.
+// Whisper aceita os dois — mas o filename + blob type PRECISAM bater com o
+// payload real, senao a OpenAI tenta decodificar como WAV (suffix .wav usado
+// antes) e o servidor demora 2-3x para a chamada retornar. Sintoma classico:
+// UI fica em "Pensando" por 30-60 s sem feedback.
+function _detectRecorderMime(){
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+  if (typeof MediaRecorder === 'undefined') return null;
+  for (const t of candidates) {
+    if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return ''; // deixa o navegador escolher
+}
+function _extForMime(m){
+  if (!m) return 'webm';
+  if (m.includes('mp4')) return 'm4a';
+  if (m.includes('ogg')) return 'ogg';
+  return 'webm';
+}
+
 async function iniciarGravacao(){
+  // Contexto seguro: getUserMedia exige HTTPS ou loopback (localhost/127.0.0.1).
+  // Em LAN HTTP (caso tipico do Fully Kiosk apontando para o IP do Pi),
+  // navigator.mediaDevices simplesmente nao existe — ao inves de mostrar uma
+  // mensagem confusa "TypeError: undefined", avisa direto.
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    statusMsg.textContent = 'Microfone requer HTTPS ou acesso por localhost. Use o chat por texto.';
+    console.warn('[voice] contexto inseguro: isSecureContext=%s, mediaDevices=%s',
+                 window.isSecureContext, !!navigator.mediaDevices);
+    return;
+  }
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
     currentStream=stream;
-    mediaRecorder=new MediaRecorder(stream);audioChunks=[];isRecording=true;
+    const mime = _detectRecorderMime();
+    const ext  = _extForMime(mime);
+    mediaRecorder = mime ? new MediaRecorder(stream, { mimeType: mime })
+                         : new MediaRecorder(stream);
+    audioChunks=[];isRecording=true;
     setButtonMode('recording');setAvatarState('listen','Ouvindo');
-    mediaRecorder.ondataavailable=e=>audioChunks.push(e.data);
+    mediaRecorder.ondataavailable=e=>{ if (e.data && e.data.size > 0) audioChunks.push(e.data); };
     mediaRecorder.onstop=async()=>{
       isRecording=false;
       stream.getTracks().forEach(t=>t.stop());currentStream=null;
+      // Guarda contra gravacoes vazias (duplo-tap acidental ou hardware
+      // sem captura). Sem isso, o servidor processa 0 bytes, Whisper devolve
+      // string vazia, o usuario ve "Pensando" interminavel.
+      if (!audioChunks.length) {
+        statusMsg.textContent = 'Nenhum audio capturado — tente segurar mais tempo';
+        setAvatarState('idle','Online'); setButtonMode('idle'); return;
+      }
       setButtonMode('loading');setAvatarState('think','Pensando');
-      const blob=new Blob(audioChunks,{type:'audio/wav'});
-      const form=new FormData();form.append('audio',blob,'audio.wav');form.append('voice',selectedVoice);
-      currentAbort=new AbortController();
+      const blobType = mediaRecorder.mimeType || mime || 'audio/webm';
+      const blob = new Blob(audioChunks, { type: blobType });
+      const form=new FormData();form.append('audio', blob, `audio.${ext}`);form.append('voice',selectedVoice);
+      currentAbort = new AbortController();
+      // Timeout: Pi 3 + 4G + Whisper costuma levar 5-15s; 45s e' folga 3x.
+      // Sem isso, se a OpenAI travar a UI ficava presa em "Pensando" para
+      // sempre — sintoma reportado pelos testes em laptop.
+      const timeoutId = setTimeout(() => {
+        try { currentAbort && currentAbort.abort('timeout'); } catch (_) {}
+      }, 45000);
       try{
         const res=await fetch(`/${SLUG}/api/voice`,{method:'POST',body:form,signal:currentAbort.signal});
+        clearTimeout(timeoutId);
         currentAbort=null;
-        const data=await res.json();
-        if(data.error){statusMsg.textContent='❌ '+data.error;setAvatarState('idle','Online');setButtonMode('idle');return;}
+        // Servidor as vezes devolve 429/503 com pagina HTML do Flask-Limiter
+        // ao inves do JSON dos handlers — proteger contra res.json() throw.
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        const data = ct.includes('application/json') ? await res.json()
+                                                     : { error: 'http_' + res.status };
+        if(data.error){
+          const human = data.message || data.error;
+          statusMsg.textContent = '❌ ' + human;
+          botBubble.textContent = human; botBubble.classList.remove('hidden');
+          setAvatarState('idle','Online'); setButtonMode('idle'); return;
+        }
         userBubble.textContent=data.transcription;userBubble.classList.remove('hidden');
         botBubble.textContent=data.response;botBubble.classList.remove('hidden');
         const audio=new Audio('data:audio/mp3;base64,'+data.tts_base64);
@@ -300,20 +366,28 @@ async function iniciarGravacao(){
         if(audioCtx?.state==='suspended')await audioCtx.resume();
         audio.play();
       }catch(err){
+        clearTimeout(timeoutId);
         currentAbort=null;
-        if(err.name==='AbortError')return;
+        if(err.name==='AbortError'){
+          statusMsg.textContent = 'Sem resposta em 45s — verifique a conexao';
+          setAvatarState('idle','Online'); setButtonMode('idle'); return;
+        }
+        console.error('[voice] fetch falhou', err);
         statusMsg.textContent='❌ Erro de conexao';setAvatarState('idle','Online');setButtonMode('idle');
       }
     };
-    mediaRecorder.start();
+    // start(timeslice): garante ondataavailable periodico. Sem isso, em
+    // gravacoes muito curtas alguns navegadores nao emitem nem um chunk.
+    mediaRecorder.start(1000);
   }catch(err){
     const msgs={
       NotAllowedError:'Permissão negada — libere o microfone no navegador',
       NotFoundError:'Nenhum microfone encontrado no dispositivo',
       NotReadableError:'Microfone em uso por outro programa',
-      SecurityError:'Contexto inseguro — use localhost ao invés de 127.0.0.1',
+      SecurityError:'Contexto inseguro — sirva por HTTPS ou via localhost',
     };
     statusMsg.textContent = msgs[err.name] || ('Erro: ' + err.name + ' — ' + err.message);
+    console.error('[voice] getUserMedia falhou', err);
     setAvatarState('idle','Online');setButtonMode('idle');
   }
 }
@@ -323,12 +397,25 @@ async function sendText(){
   const msg=textInput.value.trim();if(!msg)return;
   userBubble.textContent=msg;userBubble.classList.remove('hidden');
   textInput.value='';setAvatarState('think','Pensando');statusMsg.textContent='Processando...';
+  // Mesmo padrao de timeout do voice — chat sem hardware costuma ser
+  // mais rapido, 30s ja basta.
+  const ctl = new AbortController();
+  const tid = setTimeout(() => { try { ctl.abort('timeout'); } catch(_){} }, 30000);
   try{
-    const res=await fetch(`/${SLUG}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
-    const data=await res.json();
-    botBubble.textContent=data.error||data.response;botBubble.classList.remove('hidden');
+    const res=await fetch(`/${SLUG}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg}),signal:ctl.signal});
+    clearTimeout(tid);
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    const data = ct.includes('application/json') ? await res.json() : { error: 'http_' + res.status };
+    botBubble.textContent = data.message || data.response || data.error || 'Sem resposta';
+    botBubble.classList.remove('hidden');
     setAvatarState('idle','Online');statusMsg.textContent='Pronto para ouvir você';
-  }catch(e){botBubble.textContent='❌ Erro de conexão';botBubble.classList.remove('hidden');setAvatarState('idle','Online');}
+  }catch(e){
+    clearTimeout(tid);
+    botBubble.textContent = e.name === 'AbortError' ? '❌ Sem resposta em 30s' : '❌ Erro de conexão';
+    botBubble.classList.remove('hidden');
+    setAvatarState('idle','Online');
+    console.error('[chat] sendText falhou', e);
+  }
 }
 sendTextBtn.addEventListener('click',sendText);
 textInput.addEventListener('keydown',e=>{if(e.key==='Enter')sendText();});
