@@ -29,7 +29,8 @@ from typing import Optional
 # ── Parametros ajustaveis ──────────────────────────────────────────────────
 ENGAGE_DISTANCE_CM = 80.0   # entra em ACTIVE quando usuario se aproxima
 LEAVE_DISTANCE_CM = 150.0   # sai de ACTIVE quando se afasta
-ACTIVE_TIMEOUT_S = 15.0     # ACTIVE sem refresh de distancia -> IDLE
+ACTIVE_TIMEOUT_S = 60.0     # ACTIVE sem refresh de distancia -> IDLE (rede de seguranca)
+LEAVE_DELAY_S = 30.0        # apos perder presenca, aguarda esse delay antes de voltar a IDLE
 
 
 # ── Tipos publicos ─────────────────────────────────────────────────────────
@@ -54,6 +55,10 @@ class SessionStateMachine:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._snap = SessionSnapshot()
+        # Marca o instante em que a presenca foi perdida. None = usuario
+        # presente (ou ja em IDLE). Quando vira um timestamp, comeca a
+        # contar LEAVE_DELAY_S antes de derrubar pra IDLE.
+        self._leaving_since: Optional[float] = None
 
     # — helpers internos —
     def _now(self) -> float:
@@ -67,9 +72,24 @@ class SessionStateMachine:
     def _evaluate_timeout(self) -> None:
         """Reavalia o estado em funcao do tempo decorrido. Sem efeitos colaterais
         alem da propria transicao."""
-        elapsed = self._now() - self._snap.state_since
-        if self._snap.state == "active" and elapsed > ACTIVE_TIMEOUT_S:
+        if self._snap.state != "active":
+            return
+
+        now = self._now()
+
+        # Caminho 1: cronometro de saida (LEAVE_DELAY_S) estourou
+        # depois que a presenca foi perdida.
+        if self._leaving_since is not None:
+            if now - self._leaving_since >= LEAVE_DELAY_S:
+                self._transition("idle")
+                self._leaving_since = None
+                return
+
+        # Caminho 2: rede de seguranca — tempo total em ACTIVE sem
+        # nenhuma renovacao de state_since. Protege contra sensor mudo.
+        if now - self._snap.state_since > ACTIVE_TIMEOUT_S:
             self._transition("idle")
+            self._leaving_since = None
 
     # — API publica usada por devices.py —
     def update_distance(self, distance_cm: Optional[float]) -> SessionSnapshot:
@@ -77,20 +97,25 @@ class SessionStateMachine:
         with self._lock:
             self._snap.distance_cm = distance_cm
             self._snap.last_distance_at = self._now()
+            now = self._now()
 
-            if distance_cm is None:
-                # fora de alcance — se estava ACTIVE, devolve a IDLE.
-                if self._snap.state == "active":
-                    self._transition("idle")
-            elif distance_cm <= ENGAGE_DISTANCE_CM:
-                # usuario proximo — promove para ACTIVE. Front-end reage
-                # escondendo overlay, tocando saudacao TTS e (se na home)
-                # navegando para /voice.
+            if distance_cm is not None and distance_cm <= ENGAGE_DISTANCE_CM:
+                # Usuario presente: cancela qualquer cronometro de saida
+                # em andamento e garante que estamos em ACTIVE.
+                self._leaving_since = None
                 if self._snap.state == "idle":
                     self._transition("active")
-            elif distance_cm >= LEAVE_DISTANCE_CM:
-                if self._snap.state == "active":
-                    self._transition("idle")
+                else:
+                    # Renova o relogio do ACTIVE_TIMEOUT_S enquanto
+                    # houver presenca confirmada.
+                    self._snap.state_since = now
+            else:
+                # Sem presenca confirmada (None ou >= LEAVE_DISTANCE_CM).
+                # Se estavamos em ACTIVE e o cronometro ainda nao comecou,
+                # inicia agora. Nao derruba pra IDLE imediatamente — deixa
+                # o _evaluate_timeout decidir quando estourar LEAVE_DELAY_S.
+                if self._snap.state == "active" and self._leaving_since is None:
+                    self._leaving_since = now
 
             self._evaluate_timeout()
             return self._snap
