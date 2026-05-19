@@ -95,7 +95,15 @@ class ProductionConfig(Config):
     # ja esta na Config base). SameSite=Strict bloqueia CSRF cross-site mais
     # agressivamente que Lax — mas mantemos Lax pois usuarios chegam via
     # links externos para /admin/login.
-    SESSION_COOKIE_SECURE = True
+    #
+    # SESSION_COOKIE_SECURE: default True (producao real atras de Nginx + TLS).
+    # Override por env var para piloto em LAN sem HTTPS — sem ela, o navegador
+    # recusa devolver o cookie em http://, o CSRF nao bate e o POST /admin/login
+    # responde 403 antes mesmo de validar credenciais. Aceitavel apenas em
+    # ambiente controlado; em producao publica, mantenha True.
+    SESSION_COOKIE_SECURE = (
+        os.environ.get("SESSION_COOKIE_SECURE", "true").lower() in ("1", "true", "yes")
+    )
     SESSION_COOKIE_SAMESITE = "Lax"
 
     @classmethod
