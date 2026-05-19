@@ -31,6 +31,7 @@ import json
 import os
 import queue
 import threading
+import time
 from datetime import datetime, timedelta
 
 from flask import (
@@ -54,12 +55,18 @@ devices_bp = Blueprint("devices", __name__)
 # ════════════════════════════════════════════════════════════════════════════
 
 def _check_timestamp(timestamp_str: str, skew_seconds: int) -> bool:
-    """Aceita apenas timestamps dentro de uma janela curta (anti-replay)."""
+    """Aceita apenas timestamps dentro de uma janela curta (anti-replay).
+
+    Usa time.time() (Unix epoch real, TZ-independente). datetime.utcnow().timestamp()
+    e' bug-prone: utcnow() retorna naive, e .timestamp() em naive assume hora
+    local — em hosts com TZ != UTC o servidor cai fora da janela contra o
+    daemon que envia time.time() correto.
+    """
     try:
         ts = int(timestamp_str)
     except (TypeError, ValueError):
         return False
-    now = int(datetime.utcnow().timestamp())
+    now = int(time.time())
     return abs(now - ts) <= skew_seconds
 
 
@@ -150,7 +157,7 @@ def heartbeat():
     # Devolve eventuais comandos pendentes para o totem (placeholder p/ OTA futuro).
     return jsonify(
         status="ok",
-        server_time=int(datetime.utcnow().timestamp()),
+        server_time=int(time.time()),
         commands=[],  # futuro: ["restart", "update:1.2.3", ...]
     ), 200
 
@@ -241,7 +248,7 @@ def local_wake():
 
     payload = {
         "type": "session_update",
-        "at": int(datetime.utcnow().timestamp()),
+        "at": int(time.time()),
         "source": body.get("source", "hcsr04"),
         "session": snap.to_dict(),
     }
@@ -319,7 +326,7 @@ def sensors_mock():
     # Avisa o kiosk via SSE para reagir imediatamente — sem precisar polling.
     _broadcast_wake({
         "type": "session_update",
-        "at": int(datetime.utcnow().timestamp()),
+        "at": int(time.time()),
         "session": snap.to_dict(),
     })
 

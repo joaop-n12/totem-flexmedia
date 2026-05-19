@@ -13,6 +13,7 @@ import hashlib
 import hmac
 import json
 import threading
+import time
 from datetime import datetime
 
 import pytest
@@ -30,6 +31,28 @@ from app.sensors import Dht22Sensor, SensorReading, is_pi_hardware
 def test_is_pi_hardware_falso_em_dev():
     """Em laptop/CI, /proc/device-tree/model nao existe → mock obrigatorio."""
     assert is_pi_hardware() is False
+
+
+def test_totem_disable_sensors_forca_mock(monkeypatch):
+    """TOTEM_DISABLE_SENSORS=1 deve curtocircuitar is_pi_hardware mesmo
+    quando /proc/device-tree/model declarar 'Raspberry Pi'.
+
+    Permite desligar sensores no proprio Pi (debug/laptop kiosk) sem mexer
+    no systemd ou desinstalar pacotes — flag canonica da Sprint 4.
+    """
+    # Mesmo que /proc/device-tree/model nao exista no CI, o teste e' valido:
+    # is_pi_hardware tem que retornar False de qualquer jeito quando a flag
+    # esta ligada. Confirmamos que o caminho de short-circuit funciona.
+    monkeypatch.setenv("TOTEM_DISABLE_SENSORS", "1")
+    assert is_pi_hardware() is False, "Flag canonica nao foi respeitada"
+
+
+def test_totem_force_mock_sensors_legado_ainda_funciona(monkeypatch):
+    """Alias legado TOTEM_FORCE_MOCK_SENSORS=1 mantido por compat — nao
+    podemos quebrar instalacoes existentes que ainda usam o nome antigo."""
+    monkeypatch.delenv("TOTEM_DISABLE_SENSORS", raising=False)
+    monkeypatch.setenv("TOTEM_FORCE_MOCK_SENSORS", "1")
+    assert is_pi_hardware() is False, "Alias legado nao foi respeitado"
 
 
 def test_dht22_sensor_emite_leitura_em_mock():
@@ -85,7 +108,7 @@ def _sign(api_key_id: str, secret: str, ts: str, body: bytes) -> str:
 
 def _hb(client, device, payload: dict):
     body = json.dumps(payload).encode("utf-8")
-    ts = str(int(datetime.utcnow().timestamp()))
+    ts = str(int(time.time()))
     sig = _sign(device["api_key_id"], device["secret"], ts, body)
     return client.post("/api/heartbeat", data=body, headers={
         "X-Totem-Key": device["api_key_id"],

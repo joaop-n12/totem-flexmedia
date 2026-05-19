@@ -32,9 +32,14 @@ def is_pi_hardware() -> bool:
     """True se rodando num Raspberry Pi (qualquer modelo).
 
     Evita carregar RPi.GPIO em laptops — o pacote falha ao importar fora do
-    Pi e quebraria o daemon todo. Em prod, override via env
-    TOTEM_FORCE_MOCK_SENSORS=1 para forcar mock no proprio Pi (debug).
+    Pi e quebraria o daemon todo.
+
+    Override via env (qualquer um força fallback para mock no Pi real):
+      - TOTEM_DISABLE_SENSORS=1   (flag canonica; =0 ou ausente = ligado)
+      - TOTEM_FORCE_MOCK_SENSORS=1 (alias legado, mantido por compat)
     """
+    if os.environ.get("TOTEM_DISABLE_SENSORS") == "1":
+        return False
     if os.environ.get("TOTEM_FORCE_MOCK_SENSORS") == "1":
         return False
     try:

@@ -246,12 +246,26 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
-    env = {**_load_env_file(args.env_file), **os.environ}
+    file_env = _load_env_file(args.env_file)
+    # Propaga vars do env file para os.environ sem sobrescrever os.environ
+    # existente (assim systemd Environment= e exports do shell ganham).
+    # Necessario porque codigo dentro de app/sensors/* le os.environ direto
+    # (ex.: DHT_MODEL em dht22.py:_resolve_model). Sem esse passo, colocar
+    # DHT_MODEL=DHT11 no credenciais.env nao surtia efeito.
+    for k, v in file_env.items():
+        os.environ.setdefault(k, v)
+    env = {**file_env, **os.environ}
     required = ["TOTEM_API_KEY_ID", "TOTEM_API_KEY_SECRET", "TOTEM_WAKE_SECRET"]
     missing = [k for k in required if not env.get(k)]
     if missing:
         logger.error("Variaveis obrigatorias ausentes: %s", ", ".join(missing))
         return 2
+
+    # Atalho operacional: TOTEM_DISABLE_SENSORS=1 forca os drivers a caírem
+    # em mock sem mudar nada de systemd. Util para desenvolver UI no Pi
+    # mesmo com hardware presente, ou desligar sensores temporariamente.
+    if os.environ.get("TOTEM_DISABLE_SENSORS") == "1":
+        logger.warning("TOTEM_DISABLE_SENSORS=1 — sensores forcados em modo mock")
 
     daemon = SensorDaemon(
         wake_url=env.get("TOTEM_WAKE_URL", "http://127.0.0.1:8000/api/local/wake"),

@@ -89,11 +89,25 @@ source venv/bin/activate
 pip install --quiet --upgrade pip
 
 passo "Instalando dependencias Python (requirements.txt)"
-pip install -r requirements.txt
+# --retries 5 + --timeout 60: PyPI no Pi 3 sobre 4G/wifi caseira frequentemente
+# perde conexao a meio download (RemoteDisconnected). Antes, isso interrompia o
+# install no meio e deixava o venv com Flask-Migrate sem Flask-SQLAlchemy.
+pip install --retries 5 --timeout 60 -r requirements.txt
+
+# Sanity check: garante que os modulos criticos importam. Se algo ficou pela
+# metade (rede caiu, wheel corrompido), aborta agora ao inves de descobrir
+# isso 5 minutos depois quando o gunicorn falhar pra subir.
+passo "Validando imports criticos"
+if ! python -c "import flask, flask_sqlalchemy, flask_migrate, flask_login, openai, pyotp" 2>/dev/null; then
+  erro "Modulos Python criticos faltando apos pip install."
+  erro "Rode manualmente: source venv/bin/activate && pip install -r requirements.txt"
+  exit 1
+fi
+ok "Imports criticos validados"
 
 if [ "$IS_PI" -eq 1 ]; then
   passo "Instalando drivers de sensores (requirements-pi.txt)"
-  if pip install -r requirements-pi.txt; then
+  if pip install --retries 5 --timeout 60 -r requirements-pi.txt; then
     ok "Drivers de sensores instalados"
   else
     aviso "Falha ao instalar drivers — sensores ficarao em modo mock."
@@ -223,17 +237,27 @@ if [ "$IS_PI" -eq 1 ] && [ -f "$PROJECT_DIR/deploy/totem-sensors.service" ]; the
   sudo systemctl enable totem-sensors
 
   if [ -f /etc/totem/credenciais.env ]; then
+    # Garante perms corretas: dono = $USER (mesmo do systemd) + 600. Antes
+    # o usuario seguia o passo manual deixando root:root, e o daemon caia
+    # com PermissionError ao tentar ler.
+    sudo chown "$USER:$USER" /etc/totem/credenciais.env
+    sudo chmod 600 /etc/totem/credenciais.env
     sudo systemctl restart totem-sensors
     ok "Daemon de sensores ativo"
   else
     aviso "Sensores instalados, MAS sem credenciais ainda."
     echo "  -> Acesse o painel admin: http://<IP>:8000/admin/login"
     echo "  -> Frota -> Provisionar -> copie API_KEY_ID e API_KEY_SECRET"
-    echo "  -> Crie /etc/totem/credenciais.env (chmod 600) com:"
+    echo "  -> Crie /etc/totem/credenciais.env com:"
     echo "         TOTEM_API_KEY_ID=tk_..."
     echo "         TOTEM_API_KEY_SECRET=..."
     echo "         TOTEM_WAKE_SECRET=$(grep ^TOTEM_WAKE_SECRET= "$PROJECT_DIR/.env" | cut -d= -f2)"
-    echo "  -> Depois: sudo systemctl start totem-sensors"
+    echo "         # DHT_MODEL=DHT11           (opcional — default DHT22)"
+    echo "         # TOTEM_DISABLE_SENSORS=1   (opcional — forca mock)"
+    echo "  -> Depois ajuste perms e start:"
+    echo "         sudo chown $USER:$USER /etc/totem/credenciais.env"
+    echo "         sudo chmod 600 /etc/totem/credenciais.env"
+    echo "         sudo systemctl start totem-sensors"
   fi
 fi
 

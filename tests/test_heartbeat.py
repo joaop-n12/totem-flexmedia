@@ -15,7 +15,10 @@ calculada localmente pelo totem.
 import hashlib
 import hmac
 import json
+import os
+import time
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 
@@ -69,7 +72,7 @@ def _headers(api_key_id, timestamp, signature):
 def test_heartbeat_sucesso(app, client, device):
     body = json.dumps({"app_version": "1.0.0", "cpu_temp_c": 48.3,
                        "free_disk_mb": 2300, "uptime_seconds": 3600}).encode()
-    ts = str(int(datetime.utcnow().timestamp()))
+    ts = str(int(time.time()))
     sig = _sign(device["api_key_id"], device["secret"], ts, body)
 
     r = client.post(
@@ -95,7 +98,7 @@ def test_heartbeat_sem_headers_recusa(client):
 def test_heartbeat_timestamp_velho_recusa(client, device):
     """Replay attack: timestamp 1 hora no passado nao deve passar."""
     body = b"{}"
-    velho = str(int((datetime.utcnow() - timedelta(hours=1)).timestamp()))
+    velho = str(int(time.time() - 3600))
     sig = _sign(device["api_key_id"], device["secret"], velho, body)
 
     r = client.post(
@@ -109,7 +112,7 @@ def test_heartbeat_timestamp_velho_recusa(client, device):
 
 def test_heartbeat_assinatura_invalida_recusa(client, device):
     body = b'{"app_version":"1.0.0"}'
-    ts = str(int(datetime.utcnow().timestamp()))
+    ts = str(int(time.time()))
     # Assinatura calculada com segredo errado.
     sig = _sign(device["api_key_id"], "segredo-errado", ts, body)
 
@@ -128,7 +131,7 @@ def test_heartbeat_chave_revogada_recusa(app, client, device):
         db.session.commit()
 
     body = b"{}"
-    ts = str(int(datetime.utcnow().timestamp()))
+    ts = str(int(time.time()))
     sig = _sign(device["api_key_id"], device["secret"], ts, body)
 
     r = client.post(
@@ -142,7 +145,7 @@ def test_heartbeat_chave_revogada_recusa(app, client, device):
 def test_heartbeat_corpo_alterado_recusa(client, device):
     """Corpo alterado apos assinatura → HMAC nao bate, recusa."""
     body_assinado = b'{"app_version":"1.0.0"}'
-    ts = str(int(datetime.utcnow().timestamp()))
+    ts = str(int(time.time()))
     sig = _sign(device["api_key_id"], device["secret"], ts, body_assinado)
 
     # Envia corpo diferente do que foi assinado.
@@ -162,7 +165,7 @@ def test_heartbeat_api_key_id_diferente_recusa(client, device):
     poderia copiar assinatura de um totem para o pedido de outro.
     """
     body = b"{}"
-    ts = str(int(datetime.utcnow().timestamp()))
+    ts = str(int(time.time()))
     # Assinatura calculada com api_key_id "errado", mas envia o real no header.
     sig = _sign("tk_outro_qualquer", device["secret"], ts, body)
 
@@ -172,3 +175,37 @@ def test_heartbeat_api_key_id_diferente_recusa(client, device):
         headers=_headers(device["api_key_id"], ts, sig),
     )
     assert r.status_code == 401
+
+
+def test_heartbeat_aceita_timestamp_independente_de_tz(client, device, monkeypatch):
+    """Servidor deve comparar timestamps em UTC real (time.time), nao via
+    datetime.utcnow().timestamp() — esse ultimo e' interpretado como hora
+    local em datetime naive, gerando skew falso de varias horas em hosts com
+    TZ != UTC.
+
+    Regressao: em maio/2026 daemon em Pi com TZ=America/Sao_Paulo enviava
+    time.time() correto, servidor calculava utcnow().timestamp() e cuspia
+    'timestamp_out_of_window' apesar de 0s de diferenca real.
+    """
+    # Simula host em fuso horario distante de UTC. time.time() ignora TZ,
+    # entao a verificacao server-side deve passar mesmo assim.
+    monkeypatch.setenv("TZ", "America/Sao_Paulo")
+    if hasattr(time, "tzset"):
+        time.tzset()
+    try:
+        body = b'{"app_version":"tz-test"}'
+        ts = str(int(time.time()))
+        sig = _sign(device["api_key_id"], device["secret"], ts, body)
+        r = client.post(
+            "/api/heartbeat",
+            data=body,
+            headers=_headers(device["api_key_id"], ts, sig),
+        )
+        assert r.status_code == 200, (
+            "Heartbeat falhou sob TZ nao-UTC — provavelmente o servidor voltou "
+            "a usar datetime.utcnow().timestamp()."
+        )
+    finally:
+        monkeypatch.delenv("TZ", raising=False)
+        if hasattr(time, "tzset"):
+            time.tzset()

@@ -1421,3 +1421,30 @@ body:not(.totem-mode):not(.neural-home) .page-wrapper { position: relative; z-in
   body:not(.neural-home) .page-eyebrow::before { animation: none; }
   .card { transition: none !important; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+   Scrollbar sempre visivel (Home + Assistente IA)
+   ─────────────────────────────────────────────────────────────────────
+   Aplicado via body.kiosk-scroll. Forca a barra a aparecer mesmo quando
+   nao ha overflow, para sinalizar ao visitante que existe conteudo
+   rolavel. Util em telas verticais onde o conteudo cabe na maioria das
+   resolucoes mas pode extrapolar em fontes grandes ou idiomas longos.
+   Aplica-se a html para evitar reflow de layout quando o conteudo cresce.
+*/
+html:has(body.kiosk-scroll),
+body.kiosk-scroll { overflow-y: scroll; }
+
+body.kiosk-scroll::-webkit-scrollbar         { width: 12px; }
+body.kiosk-scroll::-webkit-scrollbar-track   {
+  background: rgba(255,255,255,.04);
+  border-left: 1px solid rgba(255,255,255,.06);
+}
+body.kiosk-scroll::-webkit-scrollbar-thumb   {
+  background: rgba(255,255,255,.22);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+body.kiosk-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.35); background-clip: padding-box; }
+/* Firefox: scrollbar fina + visivel sempre que body tem kiosk-scroll */
+body.kiosk-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) rgba(255,255,255,.04); }

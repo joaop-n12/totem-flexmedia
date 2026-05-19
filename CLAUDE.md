@@ -233,6 +233,12 @@ README.md                   # Apresentação pública do projeto
 - **2FA**: códigos de backup armazenados como hash (Werkzeug); só são exibidos uma vez ao gerar.
 - **CSRF**: usar `generate_csrf_token` (helpers) no template e `validate_csrf_token()` no início de cada POST do admin.
 - **Heartbeat de totem**: validar HMAC SHA-256 com janela anti-replay de 5 minutos.
+  Servidor compara timestamps com `time.time()` (Unix epoch real). NUNCA usar
+  `datetime.utcnow().timestamp()` — `utcnow()` devolve datetime naive e
+  `.timestamp()` em naive interpreta como hora local; em hosts com TZ != UTC
+  o servidor cuspia `timestamp_out_of_window` mesmo com 0s de diferenca real
+  contra o daemon (que envia `time.time()` correto). Regressao coberta por
+  `test_heartbeat_aceita_timestamp_independente_de_tz`.
 - **Sensores fisicos (DHT11/DHT22 + HC-SR04)**: nunca rodar dentro do worker
   Gunicorn. Sempre via `scripts/totem_sensor_daemon.py` como systemd unit
   separada (`totem-sensors.service`). Em laptop/CI/servidor remoto,
@@ -240,6 +246,11 @@ README.md                   # Apresentação pública do projeto
   O piloto NAO usa mais o PIR HC-SR501; a presenca/aproximacao e' detectada
   apenas pelo HC-SR04 (`/api/local/wake` recebe `type=distance`) — sem
   saudacoes disparadas por simples passagem distante.
+  Flag canonica `TOTEM_DISABLE_SENSORS=1` forca mock no proprio Pi sem mexer
+  no systemd (alias legado `TOTEM_FORCE_MOCK_SENSORS=1` mantido por compat).
+  O daemon propaga vars do `--env-file` para `os.environ` no startup, entao
+  `DHT_MODEL=DHT11` em `/etc/totem/credenciais.env` ja basta — sem precisar
+  override de `Environment=` no systemd.
 - **/api/local/wake**: loopback-only + `X-Wake-Secret` (env `TOTEM_WAKE_SECRET`).
   Fail-closed se o segredo nao estiver configurado. Aceita apenas
   `type=distance` (HC-SR04) e `type=environment` (DHT). Usado pelo daemon
