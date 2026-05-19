@@ -36,7 +36,10 @@
       radial-gradient(circle at 85% 15%, rgba(245,179,74,0.06), transparent 40%),
       linear-gradient(180deg, #060c17 0%, #0a1320 50%, #0d1828 100%) !important;
     color: var(--nc-text);
-    overflow: hidden;
+    /* Apenas o eixo X fica travado — o eixo Y precisa rolar para que a
+       scrollbar padronizada do kiosk-scroll (mesma do Assistente de IA)
+       apareca em conteudo longo / fontes acessiveis / idiomas extensos. */
+    overflow-x: hidden;
   }
 
   /* Canvas neural fica atrás de tudo */
@@ -123,20 +126,6 @@
     letter-spacing: 1px;
     text-transform: uppercase;
   }
-  body.neural-home .fs-btn {
-    color: var(--nc-text-dim);
-    border: 1px solid var(--nc-line);
-    background: rgba(245,179,74,0.04);
-    border-radius: 10px;
-    width: 38px; height: 38px;
-    transition: all 0.2s ease;
-  }
-  body.neural-home .fs-btn:hover {
-    color: var(--nc-amber);
-    border-color: var(--nc-amber);
-    box-shadow: 0 0 16px rgba(245,179,74,0.3);
-  }
-
   /* ── Layout principal ── */
   .nc-shell {
     position: relative;

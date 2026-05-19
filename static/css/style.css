@@ -159,21 +159,7 @@ body:not(.totem-mode):not(.neural-home)::after {
   color: var(--accent); opacity: .8; margin-top: 2px;
 }
 
-/* Fullscreen toggle (lives inside topbar on internal pages) */
-.fs-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px;
-  border-radius: var(--r-md);
-  border: 1px solid var(--stroke);
-  background: rgba(255,255,255,.05);
-  color: var(--muted);
-  cursor: pointer;
-  transition: background var(--t-fast), color var(--t-fast);
-  flex-shrink: 0;
-}
-.fs-btn:hover { background: rgba(255,255,255,.1); color: var(--text); }
-
-/* ─── Cluster a direita do topbar: relogio compacto + tela cheia ─── */
+/* ─── Cluster a direita do topbar: relogio compacto + idioma ─── */
 .topbar-meta {
   display: flex; align-items: center; gap: 12px;
   margin-left: auto;
@@ -1220,6 +1206,20 @@ body.a11y-large .totem-hero-title { font-size: clamp(34px, 5.4vw, 76px); }
   .totem-card {
     flex: 1 1 calc(50% - clamp(14px, 2vw, 28px));
     min-height: clamp(180px, 22vh, 320px);
+  }
+
+  /* Mapa em retrato: remove a moldura/quadro do .map-frame.
+     Em 1080×1920 o container com border + background + box-shadow +
+     border-radius desenhava uma faixa visivel ao redor do mapa que
+     comprimia a area util. Em portrait queremos a imagem ocupando a
+     tela de forma limpa, sem decorrelativo. */
+  .map-frame {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    height: auto;
+    min-height: 0;
   }
 }
 
