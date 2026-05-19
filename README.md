@@ -33,9 +33,10 @@ Cada instituição tem tema visual próprio, módulos configuráveis e um assist
 | Banco | SQLite (dev) · PostgreSQL via `psycopg[binary]` (prod) |
 | Cache / Rate limit | Redis (loopback) |
 | Frontend | HTML, CSS e JavaScript vanilla |
-| Servidor produção | Gunicorn + Nginx + systemd + Let's Encrypt |
+| Servidor produção | Gunicorn + Nginx + systemd + Let's Encrypt **ou** Cloudflare Tunnel |
+| HTTPS público (frota) | **Cloudflare Tunnel** (`deploy/install_cloudflared.sh`) — sem IP público, sem cert próprio, microfone/câmera funcionam em qualquer rede |
 | Hardware alvo | **Raspberry Pi 3 B/B+** (piloto) — Pi 4 também suportado |
-| Kiosk | Chromium fullscreen + watchdog + unclutter (`install_totem.sh`) |
+| Kiosk | Chromium fullscreen + watchdog + unclutter (`install_totem.sh`) ou Fully Kiosk Browser (Android) |
 
 ---
 
@@ -274,9 +275,11 @@ Documentação operacional completa em **[docs/OPERACAO.md](docs/OPERACAO.md)** 
 
 | Script | Função |
 |--------|--------|
-| `deploy/install_production.sh` | Nginx + Gunicorn + SSL + cron |
+| `install_totem.sh` | Setup do Pi como kiosk (venv, .env, banco, systemd, Chromium fullscreen) |
+| `deploy/install_cloudflared.sh` | HTTPS público via Cloudflare Tunnel (resolve bloqueio de microfone) |
+| `deploy/install_production.sh` | Alternativa on-prem: Nginx + Gunicorn + Let's Encrypt + cron |
+| `deploy/rotate_secrets.sh` | Rotação assistida de `SECRET_KEY`, `TOTEM_WAKE_SECRET`, `FIELD_ENCRYPTION_KEY` |
 | `deploy/backup.sh` | Backup diário (retenção 14 dias) |
-| `install_totem.sh` | Kiosk no Raspberry (Chromium fullscreen + watchdog) |
 
 ---
 

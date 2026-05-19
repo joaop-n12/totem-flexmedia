@@ -1,11 +1,12 @@
 # Manual de Operação — Totem FlexMedia
 
-Guia prático para quem opera a plataforma em produção. Cobre quatro fluxos:
+Guia prático para quem opera a plataforma em produção. Cobre cinco fluxos:
 
 1. [Instalação no Raspberry Pi](#1-instalação-no-raspberry-pi)
 2. [Troca de chaves e segredos](#2-troca-de-chaves-e-segredos)
 3. [Restauração de backup](#3-restauração-de-backup)
 4. [Adicionar uma nova instituição](#4-adicionar-uma-nova-instituição)
+5. [Operar o Cloudflare Tunnel (HTTPS público)](#5-operar-o-cloudflare-tunnel-https-público)
 
 Todos os caminhos assumem a instalação padrão em `/opt/totem-flexmedia`
 com usuário de serviço `totem`.
@@ -120,6 +121,36 @@ curl -I https://<dominio>             # deve retornar 200
 
 Todos os segredos vivem em **um único arquivo**: `/opt/totem-flexmedia/.env`
 (permissão `600`, dono `totem`). Nunca comite esse arquivo.
+
+### 2.0 Rotação assistida (recomendado)
+
+Pra emergência (vazamento de chave em chat/screenshot/commit) ou rotação
+rotineira de higiene, use o helper:
+
+```bash
+cd /opt/totem-flexmedia
+bash deploy/rotate_secrets.sh
+```
+
+O script é interativo e cobre:
+
+- **`SECRET_KEY`** — invalida sessões ativas do admin
+- **`TOTEM_WAKE_SECRET`** — oferece sincronizar automaticamente em
+  `/etc/totem/credenciais.env` e reiniciar o `totem-sensors`
+- **`FIELD_ENCRYPTION_KEY`** — rotação no modo *dual-key*
+  (`FIELD_ENCRYPTION_KEYS=nova,antiga`): o app lê pelas duas e escreve com
+  a nova, permitindo migração progressiva sem perder dados criptografados
+
+O `.env` atual é **sempre salvo** como `.env.bak-<timestamp>` antes de qualquer
+escrita — rollback de 1 linha em caso de problema.
+
+**Não coberto pelo script** (precisa ação manual fora do Pi):
+
+| Item | Onde resolver |
+|------|---------------|
+| `OPENAI_API_KEY` vazada | https://platform.openai.com/api-keys → Revoke |
+| Senha do super admin | Login no painel → `/admin/change_password` |
+| `TOTEM_API_KEY_SECRET` de totens | Painel → `/admin/platform/devices` → regenerar |
 
 ### 2.1 Trocar a `OPENAI_API_KEY`
 
@@ -318,6 +349,113 @@ db.session.commit()
 
 ---
 
+## 5. Operar o Cloudflare Tunnel (HTTPS público)
+
+O `cloudflared` expõe o totem em HTTPS público sem precisar de IP fixo,
+port-forwarding ou certificado SSL próprio. Substitui Nginx+Let's Encrypt em
+cenários onde o totem tem internet de saída (que já é requisito da OpenAI).
+
+> **Quando preferir o caminho Nginx+SSL** (em vez de Cloudflare Tunnel):
+> totem em rede air-gapped, cliente exige tudo on-prem, ou requisito de
+> não depender de serviço externo. Use `deploy/install_production.sh`
+> documentado em §1.2.
+
+### 5.1 Provisionar (primeira vez)
+
+```bash
+cd /opt/totem-flexmedia
+bash deploy/install_cloudflared.sh
+```
+
+O script é idempotente — pode reexecutar sem quebrar nada. Cobre:
+
+1. Download do binário `cloudflared` (detecta `armhf`/`arm64`/`amd64`)
+2. Autenticação na conta Cloudflare (abre URL pra autorizar o domínio)
+3. Criação do túnel nomeado (reaproveita se já existir)
+4. Registro CNAME do subdomínio apontando pro túnel
+5. Geração de `/etc/cloudflared/config.yml`
+6. Instalação como systemd unit (`cloudflared.service`)
+7. Atualização do `.env` com `TOTEM_PUBLIC_URL` (usado pelo `install_totem.sh`)
+
+Para provisionar **vários totens em lote**:
+
+```bash
+DOMINIO=flextotem.uk SUBDOMINIO=pi02 TUNNEL_NAME=totem-pi02 \
+  bash deploy/install_cloudflared.sh
+```
+
+### 5.2 Operação do dia a dia
+
+| Ação | Comando |
+|------|---------|
+| Status do túnel | `sudo systemctl status cloudflared` |
+| Logs ao vivo | `sudo journalctl -u cloudflared -f` |
+| Reiniciar | `sudo systemctl restart cloudflared` |
+| Listar túneis da conta | `cloudflared tunnel list` |
+| Listar conexões ativas | `cloudflared tunnel info <nome>` |
+| Ver config aplicada | `sudo cat /etc/cloudflared/config.yml` |
+
+### 5.3 Trocar o subdomínio público
+
+```bash
+# Apaga o CNAME antigo no painel da Cloudflare (DNS → Records) e crie o novo:
+cloudflared tunnel route dns <nome-tunel> novo-subdominio.flextotem.uk
+
+# Edita o config.yml pra refletir o novo hostname
+sudo nano /etc/cloudflared/config.yml
+# (altere o campo `hostname:` na seção `ingress:`)
+
+sudo systemctl restart cloudflared
+
+# Atualize TOTEM_PUBLIC_URL no .env e refaça o kiosk
+sudo -u totem sed -i 's|^TOTEM_PUBLIC_URL=.*|TOTEM_PUBLIC_URL=https://novo-subdominio.flextotem.uk|' /opt/totem-flexmedia/.env
+```
+
+### 5.4 Adicionar um totem novo à frota
+
+Cada totem precisa do **seu próprio túnel** (UUID único, credenciais únicas).
+No novo Pi, depois do `install_totem.sh`:
+
+```bash
+cd ~/totem_flexmedia
+DOMINIO=flextotem.uk SUBDOMINIO=pi03 TUNNEL_NAME=totem-pi03 \
+  bash deploy/install_cloudflared.sh
+```
+
+Recomendação de nomenclatura:
+
+- **`pi<NN>.<dominio>`** — URL fixa por hardware (resiste a realocação entre
+  instituições, já que o totem é white-label)
+- **`<instituicao>.<dominio>`** — só se o totem for dedicado permanentemente
+  a uma instituição
+
+### 5.5 Revogar / desinstalar
+
+```bash
+# 1. Desliga o serviço
+sudo systemctl disable --now cloudflared
+
+# 2. Deleta o túnel na conta Cloudflare (precisa estar sem conexões ativas)
+cloudflared tunnel delete <nome-tunel>
+
+# 3. Remove o CNAME no painel da Cloudflare (DNS → Records)
+
+# 4. Limpa artefatos locais
+sudo rm -rf /etc/cloudflared /etc/systemd/system/cloudflared.service
+sudo systemctl daemon-reload
+```
+
+### 5.6 Quando a Cloudflare cai
+
+A SLA da Cloudflare Tunnel é alta (>99.99% historicamente), mas se houver
+incidente: o `cloudflared` registra retry automático no journal, e o totem
+mostra a página offline servida pelo Service Worker (`static/js/sw.js`).
+Nenhuma ação manual é necessária — o túnel reconecta sozinho.
+
+Para verificar status global: https://www.cloudflarestatus.com/
+
+---
+
 ## Referência rápida — comandos do dia a dia
 
 | Ação                         | Comando                                              |
@@ -329,3 +467,6 @@ db.session.commit()
 | Purga de logs (LGPD, 90d)    | `flask purge-logs` (agendado no cron)                |
 | Aplicar migrations           | `flask db upgrade`                                   |
 | Recriar seed                 | `flask seed`                                         |
+| Rotacionar segredos          | `bash deploy/rotate_secrets.sh`                      |
+| Status do túnel HTTPS        | `sudo systemctl status cloudflared`                  |
+| Logs do túnel                | `sudo journalctl -u cloudflared -f`                  |

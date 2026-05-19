@@ -262,7 +262,21 @@ if [ "$IS_PI" -eq 1 ] && [ -f "$PROJECT_DIR/deploy/totem-sensors.service" ]; the
 fi
 
 # --- 5. Script do kiosk (fullscreen, sem gestos, watchdog) -----------------
-passo "Criando script do kiosk"
+# URL que o Chromium vai abrir. Precedencia:
+#   1. Variavel KIOSK_URL passada ao script (override explicito)
+#   2. TOTEM_PUBLIC_URL no .env do projeto (preenchido por install_cloudflared.sh)
+#   3. http://localhost:8000/ (default — funciona em setup local sem HTTPS)
+#
+# Use HTTPS (TOTEM_PUBLIC_URL via Cloudflare Tunnel) sempre que o totem precisar
+# de microfone/camera — navegadores modernos bloqueiam getUserMedia em HTTP
+# fora de localhost, e o Fully Kiosk gratuito nao tem a flag pra contornar.
+KIOSK_URL="${KIOSK_URL:-}"
+if [ -z "$KIOSK_URL" ] && [ -f "$PROJECT_DIR/.env" ]; then
+  KIOSK_URL="$(grep -E '^TOTEM_PUBLIC_URL=' "$PROJECT_DIR/.env" | tail -n1 | cut -d= -f2- || true)"
+fi
+KIOSK_URL="${KIOSK_URL:-http://localhost:8000/}"
+
+passo "Criando script do kiosk (URL: $KIOSK_URL)"
 mkdir -p "$HOME/.config"
 
 cat > "$HOME/.config/totem-kiosk.sh" <<'EOF'
@@ -274,7 +288,7 @@ cat > "$HOME/.config/totem-kiosk.sh" <<'EOF'
 # - Se a rede/backend cair, recarrega a pagina periodicamente
 
 export DISPLAY=:0
-URL="http://localhost:8000/"
+URL="__KIOSK_URL__"
 
 # Desativa screensaver, DPMS e blank
 xset s off
@@ -319,6 +333,10 @@ while true; do
   sleep 3
 done
 EOF
+
+# Substitui o placeholder pela URL real (heredoc e' quoted pra preservar $i,
+# $PROFILE_DIR etc. — entao a URL nao pode ser interpolada no heredoc direto).
+sed -i "s|__KIOSK_URL__|${KIOSK_URL}|" "$HOME/.config/totem-kiosk.sh"
 
 chmod +x "$HOME/.config/totem-kiosk.sh"
 

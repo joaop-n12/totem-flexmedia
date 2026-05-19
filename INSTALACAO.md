@@ -198,6 +198,84 @@ Se algo falhar, veja **🆘 Troubleshooting** no fim deste arquivo.
 
 ---
 
+## 7️⃣.5 Expor o totem em HTTPS público (Cloudflare Tunnel)
+
+> 🎤 **Por que esse passo é obrigatório se você usa microfone:** todos os navegadores modernos (Chrome, Safari, Firefox e o Chromium embutido no Fully Kiosk Browser) bloqueiam `getUserMedia()` em HTTP fora de localhost. Sem HTTPS, o botão de voz falha com "microfone requer HTTPS ou localhost". A versão gratuita do Fully Kiosk **não tem** as flags pra contornar isso.
+>
+> A solução adotada é o **Cloudflare Tunnel** — gera uma URL HTTPS pública (`https://pi01.flextotem.uk`) sem precisar de IP público, port-forwarding, certificado SSL próprio ou Nginx. Funciona em qualquer rede (incluindo hotspot de celular) e custa só o preço do domínio (~US$ 5/ano em `.uk`/`.xyz`).
+
+### 7.5.1 Pré-requisitos
+
+- Domínio próprio comprado e gerenciado na **Cloudflare** (https://dash.cloudflare.com → Domain Registration). `.uk`, `.xyz`, `.click` saem em torno de US$ 5–10/ano.
+- Pi com internet (já é requisito do projeto pra OpenAI).
+
+### 7.5.2 Rodar o instalador do túnel
+
+```bash
+cd ~/totem_flexmedia
+bash deploy/install_cloudflared.sh
+```
+
+O script automatiza tudo que antes era manual:
+
+| Etapa | O que faz |
+|-------|-----------|
+| 1 | Detecta arquitetura (`armhf`/`arm64`/`amd64`) e baixa o binário `cloudflared` do GitHub releases |
+| 2 | Pergunta domínio (ex.: `flextotem.uk`), subdomínio (ex.: `pi01`) e nome do túnel |
+| 3 | Abre URL de autorização da Cloudflare — você cola no celular/laptop, seleciona o domínio e clica em "Authorize" |
+| 4 | Cria o túnel nomeado (`cloudflared tunnel create`) — idempotente, reaproveita se já existir |
+| 5 | Cria registro CNAME do subdomínio apontando pro túnel |
+| 6 | Gera `/etc/cloudflared/config.yml` apontando pro Gunicorn local (`localhost:8000`) |
+| 7 | Instala como systemd (`cloudflared.service`) e sobe |
+| 8 | Adiciona `TOTEM_PUBLIC_URL=https://...` no `.env` do projeto (consumido pelo `install_totem.sh` na próxima rodada) |
+
+> 💡 **Modo não-interativo** (útil pra provisionar vários totens):
+> ```bash
+> DOMINIO=flextotem.uk SUBDOMINIO=pi02 TUNNEL_NAME=totem-pi02 \
+>   bash deploy/install_cloudflared.sh
+> ```
+
+### 7.5.3 Validar
+
+```bash
+sudo systemctl status cloudflared        # active (running) + "Connection registered"
+curl -I https://pi01.flextotem.uk         # 200 ou 302 (saiu do Pi -> Cloudflare -> Pi)
+```
+
+Abra `https://pi01.flextotem.uk` no celular: deve carregar a home do totem com **cadeado verde**. Clique no botão de voz — agora o microfone libera.
+
+### 7.5.4 Apontar o kiosk (Fully Kiosk Browser ou Chromium do `install_totem.sh`)
+
+**Se você usa Fully Kiosk Browser** (Android):
+
+1. Settings → Web Content Settings → **Start URL** → `https://pi01.flextotem.uk`
+2. Settings → **Exit Fully Kiosk** → reabrir (Start URL só vale após restart)
+
+**Se você usa o Chromium do `install_totem.sh`** (kiosk no próprio Pi):
+
+O `install_totem.sh` lê `TOTEM_PUBLIC_URL` do `.env` automaticamente. Reaplique:
+
+```bash
+cd ~/totem_flexmedia
+bash install_totem.sh           # vai usar a TOTEM_PUBLIC_URL gravada no .env
+```
+
+Ou force uma URL específica:
+
+```bash
+KIOSK_URL=https://pi01.flextotem.uk bash install_totem.sh
+```
+
+### 7.5.5 Quando NÃO usar Cloudflare Tunnel
+
+- **Instituição air-gapped** (sem internet de saída): use `deploy/install_production.sh` (Nginx + Let's Encrypt) com um IP/domínio interno.
+- **Cliente exige tudo on-prem**: idem.
+- **Totem sem necessidade de microfone/câmera**: HTTP local basta.
+
+Nesses cenários, o caminho é o `deploy/install_production.sh` (Nginx + SSL), documentado em [docs/OPERACAO.md §1.2](docs/OPERACAO.md#12-passo-a-passo--servidor).
+
+---
+
 ## 8️⃣ Provisionar o totem no painel admin
 
 Antes de conectar sensores, gere as credenciais HMAC do totem.
@@ -429,6 +507,25 @@ db.session.commit()
 ### VM: erro `vmwgfx Failed to send host log`
 Driver gráfico errado. Desligue, vá em **Configurações → Tela** do VirtualBox: **VBoxSVGA**, 128 MB VRAM, 3D **desativado**.
 
+### Microfone bloqueado: "Microfone requer HTTPS ou acesso por localhost"
+Você está acessando o totem por HTTP (`http://<IP>:8000` ou `http://<IP>:5000`). Navegadores modernos bloqueiam `getUserMedia` em HTTP fora de localhost. Rode o passo 7.5 (Cloudflare Tunnel) — gera URL HTTPS sem custo de cert.
+
+### `cloudflared` instalado mas túnel não sobe — "tunnel credentials file not found"
+Provavelmente as credenciais ficaram só no `$HOME/.cloudflared/` mas o systemd procura em `/etc/cloudflared/`. O `install_cloudflared.sh` já copia, mas se você criou o túnel manualmente:
+```bash
+sudo cp ~/.cloudflared/<UUID>.json /etc/cloudflared/
+sudo chmod 600 /etc/cloudflared/<UUID>.json
+sudo systemctl restart cloudflared
+```
+
+### `cloudflared` ativo mas a URL pública dá erro 1033
+DNS aponta pro túnel, mas o `cloudflared` local não tem `config.yml` válido. Confira:
+```bash
+sudo cat /etc/cloudflared/config.yml      # precisa ter tunnel + ingress
+sudo journalctl -u cloudflared -n 50
+```
+Re-rode `bash deploy/install_cloudflared.sh` — ele é idempotente.
+
 ---
 
 ## 📚 Comandos do dia a dia
@@ -464,7 +561,12 @@ Driver gráfico errado. Desligue, vá em **Configurações → Tela** do Virtual
 
 /etc/systemd/system/
 ├── totem-flexmedia.service          # backend Flask
-└── totem-sensors.service            # daemon DHT11/DHT22 + HC-SR04 (Pi only)
+├── totem-sensors.service            # daemon DHT11/DHT22 + HC-SR04 (Pi only)
+└── cloudflared.service              # túnel HTTPS público (se usar Cloudflare Tunnel)
+
+/etc/cloudflared/                    # criado por install_cloudflared.sh
+├── config.yml                       # mapeia hostname público → localhost:8000
+└── <UUID>.json                      # credenciais do túnel (chmod 600)
 
 /etc/totem/
 └── credenciais.env                  # API key + HMAC do totem (chmod 600)
@@ -482,5 +584,8 @@ Driver gráfico errado. Desligue, vá em **Configurações → Tela** do Virtual
 - [ ] (Pi) `journalctl -u totem-sensors -f` mostra `heartbeat OK`
 - [ ] `.env` com `chmod 600`
 - [ ] `/etc/totem/credenciais.env` com `chmod 600`
+- [ ] (Se usar microfone) `sudo systemctl status cloudflared` → `active (running)`
+- [ ] (Se usar microfone) `https://<sub>.<dominio>` abre no celular com cadeado verde
+- [ ] (Se usar microfone) Botão de voz captura áudio sem erro de HTTPS
 
 Se todos os ✅ passaram, a instalação está pronta para produção. Veja [docs/OPERACAO.md](docs/OPERACAO.md) para troca de chaves, backup e nova instituição.

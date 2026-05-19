@@ -182,6 +182,16 @@ tests/
 deploy/
 ├── backup.sh               # Backup datado SQLite/Postgres + retenção 14d
 ├── install_production.sh   # Instalador prod: Nginx + Gunicorn + systemd + SSL
+├── install_cloudflared.sh  # HTTPS publico via Cloudflare Tunnel (sem IP
+│                           #   publico, sem cert proprio) — resolve bloqueio
+│                           #   de microfone em HTTP. Idempotente; cria tunel
+│                           #   nomeado + CNAME + systemd; grava
+│                           #   TOTEM_PUBLIC_URL no .env do projeto pra que
+│                           #   install_totem.sh aponte o kiosk pra HTTPS.
+├── rotate_secrets.sh       # Rotacao assistida (SECRET_KEY, TOTEM_WAKE_SECRET,
+│                           #   FIELD_ENCRYPTION_KEY via dual-key). Backup
+│                           #   automatico do .env, sincroniza
+│                           #   /etc/totem/credenciais.env e reinicia daemons.
 ├── nginx.conf.template
 ├── totem-flexmedia.service
 └── totem-sensors.service   # systemd unit do daemon de sensores (Pi-only)
@@ -255,6 +265,28 @@ README.md                   # Apresentação pública do projeto
   Fail-closed se o segredo nao estiver configurado. Aceita apenas
   `type=distance` (HC-SR04) e `type=environment` (DHT). Usado pelo daemon
   de sensores (mesmo host) para acordar o kiosk via SSE.
+- **HTTPS publico (Cloudflare Tunnel)**: caminho recomendado pra expor o
+  totem na internet. `deploy/install_cloudflared.sh` automatiza tudo
+  (download do binario, auth, criacao do tunel, CNAME, systemd). Por que
+  HTTPS importa: navegadores modernos (incluindo Chromium embutido no
+  Fully Kiosk Browser gratuito) bloqueiam `getUserMedia()` em HTTP fora
+  de localhost — sem HTTPS, o botao de voz quebra. Fully PLUS resolveria
+  so dentro do Fully; Cloudflare Tunnel resolve em qualquer navegador.
+  Quando expoe via tunel, `Gunicorn` continua em `localhost:8000` (NAO
+  expor `0.0.0.0:8000` na LAN — o tunel ja faz o gateway HTTPS).
+  `TOTEM_PUBLIC_URL` no `.env` e' a fonte da verdade do hostname publico;
+  `install_totem.sh` le essa var pra apontar o kiosk pra HTTPS no boot.
+  Alternativa para air-gapped: `deploy/install_production.sh` (Nginx +
+  Let's Encrypt) — mais trabalhoso e exige IP/dominio publico real.
+- **Rotacao de segredos**: usar `deploy/rotate_secrets.sh` em emergencias
+  (vazamento) e rotacao rotineira. Faz backup do `.env` antes de qualquer
+  escrita (`.env.bak-<timestamp>` — rollback em 1 comando). Para
+  `FIELD_ENCRYPTION_KEY` usa modo dual-key (`FIELD_ENCRYPTION_KEYS=nova,
+  antiga`): app le pelas duas, escreve com a nova — migracao progressiva
+  sem perder dados criptografados. O script NAO cobre `OPENAI_API_KEY`
+  (revogar em platform.openai.com), senha do super admin (trocar em
+  `/admin/change_password`) nem credenciais HMAC de totens (regerar em
+  `/admin/platform/devices`).
 - **Integracoes externas (tradução, visão, analytics)**: sempre via
   `app.services.registry`. Para adicionar uma nova, criar a classe em
   `app/services/<nome>.py` (com `name`, `is_available`, `health_check`) e
