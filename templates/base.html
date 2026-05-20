@@ -163,6 +163,16 @@
 
     {# ─── Cluster a direita: relogio (seletor de idioma vive na Home) ─── #}
     <div class="topbar-meta">
+      <div class="topbar-sensors" aria-label="Dados do sensor DHT11">
+        <div class="topbar-sensor-chip">
+          <span class="topbar-sensor-label">Temp</span>
+          <span class="topbar-sensor-value"><b id="topbarTemp">--</b><small>°C</small></span>
+        </div>
+        <div class="topbar-sensor-chip">
+          <span class="topbar-sensor-label">Umid</span>
+          <span class="topbar-sensor-value"><b id="topbarHum">--</b><small>%</small></span>
+        </div>
+      </div>
       <div class="topbar-clock" aria-live="polite">
         <span class="topbar-clock-time" id="topbarClock">--:--</span>
         <span class="topbar-clock-date" id="topbarDate">&nbsp;</span>
@@ -245,26 +255,172 @@
 </nav>
 {% endif %}
 
+<div id="sleepOverlay" class="sleep-overlay" aria-hidden="true">
+  <canvas id="sleepNeuralCanvas" class="sleep-neural-canvas" aria-hidden="true"></canvas>
+  <div class="sleep-card" role="dialog" aria-modal="true" aria-labelledby="sleepTitle">
+    {% if institution and institution.logo_path %}
+      <img class="sleep-logo" src="{{ url_for('static', filename=institution.logo_path) }}" alt="{{ institution.name }}">
+    {% else %}
+      <div class="sleep-logo" aria-hidden="true" style="background:var(--accent);display:inline-flex;align-items:center;justify-content:center;font-size:44px;">FM</div>
+    {% endif %}
+    <div id="sleepTitle" class="sleep-title">{{ institution.name if institution else 'FlexMedia' }}</div>
+    <div class="sleep-sub">Modo descanso</div>
+    <div class="sleep-hint">Toque na tela para continuar</div>
+  </div>
+</div>
+
 {# Handler do .lang-btn do topbar foi removido junto com o componente.
    A troca de idioma agora vive somente em templates/core/home.html
    (botoes .nc-lang-btn, com handler proprio que faz POST /api/locale). #}
 
 <script>
-  // ── Inactivity redirect ──────────────────────────────────────────────────────
+  // Inatividade no totem: 15s parado => modo descanso. Qualquer interacao acorda.
   (function () {
-    const IDLE_MS  = 15 * 1000;
-    const HOME_URL = "{{ url_for('core.home', slug=slug) if slug else url_for('core.selector') }}";
-    const inIframe = window.parent !== window;
+    const SLEEP_MS = 15 * 1000;
+    const overlay = document.getElementById("sleepOverlay");
+    const canvas = document.getElementById("sleepNeuralCanvas");
+    const ctx = canvas && canvas.getContext ? canvas.getContext("2d") : null;
     let timer = null;
+    let raf = null;
+    let nodes = [];
+    let lastW = 0;
+    let lastH = 0;
+
+    if (!overlay) return;
+
+    const rand = (min, max) => min + Math.random() * (max - min);
+
+    const resizeNeural = () => {
+      if (!canvas || !ctx) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = overlay.getBoundingClientRect();
+      const w = Math.max(1, Math.floor(rect.width));
+      const h = Math.max(1, Math.floor(rect.height));
+
+      if (w === lastW && h === lastH && canvas.width === Math.floor(w * dpr)) return;
+
+      lastW = w;
+      lastH = h;
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const count = Math.max(34, Math.min(82, Math.round((w * h) / 28000)));
+      nodes = Array.from({ length: count }, (_, i) => {
+        const edgeBias = i % 4 === 0;
+        return {
+          x: edgeBias ? rand(0, w) : rand(w * .08, w * .92),
+          y: edgeBias ? rand(0, h) : rand(h * .08, h * .92),
+          vx: rand(-.08, .08),
+          vy: rand(-.06, .06),
+          r: rand(1.2, 3.8),
+          phase: rand(0, Math.PI * 2),
+        };
+      });
+    };
+
+    const drawNeural = (t) => {
+      if (!canvas || !ctx || !overlay.classList.contains("show")) {
+        raf = null;
+        return;
+      }
+
+      resizeNeural();
+      const w = lastW;
+      const h = lastH;
+      ctx.clearRect(0, 0, w, h);
+
+      const linkDistance = Math.max(150, Math.min(260, w * .16));
+
+      for (const node of nodes) {
+        node.x += node.vx;
+        node.y += node.vy;
+        node.x += Math.sin(t * .00035 + node.phase) * .035;
+        node.y += Math.cos(t * .00028 + node.phase) * .03;
+
+        if (node.x < -20 || node.x > w + 20) node.vx *= -1;
+        if (node.y < -20 || node.y > h + 20) node.vy *= -1;
+      }
+
+      ctx.lineWidth = 1;
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i];
+          const b = nodes[j];
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > linkDistance) continue;
+
+          const alpha = (1 - dist / linkDistance) * .26;
+          const pulse = .65 + Math.sin(t * .001 + a.phase + b.phase) * .35;
+          ctx.strokeStyle = `rgba(255, 143, 28, ${alpha * pulse})`;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+      }
+
+      for (const node of nodes) {
+        const pulse = .65 + Math.sin(t * .002 + node.phase) * .35;
+        const glow = node.r * (5 + pulse * 3);
+        const g = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, glow);
+        g.addColorStop(0, `rgba(255, 169, 54, ${.68 + pulse * .2})`);
+        g.addColorStop(.35, `rgba(255, 118, 24, ${.20 + pulse * .1})`);
+        g.addColorStop(1, "rgba(255, 118, 24, 0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, glow, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = `rgba(255, 196, 104, ${.82 + pulse * .12})`;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      raf = requestAnimationFrame(drawNeural);
+    };
+
+    const startNeural = () => {
+      if (!ctx || raf) return;
+      resizeNeural();
+      raf = requestAnimationFrame(drawNeural);
+    };
+
+    const stopNeural = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = null;
+    };
+
+    const goSleep = () => {
+      overlay.classList.add("show");
+      overlay.setAttribute("aria-hidden", "false");
+      startNeural();
+    };
+
+    const wake = () => {
+      overlay.classList.remove("show");
+      overlay.setAttribute("aria-hidden", "true");
+      stopNeural();
+    };
+
     const reset = () => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (inIframe) window.parent.postMessage('flexmedia:close', '*');
-        else window.location.href = HOME_URL;
-      }, IDLE_MS);
+      if (overlay.classList.contains("show")) wake();
+      timer = setTimeout(goSleep, SLEEP_MS);
     };
+
     ["mousemove","mousedown","click","scroll","keydown","touchstart","touchmove"]
       .forEach(ev => window.addEventListener(ev, reset, { passive: true }));
+
+    overlay.addEventListener("click", reset);
+    overlay.addEventListener("touchstart", reset, { passive: true });
+    window.addEventListener("resize", resizeNeural, { passive: true });
+
     reset();
   })();
 </script>
@@ -368,6 +524,8 @@
     const elDist  = document.getElementById('presDist');
     const elTemp  = document.getElementById('presTemp');
     const elHum   = document.getElementById('presHum');
+    const topbarTemp = document.getElementById('topbarTemp');
+    const topbarHum  = document.getElementById('topbarHum');
 
     const COPY = {
       idle:   { t: 'Aproxime-se para começar',  s: 'Toque ou caminhe até o totem para iniciar uma conversa.' },
@@ -510,6 +668,8 @@
       if (elDist) elDist.textContent = (s.distance_cm == null ? '—' : s.distance_cm.toFixed(0));
       if (elTemp) elTemp.textContent = (s.temp_c == null ? '—' : s.temp_c.toFixed(1));
       if (elHum)  elHum.textContent  = (s.humidity_pct == null ? '—' : s.humidity_pct.toFixed(0));
+      if (topbarTemp) topbarTemp.textContent = (s.temp_c == null ? '--' : s.temp_c.toFixed(1));
+      if (topbarHum)  topbarHum.textContent  = (s.humidity_pct == null ? '--' : s.humidity_pct.toFixed(0));
 
       if (st === lastState) return;
       const previous = lastState;

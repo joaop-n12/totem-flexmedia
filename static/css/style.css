@@ -167,6 +167,62 @@ body:not(.totem-mode):not(.neural-home)::after {
 }
 
 /* Relogio em pill — visivel em todas as paginas internas. */
+.topbar-sensors {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: max-content;
+  padding: 7px 12px;
+  border-radius: var(--r-md);
+  background: rgba(255,255,255,.025);
+  border: 1px solid rgba(245,179,74,.12);
+  user-select: none;
+}
+
+.topbar-sensor-chip {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 124px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background:
+    radial-gradient(90px 36px at 20% 0%, rgba(232,93,78,.14), transparent 70%),
+    rgba(245,179,74,.055);
+  border: 1px solid rgba(245,179,74,.18);
+}
+
+.topbar-sensor-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.topbar-sensor-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 14px rgba(244,184,96,.32);
+}
+
+.topbar-sensor-value b {
+  font-size: clamp(15px, 1.3vw, 22px);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.topbar-sensor-value small {
+  font-size: 10px;
+  font-weight: 800;
+  color: rgba(244,241,234,.68);
+}
+
 .topbar-clock {
   display: flex; flex-direction: column; align-items: flex-end;
   gap: 2px; line-height: 1;
@@ -196,6 +252,7 @@ body:not(.totem-mode):not(.neural-home)::after {
 
 @media (max-width: 540px) {
   /* Em totens muito estreitos, esconde a data e mantem so a hora. */
+  .topbar-sensors    { display: none; }
   .topbar-clock-date { display: none; }
   .topbar-clock      { padding: 6px 10px; }
 }
@@ -1069,29 +1126,110 @@ body.a11y-large .totem-hero-title { font-size: clamp(34px, 5.4vw, 76px); }
    SLEEP OVERLAY
 ================================================================ */
 .sleep-overlay {
-  position: fixed; inset: 0;
-  display: none; place-items: center; z-index: 9999;
+  position: fixed;
+  inset: 0;
+  display: none;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
   background:
-    radial-gradient(ellipse 1200px 700px at 50% 30%, rgba(77,217,208,.07), transparent 55%),
-    radial-gradient(ellipse  800px 500px at 20% 70%, rgba(244,184,96,.06), transparent 50%),
-    rgba(4,12,16,.97);
+    radial-gradient(900px 560px at 50% 18%, rgba(255,118,24,.28), transparent 68%),
+    radial-gradient(760px 620px at 4% 82%, rgba(255,143,28,.18), transparent 70%),
+    radial-gradient(680px 540px at 96% 78%, rgba(232,93,78,.15), transparent 68%),
+    linear-gradient(180deg, #05070d 0%, #08111f 48%, #100803 100%);
+  backdrop-filter: blur(14px);
+  z-index: 9999;
 }
-.sleep-overlay.show { display: grid; animation: sleepFade .4s ease both; }
+
+.sleep-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.sleep-overlay::before {
+  opacity: .92;
+  background:
+    radial-gradient(circle at center, transparent 0 34%, rgba(0,0,0,.18) 58%, rgba(0,0,0,.68) 100%),
+    linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(255,255,255,.014) 1px, transparent 1px);
+  background-size: auto, 92px 92px, 92px 92px;
+  mix-blend-mode: screen;
+}
+
+.sleep-neural-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  opacity: .86;
+  filter: saturate(1.18);
+  pointer-events: none;
+}
+
+.sleep-overlay.show {
+  display: grid;
+  animation: sleepFade .35s ease both;
+}
 
 .sleep-card {
-  width: min(700px, 90vw); padding: clamp(32px, 5vw, 56px);
-  border-radius: var(--r-xl); border: 1px solid rgba(255,255,255,.1);
-  background: rgba(255,255,255,.05); backdrop-filter: blur(24px);
-  text-align: center; box-shadow: 0 40px 100px rgba(0,0,0,.65);
+  position: relative;
+  z-index: 1;
+  width: min(680px, 90vw);
+  padding: clamp(24px, 4vw, 46px);
+  border-radius: 24px;
+  border: 1px solid rgba(255,143,28,.18);
+  background:
+    radial-gradient(420px 180px at 50% 0%, rgba(255,143,28,.12), transparent 75%),
+    rgba(8,13,24,.48);
+  backdrop-filter: blur(18px) saturate(1.2);
+  text-align: center;
+  box-shadow:
+    0 34px 100px rgba(0,0,0,.62),
+    0 0 0 1px rgba(255,255,255,.035),
+    0 0 70px rgba(255,118,24,.12);
 }
 
-.sleep-logo { width: clamp(80px, 8vw, 116px); height: clamp(80px, 8vw, 116px); border-radius: 28px; object-fit: cover; margin-bottom: 24px; box-shadow: var(--shadow-lg); animation: floaty 3.5s ease-in-out infinite; border: 1px solid rgba(255,255,255,.12); }
-.sleep-title { font-size: clamp(32px, 5vw, 60px); font-weight: 900; color: var(--text); letter-spacing: 1px; margin-bottom: 8px; }
-.sleep-sub   { font-size: clamp(13px, 1.7vw, 18px); font-weight: 600; color: var(--accent); letter-spacing: 3.5px; text-transform: uppercase; margin-bottom: 20px; }
-.sleep-hint  { font-size: clamp(13px, 1.4vw, 16px); color: var(--muted); letter-spacing: .4px; }
+.sleep-logo {
+  width: clamp(80px, 8vw, 120px);
+  height: clamp(80px, 8vw, 120px);
+  border-radius: 24px;
+  object-fit: cover;
+  box-shadow:
+    0 20px 60px rgba(0,0,0,.48),
+    0 0 34px rgba(255,143,28,.24);
+  margin-bottom: 20px;
+  animation: floaty 3.2s ease-in-out infinite;
+}
+
+.sleep-title {
+  font-size: clamp(36px, 4vw, 62px);
+  font-weight: 1000;
+  color: #ff9a24;
+  letter-spacing: 0;
+  text-shadow: 0 0 20px rgba(255,143,28,.30);
+  margin-bottom: 8px;
+}
+
+.sleep-sub {
+  color: rgba(244,241,234,.92);
+  font-weight: 800;
+  letter-spacing: 0;
+  font-size: clamp(16px, 2vw, 22px);
+  margin-bottom: 14px;
+}
+
+.sleep-hint {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: clamp(12px, 1.6vw, 16px);
+}
 
 @keyframes sleepFade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+@keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 
 /* ================================================================
    QUIZ
@@ -1434,19 +1572,25 @@ body:not(.totem-mode):not(.neural-home) .page-wrapper { position: relative; z-in
    Aplica-se a html para evitar reflow de layout quando o conteudo cresce.
 */
 html:has(body.kiosk-scroll),
-body.kiosk-scroll { overflow-y: scroll; }
+body.kiosk-scroll { overflow-y: auto; }
 
-body.kiosk-scroll::-webkit-scrollbar         { width: 12px; }
+html:has(body.kiosk-scroll)::-webkit-scrollbar,
+body.kiosk-scroll::-webkit-scrollbar         { width: 0; height: 0; display: none; }
 body.kiosk-scroll::-webkit-scrollbar-track   {
-  background: rgba(255,255,255,.04);
-  border-left: 1px solid rgba(255,255,255,.06);
+  background: transparent;
+  border-left: 0;
 }
 body.kiosk-scroll::-webkit-scrollbar-thumb   {
-  background: rgba(255,255,255,.22);
+  background: transparent;
   border-radius: 999px;
-  border: 2px solid transparent;
+  border: 0;
   background-clip: padding-box;
 }
-body.kiosk-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.35); background-clip: padding-box; }
+body.kiosk-scroll::-webkit-scrollbar-thumb:hover { background: transparent; background-clip: padding-box; }
 /* Firefox: scrollbar fina + visivel sempre que body tem kiosk-scroll */
-body.kiosk-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) rgba(255,255,255,.04); }
+html:has(body.kiosk-scroll),
+body.kiosk-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+}

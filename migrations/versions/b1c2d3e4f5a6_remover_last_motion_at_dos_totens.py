@@ -16,8 +16,13 @@ depends_on = None
 
 
 def upgrade():
-    with op.batch_alter_table('totem_devices', schema=None) as batch_op:
-        batch_op.drop_column('last_motion_at')
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {column["name"] for column in inspector.get_columns("totem_devices")}
+
+    if "last_motion_at" in columns:
+        with op.batch_alter_table('totem_devices', schema=None) as batch_op:
+            batch_op.drop_column('last_motion_at')
 
 
 def downgrade():
