@@ -283,12 +283,40 @@ def create_app(env: str = "default") -> Flask:
 
     @app.context_processor
     def inject_globals():
+        from flask import request
         from flask_login import current_user
         from app.services.i18n import (
             SUPPORTED_LOCALES, get_locale, locale_display_name, t,
         )
+
+        # Resolve a instituicao do path /admin/institutions/<iid>/... para que
+        # o sidebar do admin (base.html) consiga calcular o link "Ver Totem"
+        # apontando para a URL publica HTTPS especifica daquela instituicao.
+        # Hit no identity map quando a rota ja carregou a inst — sem custo
+        # extra. `request` pode nao existir em contextos como CLI.
+        current_inst = None
+        try:
+            iid = (request.view_args or {}).get("iid") if request else None
+        except RuntimeError:
+            iid = None
+        if iid:
+            from app.models.institution import Institution
+            try:
+                current_inst = db.session.get(Institution, iid)
+            except Exception:
+                current_inst = None
+
+        env_public_url = app.config.get("TOTEM_PUBLIC_URL") or None
+        # URL final do "Ver Totem": ordem inst.public_url → env → None
+        # (None deixa o template cair na rota interna como hoje).
+        ver_totem_href = (
+            current_inst.effective_public_url(env_public_url) if current_inst else env_public_url
+        )
+
         return dict(
             institution=getattr(g, "institution", None),
+            current_institution=current_inst,
+            ver_totem_href=ver_totem_href,
             csrf_token=generate_csrf_token,
             current_user=current_user,
             # i18n: `t('chave')` traduz; `current_locale` e' o codigo atual.

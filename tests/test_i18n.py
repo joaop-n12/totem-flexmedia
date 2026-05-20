@@ -146,22 +146,29 @@ def test_endpoint_persiste_locale_entre_requests(client):
 # UI: toggle no topbar e i18n na pagina
 # ════════════════════════════════════════════════════════════════════════════
 
-def test_topbar_renderiza_botoes_de_idioma(client):
-    """Toggle aparece em qualquer pagina que herde de base.html."""
+def test_topbar_nao_renderiza_seletor_de_idioma(client):
+    """Regressao: o seletor de idioma do topbar foi removido em definitivo.
+    Toda troca de idioma vive no rodape da Home (.nc-lang-btn / data-lang).
+    Se este teste falhar, alguem reintroduziu o componente em base.html —
+    revisar a decisao com o time antes de re-adicionar."""
     r = client.get("/privacidade")
     assert r.status_code == 200
-    assert b'class="lang-switch"' in r.data
-    assert b'data-locale="pt"' in r.data
-    assert b'data-locale="en"' in r.data
+    # HTML: nem o container nem os botoes podem voltar ao topbar.
+    assert b'class="lang-switch"' not in r.data
+    assert b'data-locale=' not in r.data
+    assert b'class="lang-btn' not in r.data
 
 
-def test_topbar_marca_locale_atual_como_active(client):
-    """Apos trocar pra EN, o botao EN tem classe 'active'."""
-    client.post("/api/locale", json={"locale": "en"})
-    r = client.get("/privacidade")
-    # Re-extrai os botoes para ver qual tem `active`.
-    en_marker = b'class="lang-btn active"'
-    assert en_marker in r.data
+def test_home_renderiza_seletor_de_idioma_no_rodape(client):
+    """Fonte unica do toggle: rodape da Home (componente .nc-lang com
+    bandeiras PT/EN/ES). Garante que a remocao do topbar nao deixou o
+    visitante sem caminho para trocar de idioma."""
+    r = client.get("/teste/")  # slug seedado pelo conftest
+    assert r.status_code == 200
+    assert b'class="nc-lang"' in r.data
+    assert b'data-lang="pt"' in r.data
+    assert b'data-lang="en"' in r.data
+    assert b'data-lang="es"' in r.data
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -210,7 +217,11 @@ def test_voice_chat_anexa_instrucao_de_idioma_quando_es(client):
         system = next(m for m in kwargs["messages"] if m["role"] == "system")
         # locale_display_name('es') == 'Español' → tem que aparecer no prompt.
         assert "Español" in system["content"]
-        assert "Respond in" in system["content"]
+        # A trava de idioma agora e' marcada por um bloco delimitado para
+        # facilitar grep em logs/depuracao — qualquer locale produz o mesmo
+        # delimitador, so o nome do idioma muda.
+        assert "LANGUAGE LOCK" in system["content"]
+        assert "respond exclusively in" in system["content"]
 
 
 def test_endpoint_set_locale_aceita_es(client):
@@ -224,11 +235,11 @@ def test_endpoint_set_locale_aceita_es(client):
     assert "Sin conexión".encode("utf-8") in r2.data
 
 
-def test_topbar_renderiza_botao_espanhol(client):
-    """Toggle de idioma deve expor o botao ES junto de PT/EN."""
-    r = client.get("/privacidade")
+def test_home_renderiza_botao_espanhol_no_rodape(client):
+    """O rodape da Home expoe ES junto de PT/EN (fonte unica de troca)."""
+    r = client.get("/teste/")
     assert r.status_code == 200
-    assert b'data-locale="es"' in r.data
+    assert b'data-lang="es"' in r.data
 
 
 def test_voice_chat_nao_anexa_instrucao_quando_pt(client):

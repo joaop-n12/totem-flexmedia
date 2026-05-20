@@ -5,29 +5,31 @@
 {# ── Modal de consentimento LGPD (Neural Crew look) ─────────────────────
    Exibido uma unica vez por navegador (localStorage). O visitante precisa
    aceitar antes de usar microfone/chat. O aviso deixa claro que a pergunta
-   eh enviada a OpenAI para gerar a resposta. #}
+   eh enviada a OpenAI para gerar a resposta.
+   Todos os textos seguem o locale travado na sessao (Trello Modulo 3.6/3.7). #}
+{% set _lgpd_days = config.INTERACTION_LOG_RETENTION_DAYS or 90 %}
 <div id="lgpdModal"
      style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);z-index:10000;align-items:center;justify-content:center;padding:20px;">
   <div style="background:linear-gradient(180deg,rgba(22,36,58,.95),rgba(15,26,43,.98));border:1px solid rgba(245,179,74,.30);border-radius:22px;max-width:520px;width:100%;padding:32px;color:var(--text);box-shadow:0 30px 80px rgba(0,0,0,.6);">
     <div style="display:inline-flex;align-items:center;gap:10px;background:rgba(245,179,74,.06);border:1px solid rgba(245,179,74,.30);color:var(--accent);padding:6px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin-bottom:14px;">
       <span style="width:7px;height:7px;border-radius:50%;background:var(--coral);box-shadow:0 0 10px var(--coral);"></span>
-      Aviso LGPD
+      {{ t('voice.lgpd_badge') }}
     </div>
-    <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;letter-spacing:-.3px;">Antes de começar</h2>
+    <h2 style="margin:0 0 12px;font-size:22px;font-weight:800;letter-spacing:-.3px;">{{ t('voice.consent_title') }}</h2>
     <p style="line-height:1.6;color:var(--text-soft);font-size:14px;">
-      Suas perguntas são enviadas de forma criptografada à <strong style="color:var(--accent);">OpenAI</strong>
-      para gerar a resposta. Mantemos a transcrição por no máximo
-      <strong style="color:var(--accent);">{{ config.INTERACTION_LOG_RETENTION_DAYS or 90 }} dias</strong>
-      e não coletamos dados pessoais.
+      {# A descricao LGPD vem como template com placeholder {days}. Substituicao
+         e' feita server-side aqui — assim a string permanece atomica no catalogo
+         (sem concatenacao manual que quebra ordem de palavras em outros idiomas). #}
+      {{ t('voice.lgpd_description').replace('{days}', _lgpd_days|string)|safe }}
       <a href="{{ url_for('core.privacidade', slug=institution.slug) }}"
-         style="color:var(--accent);text-decoration:underline;">Ler aviso completo</a>.
+         style="color:var(--accent);text-decoration:underline;">{{ t('voice.lgpd_read_more') }}</a>.
     </p>
     <div style="display:flex;gap:12px;margin-top:22px;flex-wrap:wrap;">
       <button id="lgpdAccept" class="btn" style="flex:1;min-width:140px;">
-        Aceito e continuar
+        {{ t('voice.lgpd_accept') }}
       </button>
       <button id="lgpdDecline" onclick="history.back()" class="btn ghost" style="flex:1;min-width:140px;">
-        Não, obrigado
+        {{ t('voice.lgpd_decline') }}
       </button>
     </div>
   </div>
@@ -50,12 +52,12 @@
 <div class="voice-page">
 
   <!-- Hero Neural Crew -->
-  <div class="page-eyebrow" style="margin-bottom: 14px;">Assistente de IA</div>
+  <div class="page-eyebrow" style="margin-bottom: 14px;">{{ t('voice.title_label') }}</div>
   <div class="assistant-name">
     <span class="name-main">{{ institution.ai_name }}</span>
   </div>
   <p class="muted" style="margin: 4px 0 18px; font-size: 13px; letter-spacing: .5px;">
-    Pergunte por voz ou texto sobre o {{ institution.name }}
+    {{ t('voice.subtitle_prefix') }} {{ institution.name }}
   </p>
 
   <!-- Visualização de ondas + badge de status -->
@@ -63,7 +65,7 @@
     <canvas id="waveCanvas" width="900" height="180"></canvas>
     <div id="avatarStatus" class="status-badge idle">
       <span class="status-dot"></span>
-      <span id="statusText">Online</span>
+      <span id="statusText">{{ t('voice.status.online') }}</span>
     </div>
   </div>
 
@@ -75,29 +77,30 @@
         <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
       </svg>
     </button>
-    <span id="statusMsg" class="status-msg">Toque para falar</span>
+    <span id="statusMsg" class="status-msg">{{ t('voice.tap_to_record') }}</span>
   </div>
 
   <!-- Separador visual -->
-  <div class="divider-or"><span>ou</span></div>
+  <div class="divider-or"><span>{{ t('voice.divider_or') }}</span></div>
 
   <!-- Input de texto -->
   <div class="chat-input-wrap">
     <input id="textInput" class="search-input"
-           type="text" placeholder="Digite sua pergunta…" autocomplete="off"
+           type="text" placeholder="{{ t('voice.text_placeholder') }}" autocomplete="off"
            style="border-radius:var(--r-pill);padding-right:56px;">
     <button id="sendTextBtn" class="btn" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);min-height:44px;padding:10px 18px;">
-      Enviar
+      {{ t('voice.send') }}
     </button>
   </div>
 
-  <!-- Seleção de voz (discreta, sem label) -->
+  <!-- Seleção de voz (discreta, sem label). Os nomes "Nova/Alloy/…" sao
+       proprios da OpenAI; o tooltip (data-desc) vem do catalogo i18n. -->
   <div class="voice-pills-wrap">
-    <button class="voice-pill active" data-voice="nova"    data-desc="Nova · feminina calorosa">Nova</button>
-    <button class="voice-pill"        data-voice="alloy"   data-desc="Alloy · neutra e clara">Alloy</button>
-    <button class="voice-pill"        data-voice="shimmer" data-desc="Shimmer · suave e expressiva">Shimmer</button>
-    <button class="voice-pill"        data-voice="onyx"    data-desc="Onyx · masculina grave">Onyx</button>
-    <button class="voice-pill"        data-voice="echo"    data-desc="Echo · masculina jovem">Echo</button>
+    <button class="voice-pill active" data-voice="nova"    data-desc="{{ t('voice.pill.nova') }}">Nova</button>
+    <button class="voice-pill"        data-voice="alloy"   data-desc="{{ t('voice.pill.alloy') }}">Alloy</button>
+    <button class="voice-pill"        data-voice="shimmer" data-desc="{{ t('voice.pill.shimmer') }}">Shimmer</button>
+    <button class="voice-pill"        data-voice="onyx"    data-desc="{{ t('voice.pill.onyx') }}">Onyx</button>
+    <button class="voice-pill"        data-voice="echo"    data-desc="{{ t('voice.pill.echo') }}">Echo</button>
   </div>
 
   <!-- Balões de conversa -->
@@ -182,6 +185,42 @@
 
 <script>
 const SLUG = "{{ institution.slug }}";
+
+// ── Catalogo i18n para a camada JS ─────────────────────────────────────
+// Renderizado server-side com o locale atual da sessao. Sem isso, o JS
+// abaixo so conseguia produzir status em PT — o ASSISTENTE DE IA era a
+// unica area do totem que ignorava a selecao de idioma.
+// O dicionario e' inline (nao window.*) para evitar colisao com outras
+// telas e nao vazar globais. Reutilizado em todas as chamadas de
+// `statusMsg.textContent = ...` daqui pra baixo.
+const I18N = {
+  online:           {{ t('voice.status.online')|tojson }},
+  listening:        {{ t('voice.status.listening')|tojson }},
+  thinking:         {{ t('voice.status.thinking')|tojson }},
+  speaking:         {{ t('voice.status.speaking')|tojson }},
+  ariaStart:        {{ t('voice.aria.start')|tojson }},
+  ariaStop:         {{ t('voice.aria.stop')|tojson }},
+  ariaCancel:       {{ t('voice.aria.cancel')|tojson }},
+  ariaStopPlayback: {{ t('voice.aria.stop_playback')|tojson }},
+  tapToRecord:      {{ t('voice.tap_to_record')|tojson }},
+  tapToStopRecord:  {{ t('voice.tap_to_stop_record')|tojson }},
+  tapToCancel:      {{ t('voice.tap_to_cancel')|tojson }},
+  tapToStopAudio:   {{ t('voice.tap_to_stop_audio')|tojson }},
+  processing:       {{ t('voice.processing')|tojson }},
+  ready:            {{ t('voice.ready')|tojson }},
+  cancelled:        {{ t('voice.cancelled')|tojson }},
+  noResponse:       {{ t('voice.no_response')|tojson }},
+  errNoAudio:       {{ t('voice.error.no_audio')|tojson }},
+  errTimeoutVoice:  {{ t('voice.error.timeout_voice')|tojson }},
+  errTimeoutChat:   {{ t('voice.error.timeout_chat')|tojson }},
+  errConnection:    {{ t('voice.error.connection')|tojson }},
+  errHttps:         {{ t('voice.error.https')|tojson }},
+  errPermission:    {{ t('voice.error.permission')|tojson }},
+  errNoMic:         {{ t('voice.error.no_mic')|tojson }},
+  errMicBusy:       {{ t('voice.error.mic_busy')|tojson }},
+  errInsecure:      {{ t('voice.error.insecure')|tojson }},
+  errGeneric:       {{ t('voice.error.generic')|tojson }},
+};
 const canvas=document.getElementById('waveCanvas'),ctx=canvas.getContext('2d');
 const W=canvas.width,H=canvas.height,CY=H/2;
 let analyser=null,waveMode='idle';
@@ -225,23 +264,23 @@ function setButtonMode(mode){
   recordBtn.disabled=false;
   if(mode==='idle'){
     recordBtn.innerHTML=ICON_MIC;
-    recordBtn.setAttribute('aria-label','Iniciar gravação');
-    statusMsg.textContent='Toque para falar';
+    recordBtn.setAttribute('aria-label',I18N.ariaStart);
+    statusMsg.textContent=I18N.tapToRecord;
   }else if(mode==='recording'){
     recordBtn.classList.add('recording');
     recordBtn.innerHTML=ICON_STOP;
-    recordBtn.setAttribute('aria-label','Parar gravação');
-    statusMsg.textContent='Toque para parar de gravar';
+    recordBtn.setAttribute('aria-label',I18N.ariaStop);
+    statusMsg.textContent=I18N.tapToStopRecord;
   }else if(mode==='loading'){
     recordBtn.classList.add('loading');
     recordBtn.innerHTML=ICON_STOP;
-    recordBtn.setAttribute('aria-label','Cancelar processamento');
-    statusMsg.textContent='Toque para cancelar';
+    recordBtn.setAttribute('aria-label',I18N.ariaCancel);
+    statusMsg.textContent=I18N.tapToCancel;
   }else if(mode==='speaking'){
     recordBtn.classList.add('speaking');
     recordBtn.innerHTML=ICON_STOP;
-    recordBtn.setAttribute('aria-label','Parar reproducao');
-    statusMsg.textContent='Toque para parar de ouvir';
+    recordBtn.setAttribute('aria-label',I18N.ariaStopPlayback);
+    statusMsg.textContent=I18N.tapToStopAudio;
   }
 }
 
@@ -252,7 +291,7 @@ function stopCurrentAudio(){
     currentAudio=null;
   }
   analyser=null;
-  setAvatarState('idle','Online');
+  setAvatarState('idle',I18N.online);
 }
 
 function setAvatarState(state,label){avatarStatus.className='status-badge '+state;statusText.textContent=label;waveMode=state==='listen'?'listen':state==='speak'?'speak':'idle';}
@@ -271,8 +310,8 @@ recordBtn.addEventListener('click',async()=>{
   if(currentAbort){
     currentAbort.abort();currentAbort=null;
     if(currentStream){currentStream.getTracks().forEach(t=>t.stop());currentStream=null;}
-    setAvatarState('idle','Online');setButtonMode('idle');
-    statusMsg.textContent='Cancelado';return;
+    setAvatarState('idle',I18N.online);setButtonMode('idle');
+    statusMsg.textContent=I18N.cancelled;return;
   }
   if(isRecording){mediaRecorder.stop();return;}
   await iniciarGravacao();
@@ -305,7 +344,7 @@ async function iniciarGravacao(){
   // navigator.mediaDevices simplesmente nao existe — ao inves de mostrar uma
   // mensagem confusa "TypeError: undefined", avisa direto.
   if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    statusMsg.textContent = 'Microfone requer HTTPS ou acesso por localhost. Use o chat por texto.';
+    statusMsg.textContent = I18N.errHttps;
     console.warn('[voice] contexto inseguro: isSecureContext=%s, mediaDevices=%s',
                  window.isSecureContext, !!navigator.mediaDevices);
     return;
@@ -318,7 +357,7 @@ async function iniciarGravacao(){
     mediaRecorder = mime ? new MediaRecorder(stream, { mimeType: mime })
                          : new MediaRecorder(stream);
     audioChunks=[];isRecording=true;
-    setButtonMode('recording');setAvatarState('listen','Ouvindo');
+    setButtonMode('recording');setAvatarState('listen',I18N.listening);
     mediaRecorder.ondataavailable=e=>{ if (e.data && e.data.size > 0) audioChunks.push(e.data); };
     mediaRecorder.onstop=async()=>{
       isRecording=false;
@@ -327,10 +366,10 @@ async function iniciarGravacao(){
       // sem captura). Sem isso, o servidor processa 0 bytes, Whisper devolve
       // string vazia, o usuario ve "Pensando" interminavel.
       if (!audioChunks.length) {
-        statusMsg.textContent = 'Nenhum audio capturado — tente segurar mais tempo';
-        setAvatarState('idle','Online'); setButtonMode('idle'); return;
+        statusMsg.textContent = I18N.errNoAudio;
+        setAvatarState('idle',I18N.online); setButtonMode('idle'); return;
       }
-      setButtonMode('loading');setAvatarState('think','Pensando');
+      setButtonMode('loading');setAvatarState('think',I18N.thinking);
       const blobType = mediaRecorder.mimeType || mime || 'audio/webm';
       const blob = new Blob(audioChunks, { type: blobType });
       const form=new FormData();form.append('audio', blob, `audio.${ext}`);form.append('voice',selectedVoice);
@@ -354,26 +393,26 @@ async function iniciarGravacao(){
           const human = data.message || data.error;
           statusMsg.textContent = '❌ ' + human;
           botBubble.textContent = human; botBubble.classList.remove('hidden');
-          setAvatarState('idle','Online'); setButtonMode('idle'); return;
+          setAvatarState('idle',I18N.online); setButtonMode('idle'); return;
         }
         userBubble.textContent=data.transcription;userBubble.classList.remove('hidden');
         botBubble.textContent=data.response;botBubble.classList.remove('hidden');
         const audio=new Audio('data:audio/mp3;base64,'+data.tts_base64);
         audio.crossOrigin='anonymous';connectAnalyser(audio);
         currentAudio=audio;setButtonMode('speaking');
-        audio.onplay=()=>{setAvatarState('speak','Falando');statusMsg.textContent='Toque para parar de ouvir';};
-        audio.onended=()=>{currentAudio=null;analyser=null;setAvatarState('idle','Online');setButtonMode('idle');};
+        audio.onplay=()=>{setAvatarState('speak',I18N.speaking);statusMsg.textContent=I18N.tapToStopAudio;};
+        audio.onended=()=>{currentAudio=null;analyser=null;setAvatarState('idle',I18N.online);setButtonMode('idle');};
         if(audioCtx?.state==='suspended')await audioCtx.resume();
         audio.play();
       }catch(err){
         clearTimeout(timeoutId);
         currentAbort=null;
         if(err.name==='AbortError'){
-          statusMsg.textContent = 'Sem resposta em 45s — verifique a conexao';
-          setAvatarState('idle','Online'); setButtonMode('idle'); return;
+          statusMsg.textContent = I18N.errTimeoutVoice;
+          setAvatarState('idle',I18N.online); setButtonMode('idle'); return;
         }
         console.error('[voice] fetch falhou', err);
-        statusMsg.textContent='❌ Erro de conexao';setAvatarState('idle','Online');setButtonMode('idle');
+        statusMsg.textContent='❌ '+I18N.errConnection;setAvatarState('idle',I18N.online);setButtonMode('idle');
       }
     };
     // start(timeslice): garante ondataavailable periodico. Sem isso, em
@@ -381,39 +420,76 @@ async function iniciarGravacao(){
     mediaRecorder.start(1000);
   }catch(err){
     const msgs={
-      NotAllowedError:'Permissão negada — libere o microfone no navegador',
-      NotFoundError:'Nenhum microfone encontrado no dispositivo',
-      NotReadableError:'Microfone em uso por outro programa',
-      SecurityError:'Contexto inseguro — sirva por HTTPS ou via localhost',
+      NotAllowedError:  I18N.errPermission,
+      NotFoundError:    I18N.errNoMic,
+      NotReadableError: I18N.errMicBusy,
+      SecurityError:    I18N.errInsecure,
     };
-    statusMsg.textContent = msgs[err.name] || ('Erro: ' + err.name + ' — ' + err.message);
+    statusMsg.textContent = msgs[err.name] || (I18N.errGeneric + ': ' + err.name + ' — ' + err.message);
     console.error('[voice] getUserMedia falhou', err);
-    setAvatarState('idle','Online');setButtonMode('idle');
+    setAvatarState('idle',I18N.online);setButtonMode('idle');
   }
 }
 
 // Text chat
+// Saida de audio unificada com o canal por voz: o front envia a voz
+// selecionada nas pills e, quando o backend devolver `tts_base64`, reproduz
+// a resposta com a mesma onda/analisador da gravacao por microfone. Se a
+// sintese falhar no servidor (quota, rate-limit, etc.), o texto aparece
+// sozinho — sem regressao do fluxo "apenas texto" anterior.
 async function sendText(){
   const msg=textInput.value.trim();if(!msg)return;
+  // Se o totem ainda estiver falando uma resposta anterior (ou a saudacao
+  // automatica), interrompe antes de iniciar a proxima — mesmo padrao do
+  // despachante do botao multi-estado.
+  if(currentAudio&&!currentAudio.paused){stopCurrentAudio();}
   userBubble.textContent=msg;userBubble.classList.remove('hidden');
-  textInput.value='';setAvatarState('think','Pensando');statusMsg.textContent='Processando...';
-  // Mesmo padrao de timeout do voice — chat sem hardware costuma ser
-  // mais rapido, 30s ja basta.
+  textInput.value='';setAvatarState('think',I18N.thinking);statusMsg.textContent=I18N.processing;
+  // Timeout subiu de 30s para 45s: o backend agora faz uma chamada extra de
+  // TTS apos o chat.completions, entao a janela precisa acomodar as duas.
   const ctl = new AbortController();
-  const tid = setTimeout(() => { try { ctl.abort('timeout'); } catch(_){} }, 30000);
+  currentAbort = ctl;
+  const tid = setTimeout(() => { try { ctl.abort('timeout'); } catch(_){} }, 45000);
   try{
-    const res=await fetch(`/${SLUG}/api/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg}),signal:ctl.signal});
+    const res=await fetch(`/${SLUG}/api/chat`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:msg, voice:selectedVoice}),
+      signal:ctl.signal,
+    });
     clearTimeout(tid);
+    currentAbort=null;
     const ct = (res.headers.get('content-type') || '').toLowerCase();
     const data = ct.includes('application/json') ? await res.json() : { error: 'http_' + res.status };
-    botBubble.textContent = data.message || data.response || data.error || 'Sem resposta';
+    const answer = data.response || data.message || data.error || I18N.noResponse;
+    botBubble.textContent = answer;
     botBubble.classList.remove('hidden');
-    setAvatarState('idle','Online');statusMsg.textContent='Pronto para ouvir você';
+    // Se houver audio na resposta, espelha o fluxo do /api/voice: anexa
+    // analisador, muda o estado do botao para "speaking" e toca. Sem audio
+    // (TTS indisponivel no backend), volta direto ao idle.
+    if(data.tts_base64){
+      const audio=new Audio('data:audio/mp3;base64,'+data.tts_base64);
+      audio.crossOrigin='anonymous';
+      try{ connectAnalyser(audio); }catch(_){ /* ja conectado */ }
+      currentAudio=audio;setButtonMode('speaking');
+      audio.onplay=()=>{setAvatarState('speak',I18N.speaking);statusMsg.textContent=I18N.tapToStopAudio;};
+      audio.onended=()=>{currentAudio=null;analyser=null;setAvatarState('idle',I18N.online);setButtonMode('idle');statusMsg.textContent=I18N.ready;};
+      if(audioCtx?.state==='suspended')await audioCtx.resume();
+      audio.play().catch(err=>{
+        console.warn('[chat] play() bloqueado', err);
+        currentAudio=null;setAvatarState('idle',I18N.online);setButtonMode('idle');
+        statusMsg.textContent=I18N.ready;
+      });
+    }else{
+      setAvatarState('idle',I18N.online);setButtonMode('idle');
+      statusMsg.textContent=I18N.ready;
+    }
   }catch(e){
     clearTimeout(tid);
-    botBubble.textContent = e.name === 'AbortError' ? '❌ Sem resposta em 30s' : '❌ Erro de conexão';
+    currentAbort=null;
+    botBubble.textContent = e.name === 'AbortError' ? '❌ '+I18N.errTimeoutChat : '❌ '+I18N.errConnection;
     botBubble.classList.remove('hidden');
-    setAvatarState('idle','Online');
+    setAvatarState('idle',I18N.online);setButtonMode('idle');
     console.error('[chat] sendText falhou', e);
   }
 }
@@ -433,8 +509,8 @@ window.addEventListener('flexmedia:greeting-audio', (ev) => {
   try { connectAnalyser(audio); } catch (_) { /* ja conectado ou bloqueado */ }
   currentAudio = audio;
   setButtonMode('speaking');
-  audio.addEventListener('play',  () => { setAvatarState('speak','Falando');   statusMsg.textContent='Toque para parar de ouvir'; });
-  audio.addEventListener('ended', () => { currentAudio=null; analyser=null; setAvatarState('idle','Online'); setButtonMode('idle'); });
+  audio.addEventListener('play',  () => { setAvatarState('speak',I18N.speaking);   statusMsg.textContent=I18N.tapToStopAudio; });
+  audio.addEventListener('ended', () => { currentAudio=null; analyser=null; setAvatarState('idle',I18N.online); setButtonMode('idle'); });
   if (audioCtx && audioCtx.state === 'suspended') { audioCtx.resume().catch(()=>{}); }
 });
 </script>

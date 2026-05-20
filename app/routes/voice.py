@@ -11,7 +11,7 @@ from openai import OpenAI, APIConnectionError, APITimeoutError, RateLimitError, 
 from app.extensions import db, limiter
 from app.helpers import load_institution, build_ai_context
 from app.models import InteractionLog
-from app.services.i18n import get_locale, locale_display_name
+from app.services.i18n import get_locale, locale_display_name, t
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,41 @@ voice_bp = Blueprint("voice", __name__)
 VOZES_PERMITIDAS = {"alloy", "echo", "fable", "onyx", "nova", "shimmer"}
 MAX_CHAT_LEN = 500   # chars accepted from user text
 MAX_LOG_LEN  = 1000  # chars stored in DB (response may be longer)
+
+# Mapeia o locale da sessao para o codigo ISO-639-1 esperado pela API Whisper.
+# Sem isso, transcrevia tudo como PT mesmo quando o visitante falava EN/ES —
+# o resultado virava texto sem nexo e a IA respondia em PT por inercia. Com o
+# parametro correto, Whisper detecta a fonologia certa e devolve o texto na
+# lingua falada, que entao alimenta a chamada do chat ja travada no locale.
+WHISPER_LANG = {"pt": "pt", "en": "en", "es": "es"}
+
+
+def _aplicar_trava_de_idioma(system_prompt: str, locale: str) -> str:
+    """Anexa instrucao FORTE de idioma ao final do system prompt.
+
+    Por que no fim e nao no inicio?
+      O `build_ai_context` produz texto majoritariamente em PT (nome do
+      assistente, descricoes de eventos, FAQs cadastradas pelo cliente). O
+      modelo tende a espelhar a lingua do contexto. Colocar a trava como
+      ULTIMA instrucao do system prompt aproveita o vies de recencia: ela
+      e' a regra que mais "queima" na atencao na hora de gerar o token 1.
+
+    Por que reforcar mesmo para PT?
+      Garantia simetrica de comportamento — facil de depurar (logs sempre
+      mostram a trava). Custa ~30 tokens, irrelevante diante de gpt-4o-mini.
+    """
+    nome = locale_display_name(locale)
+    return (
+        f"{system_prompt}\n\n"
+        f"=== LANGUAGE LOCK (highest priority) ===\n"
+        f"You MUST respond exclusively in {nome} (locale code: {locale}).\n"
+        f"Ignore the language of the surrounding context — it may be in "
+        f"Portuguese for historical reasons. Translate facts, hours, names "
+        f"of events/places into {nome} naturally. Keep proper nouns (animal "
+        f"species, brand names, venue names) only when they have no widely "
+        f"accepted local equivalent. Tone: friendly, concise.\n"
+        f"=== END LANGUAGE LOCK ==="
+    )
 
 # Saudacao proativa disparada pelo sensor de proximidade. Texto curto e
 # convidativo — proposito unico e' engajar quem se aproximou do totem sem
@@ -39,12 +74,13 @@ _GREETING_LOCK = threading.Lock()
 
 # Mensagens amigaveis exibidas no totem quando a IA esta indisponivel.
 # Sao diferenciadas por motivo para que o admin consiga diagnosticar via logs,
-# mas o visitante sempre ve um texto simples e util.
-MSG_OFFLINE      = "Estou sem conexão com o assistente no momento. Tente novamente em alguns instantes."
-MSG_RATE_LIMIT   = "Muita gente conversando comigo agora. Aguarde alguns segundos e tente de novo."
-MSG_AUTH_ERROR   = "O assistente está temporariamente indisponível. Um atendente foi avisado."
-MSG_GENERIC      = "Não consegui processar sua mensagem agora. Tente novamente."
-MSG_QUOTA_DIARIA = "O assistente atingiu o limite de uso previsto para hoje. Ele volta amanhã cedo."
+# mas o visitante sempre ve um texto simples e util — agora traduzido para o
+# locale travado na sessao (chaves voice.server.* no catalogo i18n).
+def _msg_offline():    return t("voice.server.offline")
+def _msg_rate_limit(): return t("voice.server.rate_limit")
+def _msg_auth():       return t("voice.server.auth_error")
+def _msg_generic():    return t("voice.server.generic")
+def _msg_quota():      return t("voice.server.quota")
 
 
 def _get_client() -> OpenAI:
@@ -71,11 +107,11 @@ def voice_api(slug):
     # Gate de quota diaria — evita estouro de custo OpenAI por tenant.
     if inst.ai_quota_exceeded():
         logger.warning("voice_api quota diaria atingida slug=%s", slug)
-        return jsonify({"error": "quota", "message": MSG_QUOTA_DIARIA}), 429
+        return jsonify({"error": "quota", "message": _msg_quota()}), 429
     tmp_path = None
     try:
         if "audio" not in request.files:
-            return jsonify({"error": "Nenhum áudio enviado"}), 400
+            return jsonify({"error": t("voice.server.no_audio")}), 400
 
         audio_file = request.files["audio"]
         voice = request.form.get("voice", "nova")
@@ -88,23 +124,19 @@ def voice_api(slug):
             audio_file.save(tmp)
             tmp_path = tmp.name
 
+        # Whisper precisa do codigo ISO do idioma falado. Antes vinha
+        # hardcoded como "pt" — agora reflete o locale travado na sessao.
+        locale = get_locale()
+        whisper_lang = WHISPER_LANG.get(locale, "pt")
         with open(tmp_path, "rb") as f:
             transcription = client.audio.transcriptions.create(
-                model="whisper-1", file=f, language="pt"
+                model="whisper-1", file=f, language=whisper_lang
             )
         user_text = transcription.text.strip()[:MAX_CHAT_LEN]
 
-        # Anexa instrucao de idioma se nao for o default — assim a IA responde
-        # em ingles quando o visitante selecionou EN no topbar (Trello: Modulo 3
-        # Acessibilidade e Idiomas, criterio 3.7).
-        system_prompt = build_ai_context(inst)
-        locale = get_locale()
-        if locale != "pt":
-            system_prompt += (
-                f"\n\nIMPORTANT: Respond in {locale_display_name(locale)}. "
-                f"Translate proper nouns only when they have a widely accepted "
-                f"equivalent. Keep tone friendly and concise."
-            )
+        # Trava de idioma aplicada SEMPRE (inclusive PT) para garantir
+        # comportamento simetrico e logs previsiveis.
+        system_prompt = _aplicar_trava_de_idioma(build_ai_context(inst), locale)
 
         chat = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -131,16 +163,16 @@ def voice_api(slug):
 
     except (APIConnectionError, APITimeoutError):
         logger.warning("voice_api offline/timeout for slug=%s", slug)
-        return jsonify({"error": "offline", "message": MSG_OFFLINE}), 503
+        return jsonify({"error": "offline", "message": _msg_offline()}), 503
     except RateLimitError:
         logger.warning("voice_api rate-limited for slug=%s", slug)
-        return jsonify({"error": "rate_limit", "message": MSG_RATE_LIMIT}), 429
+        return jsonify({"error": "rate_limit", "message": _msg_rate_limit()}), 429
     except AuthenticationError:
         logger.error("voice_api auth error for slug=%s (chave OpenAI invalida?)", slug)
-        return jsonify({"error": "auth", "message": MSG_AUTH_ERROR}), 503
+        return jsonify({"error": "auth", "message": _msg_auth()}), 503
     except Exception:
         logger.exception("voice_api error for slug=%s", slug)
-        return jsonify({"error": "generic", "message": MSG_GENERIC}), 500
+        return jsonify({"error": "generic", "message": _msg_generic()}), 500
     finally:
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
@@ -191,7 +223,7 @@ def voice_greeting(slug):
     # 3) Gate de quota (so para a primeira geracao por locale do dia).
     if inst.ai_quota_exceeded():
         logger.warning("voice_greeting quota diaria atingida slug=%s", slug)
-        return jsonify({"error": "quota", "message": MSG_QUOTA_DIARIA, "text": text}), 429
+        return jsonify({"error": "quota", "message": _msg_quota(), "text": text}), 429
 
     try:
         client = _get_client()
@@ -213,16 +245,16 @@ def voice_greeting(slug):
 
     except (APIConnectionError, APITimeoutError):
         logger.warning("voice_greeting offline/timeout for slug=%s", slug)
-        return jsonify({"error": "offline", "message": MSG_OFFLINE, "text": text}), 503
+        return jsonify({"error": "offline", "message": _msg_offline(), "text": text}), 503
     except RateLimitError:
         logger.warning("voice_greeting rate-limited for slug=%s", slug)
-        return jsonify({"error": "rate_limit", "message": MSG_RATE_LIMIT, "text": text}), 429
+        return jsonify({"error": "rate_limit", "message": _msg_rate_limit(), "text": text}), 429
     except AuthenticationError:
         logger.error("voice_greeting auth error for slug=%s (chave OpenAI invalida?)", slug)
-        return jsonify({"error": "auth", "message": MSG_AUTH_ERROR, "text": text}), 503
+        return jsonify({"error": "auth", "message": _msg_auth(), "text": text}), 503
     except Exception:
         logger.exception("voice_greeting error for slug=%s", slug)
-        return jsonify({"error": "generic", "message": MSG_GENERIC, "text": text}), 500
+        return jsonify({"error": "generic", "message": _msg_generic(), "text": text}), 500
 
 
 # ── Text chat endpoint ─────────────────────────────────────────────────────────
@@ -233,26 +265,25 @@ def chat_api(slug):
     inst = load_institution(slug)
     if inst.ai_quota_exceeded():
         logger.warning("chat_api quota diaria atingida slug=%s", slug)
-        return jsonify({"error": "quota", "message": MSG_QUOTA_DIARIA}), 429
+        return jsonify({"error": "quota", "message": _msg_quota()}), 429
     data = request.get_json(silent=True) or {}
     user_text = (data.get("message") or "").strip()[:MAX_CHAT_LEN]
 
     if not user_text:
-        return jsonify({"error": "Mensagem vazia"}), 400
+        return jsonify({"error": t("voice.server.empty_msg")}), 400
+
+    # Mesma voz padrao do canal por voz — o front passa a voz selecionada
+    # nas pills; se vier algo invalido caimos no fallback seguro.
+    voice = (data.get("voice") or "nova").strip().lower()
+    if voice not in VOZES_PERMITIDAS:
+        voice = "nova"
 
     try:
         client = _get_client()
-        # Anexa instrucao de idioma se nao for o default — assim a IA responde
-        # em ingles quando o visitante selecionou EN no topbar (Trello: Modulo 3
-        # Acessibilidade e Idiomas, criterio 3.7).
-        system_prompt = build_ai_context(inst)
+        # Trava de idioma aplicada SEMPRE (inclusive PT) — mesma estrategia
+        # do /api/voice, garante simetria entre canais.
         locale = get_locale()
-        if locale != "pt":
-            system_prompt += (
-                f"\n\nIMPORTANT: Respond in {locale_display_name(locale)}. "
-                f"Translate proper nouns only when they have a widely accepted "
-                f"equivalent. Keep tone friendly and concise."
-            )
+        system_prompt = _aplicar_trava_de_idioma(build_ai_context(inst), locale)
 
         chat = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -264,6 +295,20 @@ def chat_api(slug):
         )
         answer = chat.choices[0].message.content.strip()
 
+        # TTS global: o chat por texto agora tambem devolve audio para que a
+        # experiencia seja simetrica ao canal por voz. Falha de TTS NAO derruba
+        # a resposta — o texto e' o conteudo primario; o audio e' enriquecimento.
+        # Se a sintese falhar (timeout, rate-limit, erro transitorio), o front
+        # continua mostrando o balao de texto normalmente.
+        tts_b64 = None
+        try:
+            tts = client.audio.speech.create(model="tts-1", voice=voice, input=answer)
+            tts_b64 = base64.b64encode(tts.read()).decode("utf-8")
+        except (APIConnectionError, APITimeoutError, RateLimitError, AuthenticationError):
+            logger.warning("chat_api TTS indisponivel slug=%s — devolvendo apenas texto", slug)
+        except Exception:
+            logger.exception("chat_api TTS falhou slug=%s — devolvendo apenas texto", slug)
+
         db.session.add(InteractionLog(
             institution_id=inst.id,
             input_text=user_text[:MAX_LOG_LEN],
@@ -272,17 +317,20 @@ def chat_api(slug):
         ))
         db.session.commit()
 
-        return jsonify({"response": answer})
+        payload = {"response": answer}
+        if tts_b64:
+            payload["tts_base64"] = tts_b64
+        return jsonify(payload)
 
     except (APIConnectionError, APITimeoutError):
         logger.warning("chat_api offline/timeout for slug=%s", slug)
-        return jsonify({"error": "offline", "message": MSG_OFFLINE}), 503
+        return jsonify({"error": "offline", "message": _msg_offline()}), 503
     except RateLimitError:
         logger.warning("chat_api rate-limited for slug=%s", slug)
-        return jsonify({"error": "rate_limit", "message": MSG_RATE_LIMIT}), 429
+        return jsonify({"error": "rate_limit", "message": _msg_rate_limit()}), 429
     except AuthenticationError:
         logger.error("chat_api auth error for slug=%s (chave OpenAI invalida?)", slug)
-        return jsonify({"error": "auth", "message": MSG_AUTH_ERROR}), 503
+        return jsonify({"error": "auth", "message": _msg_auth()}), 503
     except Exception:
         logger.exception("chat_api error for slug=%s", slug)
-        return jsonify({"error": "generic", "message": MSG_GENERIC}), 500
+        return jsonify({"error": "generic", "message": _msg_generic()}), 500

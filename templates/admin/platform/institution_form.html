@@ -94,6 +94,29 @@
   </div>
 
   <div class="card" style="margin-bottom:20px;">
+    <div class="card-header"><h2>Acesso público (Cloudflare Tunnel)</h2></div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="form-group form-full">
+          <label class="form-label">URL pública HTTPS do totem</label>
+          <input class="form-control" type="url" name="public_url"
+                 value="{{ inst.public_url if inst and inst.public_url else '' }}"
+                 placeholder="https://pi01.flextotem.uk"
+                 pattern="https://.+"
+                 maxlength="255">
+          <span class="form-hint">
+            Subdomínio HTTPS do túnel Cloudflare (1 Pi = 1 instituição). Quando preenchido,
+            o link <strong>Ver Totem</strong> no painel abre essa URL em vez da rota interna.
+            Obrigatório <code>https://</code> — sem isso o navegador bloqueia o microfone
+            fora de <code>localhost</code>. Deixe em branco para usar
+            <code>TOTEM_PUBLIC_URL</code> do <code>.env</code> como fallback global.
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
     <div class="card-header"><h2>Tema Visual</h2></div>
     <div class="card-body">
       <div class="form-grid cols-3">

@@ -792,7 +792,11 @@ main.container { flex: 1; }
   100% { transform: translate(-50%,-50%) scale(1);    box-shadow: 0 0 0 0  rgba(244,184,96,0); }
 }
 
-.hotspots.vertical { display: none; }
+/* Os hotspots usam coordenadas em % sobre o mesmo `mapa.png`, e
+   `.interactive-map` mantem o aspect ratio em qualquer orientacao
+   (width:100%; height:auto). Por isso o mesmo bloco `.hotspots`
+   serve landscape e portrait — sem esconder por orientacao
+   (regressao do toque em retrato). */
 
 /* ================================================================
    SECTOR BADGE / WL NOTE
@@ -1201,8 +1205,6 @@ body.a11y-large .totem-hero-title { font-size: clamp(34px, 5.4vw, 76px); }
 
 /* Totem na vertical (1080×1920) — 2 cards por linha, mais altos. */
 @media (orientation: portrait) {
-  .hotspots.horizontal     { display: none; }
-  .hotspots.vertical       { display: block; }
   .totem-card {
     flex: 1 1 calc(50% - clamp(14px, 2vw, 28px));
     min-height: clamp(180px, 22vh, 320px);

@@ -26,6 +26,15 @@ class Institution(db.Model):
     opening_hours = db.Column(db.String(255))                               # "Seg-Dom: 9h–18h"
     website       = db.Column(db.String(255))
 
+    # URL publica HTTPS do totem (Cloudflare Tunnel: pi01.flextotem.uk, etc).
+    # Quando definida, o link "Ver Totem" no painel admin abre o kiosk via
+    # HTTPS publico em vez da rota interna (http://127.0.0.1:5000/<slug>/).
+    # Necessario para liberar getUserMedia (microfone) fora de localhost:
+    # navegadores so consideram Secure Origin localhost ou https://.
+    # Quando vazia, cai no env TOTEM_PUBLIC_URL; e' apenas para 1 Pi = 1 institui-
+    # cao com tunel dedicado (cenario do piloto Flexmedia).
+    public_url    = db.Column(db.String(255))
+
     # AI
     ai_name       = db.Column(db.String(60), default="Assistente")
     ai_context    = db.Column(db.Text)                                      # base system prompt
@@ -76,6 +85,22 @@ class Institution(db.Model):
         if not self.daily_ai_quota or self.daily_ai_quota <= 0:
             return False
         return self.ai_calls_today() >= self.daily_ai_quota
+
+    def effective_public_url(self, env_fallback: str | None = None) -> str | None:
+        """URL HTTPS publica do totem para esta instituicao.
+
+        Ordem de prioridade:
+          1. `self.public_url` (definida no painel super_admin por instituicao).
+          2. `env_fallback` (TOTEM_PUBLIC_URL do .env — fonte unica em deploys
+             com 1 tunel global).
+          3. None → o caller deve cair na rota interna (`core.home`).
+
+        Sempre normaliza removendo barra final para evitar `//` na concatenacao.
+        """
+        candidato = (self.public_url or env_fallback or "").strip()
+        if not candidato:
+            return None
+        return candidato.rstrip("/")
 
     def __repr__(self):
         return f"<Institution {self.slug}>"

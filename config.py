@@ -72,6 +72,13 @@ class Config:
     # driver ajusta classe da lib, faixa e precisao automaticamente.
     DHT_MODEL = (os.environ.get("DHT_MODEL", "DHT22") or "DHT22").upper()
 
+    # URL HTTPS publica do totem (Cloudflare Tunnel). Fallback global usado
+    # pelo painel admin quando a instituicao nao tem `public_url` propria.
+    # Sem isso (e sem public_url por inst), "Ver Totem" cai na rota interna
+    # http://host/<slug>/ — que so e' Secure Origin em localhost. Veja
+    # Institution.effective_public_url(). Normalizada removendo barra final.
+    TOTEM_PUBLIC_URL = (os.environ.get("TOTEM_PUBLIC_URL", "") or "").strip().rstrip("/")
+
     # Bypass dos sensores fisicos para testes em laptop/VM. Quando True:
     #   - overlay "Aproxime-se" nao e' renderizado no totem
     #   - polling/SSE de /api/session/state nao roda no frontend

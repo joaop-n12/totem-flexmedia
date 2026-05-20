@@ -2,7 +2,8 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0A0D14">
   <meta name="robots" content="noindex, nofollow">
   <title>{% block title %}Admin{% endblock %} · FlexMedia</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -132,8 +133,17 @@
       </a>
 
       <div class="nav-section-label">Totem</div>
-      {% if inst_slug is defined %}
-      <a class="nav-item" href="{{ url_for('core.home', slug=inst_slug) }}" target="_blank" rel="noopener noreferrer">
+      {# Prioridade do link "Ver Totem":
+         1. current_institution.public_url (HTTPS publico Cloudflare por inst).
+         2. TOTEM_PUBLIC_URL global do .env (ambos resolvidos em ver_totem_href).
+         3. Fallback: rota interna /<slug>/ ou seletor.
+         O HTTPS publico e' necessario para liberar microfone fora de localhost. #}
+      {% if ver_totem_href %}
+      <a class="nav-item" href="{{ ver_totem_href }}" target="_blank" rel="noopener noreferrer">
+        <span class="nav-icon">{{ icon('eye') }}</span> Ver Totem
+      </a>
+      {% elif current_institution %}
+      <a class="nav-item" href="{{ url_for('core.home', slug=current_institution.slug) }}" target="_blank" rel="noopener noreferrer">
         <span class="nav-icon">{{ icon('eye') }}</span> Ver Totem
       </a>
       {% else %}

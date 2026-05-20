@@ -1,5 +1,5 @@
 """Zoo module routes: species, animal list, animal detail."""
-from flask import Blueprint, render_template, abort, request
+from flask import Blueprint, render_template, abort, request, url_for
 from app.models import Animal
 from app.helpers import load_institution, require_module
 
@@ -50,6 +50,7 @@ def animais_lista(slug, especie_slug):
                            animais=animais,
                            especie_nome=especie_nome,
                            especie_slug=especie_slug,
+                           back_url=url_for("zoo.especies", slug=slug),
                            q=request.args.get("q", ""))
 
 
@@ -73,18 +74,21 @@ def animais_por_area(slug, area_slug):
 
     if not animais:
         # Área sem animais cadastrados → vai para o catálogo geral
-        from flask import redirect, url_for
+        from flask import redirect
         return redirect(url_for("zoo.catalogo", slug=slug))
 
     area_nome = area_slug.replace("-", " ").title()
     if q:
         animais = [a for a in animais if q in a.nome.lower()]
 
+    # Veio do mapa → "Voltar" precisa retornar ao mapa, nao a' lista de
+    # especies (template e' compartilhado com `animais_lista`).
     return render_template("modules/zoo/lista.html",
                            institution=inst,
                            animais=animais,
                            especie_nome=area_nome,
                            especie_slug=area_slug,
+                           back_url=url_for("core.mapa", slug=slug),
                            q=request.args.get("q", ""))
 
 

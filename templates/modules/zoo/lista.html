@@ -30,6 +30,6 @@
 </div>
 
 <div class="page-actions">
-  <a class="back-btn" href="{{ url_for('zoo.especies', slug=institution.slug) }}">← {{ t('common.back') }}</a>
+  <a class="back-btn" href="{{ back_url or url_for('zoo.especies', slug=institution.slug) }}">← {{ t('common.back') }}</a>
 </div>
 {% endblock %}

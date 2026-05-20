@@ -16,11 +16,21 @@ from app.models import Institution, InteractionLog
 
 # ── Helpers de mock ──────────────────────────────────────────────────────────
 
-def _mock_chat_client(answer="Resposta simulada"):
+def _mock_chat_client(answer="Resposta simulada", tts_bytes=b"\x00\x01\x02"):
+    """Mock do client OpenAI usado por /api/chat e /api/voice.
+
+    Desde a unificacao do TTS global, /api/chat tambem chama
+    `client.audio.speech.create(...).read()` — por isso o mock precisa
+    devolver bytes reais (e nao MagicMock), senao `base64.b64encode`
+    levanta TypeError dentro do try/except generico do endpoint.
+    """
     client = MagicMock()
     client.chat.completions.create.return_value = MagicMock(
         choices=[MagicMock(message=MagicMock(content=answer))]
     )
+    tts_response = MagicMock()
+    tts_response.read.return_value = tts_bytes
+    client.audio.speech.create.return_value = tts_response
     return client
 
 
@@ -37,6 +47,10 @@ def test_chat_caminho_feliz(client, app):
     assert r.status_code == 200
     data = r.get_json()
     assert data["response"] == "Oi!"
+    # TTS global: a resposta de texto agora tambem traz audio em base64,
+    # alimentando a mesma onda/avatar do canal por voz.
+    assert "tts_base64" in data
+    assert data["tts_base64"]  # nao vazio
     # Verifica que o InteractionLog foi gravado
     with app.app_context():
         assert InteractionLog.query.count() == 1

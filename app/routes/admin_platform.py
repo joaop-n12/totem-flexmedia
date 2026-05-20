@@ -36,6 +36,41 @@ def _safe_int(raw, default: int) -> int:
         return default
 
 
+# URL publica do totem: precisa ser HTTPS (Secure Origin) para liberar
+# getUserMedia (microfone) em navegador. Aceitamos http://localhost apenas
+# para conveniencia de dev — em producao a validacao real e' do navegador.
+_PUBLIC_URL_RE = re.compile(
+    r"^https://[A-Za-z0-9.\-]+(?::\d+)?(?:/[^\s]*)?$"
+)
+
+
+def _clean_public_url(raw: str | None) -> str | None:
+    """Normaliza/valida a URL publica vinda do form.
+
+    Regras:
+      - Strip whitespace + barra final.
+      - String vazia → None (apaga o campo).
+      - Precisa bater com `_PUBLIC_URL_RE` (https://, hostname, opcional porta+path).
+      - Tamanho maximo 255 (limite da coluna).
+
+    Retorna None se nao houver nada a salvar; levanta ValueError em URL
+    malformada (caller decide se aborta ou apenas avisa).
+    """
+    if raw is None:
+        return None
+    candidato = raw.strip().rstrip("/")
+    if not candidato:
+        return None
+    if len(candidato) > 255:
+        raise ValueError("URL publica excede 255 caracteres.")
+    if not _PUBLIC_URL_RE.match(candidato):
+        raise ValueError(
+            "URL publica precisa comecar com https:// "
+            "(Secure Origin exigido pelo navegador para microfone)."
+        )
+    return candidato
+
+
 # ── Dashboard ──────────────────────────────────────────────────────────────────
 
 @admin_platform_bp.route("/")
@@ -49,7 +84,6 @@ def dashboard():
     }
     institutions = Institution.query.order_by(Institution.name).all()
     recent_logs  = InteractionLog.query.order_by(InteractionLog.created_at.desc()).limit(10).all()
-    recent_auth  = AuthLog.query.order_by(AuthLog.created_at.desc()).limit(10).all()
 
     # Resumo agregado por instituicao nos ultimos 30 dias.
     # Combina com a lista de instituicoes para que o template ja receba
@@ -69,7 +103,6 @@ def dashboard():
         institutions=institutions,
         institutions_metrics=institutions_with_metrics,
         recent_logs=recent_logs,
-        recent_auth=recent_auth,
         period_days=DEFAULT_DAYS,
     )
 
@@ -115,6 +148,12 @@ def institution_new():
     modules = Module.query.order_by(Module.name).all()
     if request.method == "POST":
         validate_csrf_token()
+        try:
+            public_url = _clean_public_url(request.form.get("public_url"))
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return render_template("admin/platform/institution_form.html",
+                                   inst=None, modules=modules, action="new")
         inst = Institution(
             slug            = slugify(request.form.get("slug") or request.form.get("name", "")),
             name            = request.form["name"],
@@ -128,6 +167,7 @@ def institution_new():
             address         = request.form.get("address", ""),
             phone           = request.form.get("phone", ""),
             opening_hours   = request.form.get("opening_hours", ""),
+            public_url      = public_url,
             ai_name         = request.form.get("ai_name", "Assistente"),
             ai_context      = request.form.get("ai_context", ""),
             daily_ai_quota  = max(0, _safe_int(request.form.get("daily_ai_quota"), 500)),
@@ -172,6 +212,12 @@ def institution_edit(iid):
 
     if request.method == "POST":
         validate_csrf_token()
+        try:
+            public_url = _clean_public_url(request.form.get("public_url"))
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return render_template("admin/platform/institution_form.html",
+                                   inst=inst, modules=modules, action="edit")
         inst.name            = request.form["name"]
         inst.slug            = slugify(request.form.get("slug") or inst.name)
         inst.type            = request.form.get("type", inst.type)
@@ -184,6 +230,7 @@ def institution_edit(iid):
         inst.address         = request.form.get("address", "")
         inst.phone           = request.form.get("phone", "")
         inst.opening_hours   = request.form.get("opening_hours", "")
+        inst.public_url      = public_url
         inst.ai_name         = request.form.get("ai_name", "Assistente")
         inst.ai_context      = request.form.get("ai_context", "")
         inst.daily_ai_quota  = max(0, _safe_int(request.form.get("daily_ai_quota"), inst.daily_ai_quota or 500))
