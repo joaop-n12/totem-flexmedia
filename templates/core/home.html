@@ -253,6 +253,7 @@
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
   }
+  body.neural-home .nc-btn[hidden] { display: none !important; }
 
   /* Linha luminosa no topo */
   .nc-btn::before {
@@ -480,7 +481,7 @@
 
   <main class="nc-grid" role="navigation" aria-label="Menu principal do totem">
 
-    {# Animais #}
+    {% if institution.has_module('animais') %}
     <a class="nc-btn" data-key="animais" href="{{ url_animais }}" aria-label="Animais">
       <span class="nc-btn-icon-wrap">
         {# pata estilizada — line icon #}
@@ -495,8 +496,40 @@
       <span class="nc-btn-label">{{ t('nav.animals') }}</span>
       <span class="nc-btn-desc">{{ t('home.animals_desc') }}</span>
     </a>
+    {% endif %}
 
     {# Mapa #}
+    {% if institution.has_module('lojas') %}
+    <a class="nc-btn" data-key="lojas" href="{{ url_for('shopping.lojas', slug=institution.slug) }}" aria-label="{{ t('nav.stores') }}">
+      <span class="nc-btn-icon-wrap">
+        <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M10 18 L13 9 H35 L38 18"/>
+          <path d="M12 18 H36 V40 H12 Z"/>
+          <path d="M19 40 V28 H29 V40"/>
+          <path d="M10 18 C12 23 17 23 19 18 C21 23 27 23 29 18 C31 23 36 23 38 18"/>
+        </svg>
+      </span>
+      <span class="nc-btn-label">{{ t('nav.stores') }}</span>
+      <span class="nc-btn-desc">{{ t('home.stores_desc') }}</span>
+    </a>
+    {% endif %}
+
+    {% if institution.has_module('alimentacao') %}
+    <a class="nc-btn" data-key="alimentacao" href="{{ url_for('core.alimentacao', slug=institution.slug) }}" aria-label="Alimentacao">
+      <span class="nc-btn-icon-wrap">
+        <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M16 8 V40"/>
+          <path d="M10 8 V18 C10 22 16 22 16 18 V8"/>
+          <path d="M22 8 V18 C22 22 16 22 16 18"/>
+          <path d="M32 8 C38 14 38 24 32 30 V40"/>
+        </svg>
+      </span>
+      <span class="nc-btn-label">Alimentacao</span>
+      <span class="nc-btn-desc">{{ t('home.food_desc') }}</span>
+    </a>
+    {% endif %}
+
+    {% if institution.has_module('mapa') %}
     <a class="nc-btn" data-key="mapa" href="{{ url_mapa }}" aria-label="Mapa">
       <span class="nc-btn-icon-wrap">
         <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
@@ -509,9 +542,11 @@
       <span class="nc-btn-label">{{ t('nav.map') }}</span>
       <span class="nc-btn-desc">{{ t('home.map_desc') }}</span>
     </a>
+    {% endif %}
 
     {# Programação e Alimentação #}
-    <a class="nc-btn" data-key="programacao" href="{{ url_programacao }}" aria-label="Programação e alimentação">
+    {% if institution.has_module('programacao') %}
+    <a class="nc-btn" data-key="programacao" href="{{ url_programacao }}" aria-label="Programacao">
       <span class="nc-btn-icon-wrap">
         <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
           <rect x="7" y="10" width="34" height="32" rx="3"/>
@@ -528,9 +563,11 @@
       <span class="nc-btn-label">{{ t('home.schedule_full') }}</span>
       <span class="nc-btn-desc">{{ t('home.schedule_desc') }}</span>
     </a>
+    {% endif %}
 
     {# Assistente IA — leva à rota voice.ia_page (já integrada com /api/chat e /api/voice) #}
-    <a class="nc-btn" data-key="ia" href="{{ url_ia }}" aria-label="Assistente de inteligência artificial">
+    {% if institution.has_module('ia') %}
+    <a class="nc-btn" data-key="ia" href="{{ url_ia }}" aria-label="Assistente de inteligencia artificial">
       <span class="nc-btn-icon-wrap">
         {# cérebro estilizado — combina com a logo Neural Crew #}
         <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
@@ -549,6 +586,7 @@
       <span class="nc-btn-label">{{ t('home.assistant_full') }}</span>
       <span class="nc-btn-desc">{{ t('home.assistant_desc') }}</span>
     </a>
+    {% endif %}
 
   </main>
 
@@ -582,6 +620,7 @@
 
 <script>
   // ── Substitui a logo do topbar pela logo Neural Crew apenas nesta tela ──
+  /*
   (function () {
     const wrap = document.querySelector('.topbar .brand');
     if (!wrap) return;
@@ -599,6 +638,7 @@
     if (title) title.textContent = 'NEURAL CREW';
     if (sub)   sub.textContent   = 'TOTEM INTELIGENTE';
   })();
+  */
 
   // ── Alternancia de idioma REAL: POST /api/locale + reload ─────────────
   // Persiste na sessao (Trello Modulo 3 - Acessibilidade, criterio 3.6).

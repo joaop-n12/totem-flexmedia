@@ -7,7 +7,7 @@
  * Incrementar CACHE_VERSION a cada deploy para invalidar o cache antigo.
  */
 
-const CACHE_VERSION = "totem-v1";
+const CACHE_VERSION = "totem-v3";
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const PAGES_CACHE   = `${CACHE_VERSION}-pages`;
 
@@ -39,6 +39,12 @@ function isStaticAsset(url) {
   return url.pathname.startsWith("/static/") ||
          url.hostname.endsWith("gstatic.com") ||
          url.hostname.endsWith("googleapis.com");
+}
+
+function emptyStaticResponse(req) {
+  const accept = req.headers.get("accept") || "";
+  const contentType = accept.includes("text/css") ? "text/css" : "text/plain";
+  return new Response("", { status: 504, headers: { "Content-Type": contentType } });
 }
 
 self.addEventListener("fetch", (event) => {
@@ -89,7 +95,7 @@ self.addEventListener("fetch", (event) => {
               if (resp && resp.status === 200) cache.put(req, resp.clone());
               return resp;
             })
-            .catch(() => cached);
+            .catch(() => cached || emptyStaticResponse(req));
           return cached || fetchPromise;
         })
       )

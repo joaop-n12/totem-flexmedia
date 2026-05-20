@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+  .mall-map-shell {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 22px;
+    min-height: calc(100vh - 190px);
+  }
+  .mall-panel {
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 8px;
+    background: rgba(12,18,30,.88);
+    padding: 20px;
+  }
+  .mall-panel h2 {
+    margin: 0 0 8px;
+    font-size: 26px;
+  }
+  .mall-panel p {
+    color: var(--muted);
+    line-height: 1.45;
+    margin: 0 0 18px;
+  }
+  .mall-list {
+    display: grid;
+    gap: 10px;
+  }
+  .mall-list a {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 14px;
+    border: 1px solid rgba(255,255,255,.10);
+    border-radius: 8px;
+    color: var(--text);
+    text-decoration: none;
+    background: rgba(255,255,255,.035);
+  }
+  .mall-list a:hover {
+    border-color: rgba(255,190,92,.42);
+  }
+  .mall-stage {
+    position: relative;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 8px;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px),
+      linear-gradient(180deg, rgba(255,255,255,.04) 1px, transparent 1px),
+      radial-gradient(circle at 50% 50%, rgba(255,190,92,.12), transparent 44%),
+      #08101c;
+    background-size: 42px 42px, 42px 42px, auto, auto;
+    min-height: 620px;
+    overflow: hidden;
+  }
+  .mall-floor {
+    position: absolute;
+    inset: 42px;
+    display: grid;
+    grid-template-columns: 1.05fr .46fr 1fr .62fr;
+    grid-template-rows: .9fr .72fr 1fr;
+    gap: 14px;
+  }
+  .mall-zone {
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 8px;
+    background: rgba(255,255,255,.055);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 12px;
+    color: rgba(255,255,255,.86);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .mall-zone.food { background: rgba(255,190,92,.13); border-color: rgba(255,190,92,.38); }
+  .mall-zone.service { background: rgba(94,230,197,.10); border-color: rgba(94,230,197,.34); }
+  .mall-zone.anchor { background: rgba(255,116,95,.10); border-color: rgba(255,116,95,.32); }
+  .mall-corridor {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    color: #ffbe5c;
+    writing-mode: vertical-rl;
+  }
+  .mall-entrance {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    color: #ffbe5c;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  @media (max-width: 900px) {
+    .mall-map-shell { grid-template-columns: 1fr; }
+    .mall-stage { min-height: 520px; }
+  }
+</style>
+
+<div class="page-header">
+  <div class="page-eyebrow">Mapa do Shopping</div>
+  <h2 class="page-title">{{ institution.name }}</h2>
+  <p class="page-desc">Visao geral do shopping para localizar lojas, alimentacao, servicos e entradas.</p>
+</div>
+
+<div class="mall-map-shell">
+  <aside class="mall-panel">
+    <h2>Setores</h2>
+    <p>Use os atalhos abaixo para ir direto ao conteudo principal do shopping.</p>
+    <div class="mall-list">
+      {% if institution.has_module('lojas') %}
+      <a href="{{ url_for('shopping.lojas', slug=institution.slug) }}"><span>Lojas</span><span>→</span></a>
+      {% endif %}
+      {% if institution.has_module('alimentacao') %}
+      <a href="{{ url_for('core.alimentacao', slug=institution.slug) }}"><span>Praca de alimentacao</span><span>→</span></a>
+      {% endif %}
+      {% if institution.has_module('ia') %}
+      <a href="{{ url_for('voice.ia_page', slug=institution.slug) }}"><span>Assistente IA</span><span>→</span></a>
+      {% endif %}
+      <a href="{{ url_for('core.home', slug=institution.slug) }}"><span>Voltar ao inicio</span><span>→</span></a>
+    </div>
+  </aside>
+
+  <section class="mall-stage" aria-label="Mapa visual do shopping">
+    <div class="mall-floor">
+      <div class="mall-zone anchor">Loja ancora</div>
+      <div class="mall-zone mall-corridor">Corredor principal</div>
+      <div class="mall-zone">Moda</div>
+      <div class="mall-zone service">Servicos</div>
+      <div class="mall-zone">Tecnologia</div>
+      <div class="mall-zone food">Alimentacao</div>
+      <div class="mall-zone">Casa e presentes</div>
+      <div class="mall-zone anchor">Cinema</div>
+      <div class="mall-zone">Kids</div>
+      <div class="mall-zone service">Atendimento</div>
+    </div>
+    <div class="mall-entrance">Entrada principal</div>
+  </section>
+</div>
+
+{% endblock %}

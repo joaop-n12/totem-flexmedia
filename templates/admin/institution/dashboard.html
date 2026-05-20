@@ -13,55 +13,120 @@
 {% block content %}
 
 <div class="stats-grid">
+  {% if inst.has_module('animais') %}
   <div class="stat-card">
-    <div class="stat-icon green">🐾</div>
+    <div class="stat-icon green">A</div>
     <div class="stat-info">
       <div class="stat-value">{{ stats.animals }}</div>
       <div class="stat-label">Animais</div>
     </div>
   </div>
+  {% endif %}
+
+  {% if inst.has_module('programacao') %}
   <div class="stat-card">
-    <div class="stat-icon amber">📅</div>
+    <div class="stat-icon amber">E</div>
     <div class="stat-info">
       <div class="stat-value">{{ stats.events }}</div>
       <div class="stat-label">Eventos</div>
     </div>
   </div>
+  {% endif %}
+
+  {% if inst.has_module('lojas') %}
   <div class="stat-card">
-    <div class="stat-icon blue">🛍</div>
+    <div class="stat-icon blue">L</div>
     <div class="stat-info">
       <div class="stat-value">{{ stats.stores }}</div>
       <div class="stat-label">Lojas</div>
     </div>
   </div>
+  {% endif %}
+
+  {% if inst.has_module('produtos') %}
   <div class="stat-card">
-    <div class="stat-icon cyan">📋</div>
+    <div class="stat-icon cyan">P</div>
     <div class="stat-info">
-      <div class="stat-value">{{ stats.logs }}</div>
-      <div class="stat-label">Interações IA</div>
+      <div class="stat-value">{{ stats.products }}</div>
+      <div class="stat-label">Produtos</div>
     </div>
   </div>
+  {% endif %}
+
+  {% if inst.has_module('alimentacao') %}
+  <div class="stat-card">
+    <div class="stat-icon amber">AL</div>
+    <div class="stat-info">
+      <div class="stat-value">Ativo</div>
+      <div class="stat-label">Alimentacao</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if inst.has_module('mapa') %}
+  <div class="stat-card">
+    <div class="stat-icon blue">M</div>
+    <div class="stat-info">
+      <div class="stat-value">Ativo</div>
+      <div class="stat-label">Mapa</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if inst.has_module('ia') %}
+  <div class="stat-card">
+    <div class="stat-icon cyan">IA</div>
+    <div class="stat-info">
+      <div class="stat-value">{{ stats.logs }}</div>
+      <div class="stat-label">Interacoes IA</div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
 
-  <!-- Quick access -->
   <div class="card">
-    <div class="card-header"><h2>Acesso rápido</h2></div>
+    <div class="card-header"><h2>Acesso rapido</h2></div>
     <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <a class="btn btn-secondary" href="{{ url_for('admin_institution.animal_list', iid=inst.id) }}">🐾 Animais</a>
-      <a class="btn btn-secondary" href="{{ url_for('admin_institution.event_list', iid=inst.id) }}">📅 Eventos</a>
-      <a class="btn btn-secondary" href="{{ url_for('admin_institution.store_list', iid=inst.id) }}">🛍 Lojas</a>
-      <a class="btn btn-secondary" href="{{ url_for('admin_institution.product_list', iid=inst.id) }}">💊 Produtos</a>
-      <a class="btn btn-secondary" href="{{ url_for('admin_institution.faq_list', iid=inst.id) }}">❓ FAQs</a>
-      <a class="btn btn-secondary" href="{{ url_for('admin_institution.log_list', iid=inst.id) }}">📋 Logs de IA</a>
+      <a class="btn btn-secondary" href="{{ url_for('core.home', slug=inst.slug) }}" target="_blank" rel="noopener noreferrer">Home</a>
+
+      {% if inst.has_module('alimentacao') %}
+      <a class="btn btn-secondary" href="{{ url_for('core.alimentacao', slug=inst.slug) }}" target="_blank" rel="noopener noreferrer">Alimentacao</a>
+      {% endif %}
+
+      {% if inst.has_module('mapa') %}
+      <a class="btn btn-secondary" href="{{ url_for('core.mapa', slug=inst.slug) }}" target="_blank" rel="noopener noreferrer">Mapa</a>
+      {% endif %}
+
+      {% if inst.has_module('ia') %}
+      <a class="btn btn-secondary" href="{{ url_for('voice.ia_page', slug=inst.slug) }}" target="_blank" rel="noopener noreferrer">Assistente IA</a>
+      <a class="btn btn-secondary" href="{{ url_for('admin_institution.log_list', iid=inst.id) }}">Logs de IA</a>
+      {% endif %}
+
+      {% if inst.has_module('animais') %}
+      <a class="btn btn-secondary" href="{{ url_for('admin_institution.animal_list', iid=inst.id) }}">Animais</a>
+      {% endif %}
+
+      {% if inst.has_module('programacao') %}
+      <a class="btn btn-secondary" href="{{ url_for('admin_institution.event_list', iid=inst.id) }}">Eventos</a>
+      {% endif %}
+
+      {% if inst.has_module('lojas') %}
+      <a class="btn btn-secondary" href="{{ url_for('admin_institution.store_list', iid=inst.id) }}">Lojas</a>
+      {% endif %}
+
+      {% if inst.has_module('produtos') %}
+      <a class="btn btn-secondary" href="{{ url_for('admin_institution.product_list', iid=inst.id) }}">Produtos</a>
+      {% endif %}
+
+      <a class="btn btn-secondary" href="{{ url_for('admin_institution.faq_list', iid=inst.id) }}">FAQs</a>
     </div>
   </div>
 
-  <!-- Recent logs -->
   <div class="card">
     <div class="card-header">
-      <h2>Últimas interações IA</h2>
+      <h2>Ultimas interacoes IA</h2>
       <a class="btn btn-secondary btn-sm"
          href="{{ url_for('admin_institution.log_list', iid=inst.id) }}">Ver todas</a>
     </div>
@@ -73,7 +138,7 @@
         <tbody>
           {% for log in recent_logs %}
           <tr>
-            <td class="log-input">{{ log.input_text or '—' }}</td>
+            <td class="log-input">{{ log.input_text or '-' }}</td>
             <td>
               <span class="badge {% if log.input_type == 'voice' %}badge-accent{% else %}badge-muted{% endif %}">
                 {{ log.input_type or 'text' }}
@@ -83,7 +148,7 @@
           </tr>
           {% else %}
           <tr><td colspan="3" style="text-align:center;color:var(--a-muted);padding:16px;">
-            Nenhuma interação ainda.
+            Nenhuma interacao ainda.
           </td></tr>
           {% endfor %}
         </tbody>

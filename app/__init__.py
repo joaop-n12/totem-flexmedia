@@ -207,7 +207,7 @@ def create_app(env: str = "default") -> Flask:
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
                 "font-src 'self' https://fonts.gstatic.com; "
                 "script-src 'self'; "
-                "connect-src 'self'; "
+                "connect-src 'self' https://fonts.googleapis.com; "
                 "frame-ancestors 'none'; "
                 "base-uri 'self'; "
                 "form-action 'self'",
@@ -224,8 +224,8 @@ def create_app(env: str = "default") -> Flask:
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
                 "font-src 'self' https://fonts.gstatic.com data:; "
                 "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net "
-                "https://cdnjs.cloudflare.com; "
-                "connect-src 'self' https://api.openai.com; "
+                "https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; "
+                "connect-src 'self' https://api.openai.com https://fonts.googleapis.com; "
                 "frame-ancestors 'none'; "
                 "base-uri 'self'",
             )
@@ -307,6 +307,8 @@ def create_app(env: str = "default") -> Flask:
                 current_inst = None
 
         env_public_url = app.config.get("TOTEM_PUBLIC_URL") or None
+        if app.config.get("DEBUG"):
+            env_public_url = None
         # URL final do "Ver Totem": ordem inst.public_url → env → None
         # (None deixa o template cair na rota interna como hoje).
         ver_totem_href = (

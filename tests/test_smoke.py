@@ -6,14 +6,14 @@ refactor acidental. Nao testa conteudo, apenas HTTP 200 / redirect.
 
 
 def test_index_redirects(client):
-    r = client.get("/")
-    # 302 para selector ou direto para a home unica instituicao
+    r = client.get("/", follow_redirects=False)
     assert r.status_code in (301, 302)
+    assert r.headers["Location"].endswith("/admin/login")
 
 
-def test_selector_page(client):
-    r = client.get("/select", follow_redirects=True)
-    assert r.status_code == 200
+def test_selector_route_removed(client):
+    r = client.get("/select", follow_redirects=False)
+    assert r.status_code == 404
 
 
 def test_home_page(client):

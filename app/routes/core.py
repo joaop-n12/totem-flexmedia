@@ -1,7 +1,7 @@
-"""Core routes: institution selector, home, map, events, food."""
+"""Core routes: admin entry, public home, map, events, food."""
 import random
 from flask import Blueprint, render_template, redirect, url_for, abort, jsonify, g, request, send_from_directory, current_app
-from app.models import Institution, Event, MapArea
+from app.models import Event, MapArea
 from app.helpers import load_institution
 from app.services.i18n import SUPPORTED_LOCALES, set_locale
 
@@ -62,25 +62,16 @@ def privacidade(slug=None):
 
 @core_bp.route("/")
 def index():
-    """Redirect to selector or directly to the only active institution."""
-    active = Institution.query.filter_by(active=True).all()
-    if len(active) == 1:
-        return redirect(url_for("core.home", slug=active[0].slug))
-    return redirect(url_for("core.selector"))
+    """Redirect the first screen to the admin login."""
+    return redirect(url_for("auth.login"))
 
 
-@core_bp.route("/select")
-def selector():
-    """Institution selection screen."""
-    institutions = Institution.query.filter_by(active=True).all()
-    if len(institutions) == 1:
-        return redirect(url_for("core.home", slug=institutions[0].slug))
-    return render_template("selector.html", institutions=institutions)
-
-
+@core_bp.route("/<slug>")
 @core_bp.route("/<slug>/")
 def home(slug):
     inst = load_institution(slug)
+    if inst.type == "shopping":
+        return render_template("core/home_shopping.html", institution=inst)
     return render_template("core/home.html", institution=inst)
 
 
@@ -90,6 +81,8 @@ def mapa(slug):
     if not inst.has_module("mapa"):
         abort(404)
     areas = MapArea.query.filter_by(institution_id=inst.id).all()
+    if inst.type == "shopping":
+        return render_template("core/mapa_shopping.html", institution=inst, areas=areas)
     return render_template("core/mapa.html", institution=inst, areas=areas)
 
 

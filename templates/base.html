@@ -149,7 +149,7 @@
 <div class="page-wrapper" id="pageWrapper">
 
   <header class="topbar">
-    <a class="brand" href="{{ url_for('core.home', slug=slug) if slug else url_for('core.selector') }}">
+    <a class="brand" href="{{ url_for('core.home', slug=slug) if slug else url_for('core.index') }}">
       {% if institution and institution.logo_path %}
         <img class="logo" src="{{ url_for('static', filename=institution.logo_path) }}" alt="Logo">
       {% else %}
@@ -515,7 +515,7 @@
   //
   // Falhas sao silenciosas: sem Flask/daemon, o totem segue funcionando.
   (function () {
-    const HOME_URL  = "{{ url_for('core.home', slug=slug) if slug else url_for('core.selector') }}";
+    const HOME_URL  = "{{ url_for('core.home', slug=slug) if slug else url_for('core.index') }}";
 
 
     const overlay = document.getElementById('totemPresence');
