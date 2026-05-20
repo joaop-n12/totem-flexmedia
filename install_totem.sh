@@ -62,6 +62,38 @@ else
   aviso "Nao e' Raspberry Pi — sensores ficarao em modo mock."
 fi
 
+# Decisao sobre sensores fisicos. Em pilotos onde o HC-SR04 e o DHT11/DHT22
+# ainda nao foram conectados, o overlay de proximidade fica preso esperando
+# leituras que nunca chegam. TOTEM_DISABLE_SENSORS=1 forca tudo em mock e
+# remove o overlay (templates/base.html L58), liberando a UI normal do totem.
+#
+# Tres formas de definir:
+#   1. Env var:   DISABLE_SENSORS=1 ./install_totem.sh   (script/CI)
+#   2. Env var:   DISABLE_SENSORS=0 ./install_totem.sh   (forca habilitar)
+#   3. Prompt interativo (default): pergunta se hardware esta conectado.
+DISABLE_SENSORS="${DISABLE_SENSORS:-}"
+if [ -z "$DISABLE_SENSORS" ]; then
+  if [ "$IS_PI" -eq 1 ]; then
+    echo ""
+    echo "Os sensores fisicos (HC-SR04 + DHT11/DHT22) ja estao conectados nos GPIOs?"
+    echo "  s = sim, hardware ligado e quero leituras reais"
+    echo "  n = nao, ainda vou conectar depois (forca mock + esconde overlay)"
+    read -rp "Resposta [s/N]: " resp
+    case "${resp,,}" in
+      s|sim|y|yes) DISABLE_SENSORS=0 ;;
+      *)           DISABLE_SENSORS=1 ;;
+    esac
+  else
+    # Fora de Pi (laptop/VM), drivers reais nao existem — sempre mock.
+    DISABLE_SENSORS=1
+  fi
+fi
+if [ "$DISABLE_SENSORS" = "1" ]; then
+  aviso "TOTEM_DISABLE_SENSORS=1 ativado — sensores em mock e overlay desligado."
+else
+  ok "Sensores fisicos habilitados — daemon vai ler GPIO real."
+fi
+
 # --- 1. Dependencias de sistema --------------------------------------------
 passo "Instalando dependencias do sistema (apt)"
 sudo apt update
@@ -160,6 +192,11 @@ if [ ! -f .env ]; then
     echo "TOTEM_WAKE_SECRET=$(python3 -c 'import secrets;print(secrets.token_hex(32))')"
     echo "# Porta TCP do Gunicorn (kiosk e admin batem em http://localhost:8000)"
     echo "GUNICORN_BIND=127.0.0.1:8000"
+    if [ "$DISABLE_SENSORS" = "1" ]; then
+      echo "# Sensores fisicos ausentes (decidido no install) — mock + sem overlay."
+      echo "# Para reativar depois: trocar para 0 e reiniciar totem-flexmedia/totem-sensors."
+      echo "TOTEM_DISABLE_SENSORS=1"
+    fi
   } > .env
   chmod 600 .env
   ok ".env criado (chmod 600)"
@@ -183,6 +220,22 @@ else
   if ! grep -q "^FLASK_ENV=" .env; then
     echo "FLASK_ENV=production" >> .env
     ok "FLASK_ENV=production adicionado ao .env existente"
+  fi
+  # Sincroniza TOTEM_DISABLE_SENSORS com a decisao do install. Sem isso,
+  # rodar de novo o instalador respondendo "n" no prompt nao surtia efeito
+  # caso o .env ja existisse (o flag antigo ficava la).
+  if [ "$DISABLE_SENSORS" = "1" ]; then
+    if grep -q "^TOTEM_DISABLE_SENSORS=" .env; then
+      sed -i 's|^TOTEM_DISABLE_SENSORS=.*|TOTEM_DISABLE_SENSORS=1|' .env
+    else
+      echo "TOTEM_DISABLE_SENSORS=1" >> .env
+    fi
+    ok "TOTEM_DISABLE_SENSORS=1 garantido no .env (mock + overlay off)"
+  else
+    if grep -q "^TOTEM_DISABLE_SENSORS=1" .env; then
+      sed -i 's|^TOTEM_DISABLE_SENSORS=1|TOTEM_DISABLE_SENSORS=0|' .env
+      ok "TOTEM_DISABLE_SENSORS=0 — sensores reativados no .env existente"
+    fi
   fi
   ok ".env ja existe — segredos preservados"
 fi
@@ -242,6 +295,19 @@ if [ "$IS_PI" -eq 1 ] && [ -f "$PROJECT_DIR/deploy/totem-sensors.service" ]; the
     # com PermissionError ao tentar ler.
     sudo chown "$USER:$USER" /etc/totem/credenciais.env
     sudo chmod 600 /etc/totem/credenciais.env
+    # Propaga a decisao do install para o daemon de sensores. O daemon le
+    # exclusivamente /etc/totem/credenciais.env (EnvironmentFile do systemd
+    # nao alcanca esse arquivo) — sem essa propagacao, mudar a flag no .env
+    # do projeto nao afetava as leituras de sensor reais.
+    if [ "$DISABLE_SENSORS" = "1" ]; then
+      if sudo grep -q "^TOTEM_DISABLE_SENSORS=" /etc/totem/credenciais.env; then
+        sudo sed -i 's|^TOTEM_DISABLE_SENSORS=.*|TOTEM_DISABLE_SENSORS=1|' /etc/totem/credenciais.env
+      else
+        echo "TOTEM_DISABLE_SENSORS=1" | sudo tee -a /etc/totem/credenciais.env >/dev/null
+      fi
+    else
+      sudo sed -i 's|^TOTEM_DISABLE_SENSORS=1|TOTEM_DISABLE_SENSORS=0|' /etc/totem/credenciais.env || true
+    fi
     sudo systemctl restart totem-sensors
     ok "Daemon de sensores ativo"
   else

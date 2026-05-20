@@ -85,6 +85,19 @@ class SessionStateMachine:
                 self._leaving_since = None
                 return
 
+        # Defesa em profundidade contra ACTIVE_TIMEOUT_S espurio: se a
+        # ultima leitura ainda confirma presenca dentro da zona de engajamento
+        # e veio ha menos que o keep-alive do daemon (15s — daemon manda a
+        # cada 10s, damos folga), renova state_since em vez de derrubar.
+        # Sem isso, visitante parado caia em IDLE por "timeout" mesmo com
+        # leituras recentes de proximidade.
+        d = self._snap.distance_cm
+        last_at = self._snap.last_distance_at
+        if (d is not None and d <= ENGAGE_DISTANCE_CM
+                and last_at is not None and (now - last_at) <= 15.0):
+            self._snap.state_since = now
+            return
+
         # Caminho 2: rede de seguranca — tempo total em ACTIVE sem
         # nenhuma renovacao de state_since. Protege contra sensor mudo.
         if now - self._snap.state_since > ACTIVE_TIMEOUT_S:

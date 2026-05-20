@@ -86,8 +86,12 @@ app/sensors/                # Drivers de sensores fisicos do totem (Pi-only)
                             #   e envia heartbeat HMAC ao servidor
 
 scripts/
-└── totem_sensor_daemon.py  # Entry point standalone do daemon de sensores
-                            #   (executado via systemd: totem-sensors.service)
+├── totem_sensor_daemon.py  # Entry point standalone do daemon de sensores
+│                           #   (executado via systemd: totem-sensors.service)
+├── simular_sensores.sh     # Simulador de HC-SR04 + DHT em bash (Pi/Linux);
+│                           #   source ./scripts/simular_sensores.sh + funcoes
+│                           #   aproximar/afastar/presenca_constante/ambiente
+└── simular_sensores.ps1    # Mesma coisa em PowerShell (Windows/dev laptop)
 
 templates/
 ├── base.html               # Layout público (banner offline, link privacidade,
@@ -205,7 +209,9 @@ data/
 └── programacao.json        # Seed eventos demo
 
 install_totem.sh            # Configura Raspberry como kiosk: systemd auto-restart,
-                            #   Chromium fullscreen, watchdog, unclutter, autostart
+                            #   Chromium fullscreen, watchdog, unclutter, autostart.
+                            #   Prompt interativo TOTEM_DISABLE_SENSORS no install
+                            #   (override: DISABLE_SENSORS=1|0 ./install_totem.sh)
 INSTALACAO.md               # Guia passo a passo (Pi real ou VM Debian 12)
 wsgi.py                     # Entrypoint de produção (Gunicorn)
 run.py                      # Entrypoint de desenvolvimento (python run.py)
@@ -258,6 +264,19 @@ README.md                   # Apresentação pública do projeto
   saudacoes disparadas por simples passagem distante.
   Flag canonica `TOTEM_DISABLE_SENSORS=1` forca mock no proprio Pi sem mexer
   no systemd (alias legado `TOTEM_FORCE_MOCK_SENSORS=1` mantido por compat).
+  Alem de forcar mock, suprime o overlay de proximidade em
+  `templates/base.html:58` — uso tipico em pilotos com hardware ainda
+  nao plugado, evita overlay "Aproxime-se" preso. `install_totem.sh` faz
+  prompt interativo sobre esse flag e grava tanto no `.env` do projeto
+  (consumido pelo Flask/template) quanto em `/etc/totem/credenciais.env`
+  (consumido pelo daemon de sensores) — sem propagacao dupla, mudar so
+  no `.env` deixava o daemon lendo GPIO real apesar do overlay sumir.
+  Override por env var: `DISABLE_SENSORS=1 ./install_totem.sh` (1=mock,
+  0=hardware real). Para alternar depois sem reinstalar: editar ambos
+  os arquivos e `systemctl restart totem-flexmedia totem-sensors`.
+  Simuladores para testar sem hardware: `scripts/simular_sensores.ps1`
+  (Windows/dev) e `scripts/simular_sensores.sh` (Linux/Pi) — mesmos
+  cenarios (aproximar, afastar, presenca-constante, ambiente, demo).
   O daemon propaga vars do `--env-file` para `os.environ` no startup, entao
   `DHT_MODEL=DHT11` em `/etc/totem/credenciais.env` ja basta — sem precisar
   override de `Environment=` no systemd.
@@ -265,6 +284,20 @@ README.md                   # Apresentação pública do projeto
   Fail-closed se o segredo nao estiver configurado. Aceita apenas
   `type=distance` (HC-SR04) e `type=environment` (DHT). Usado pelo daemon
   de sensores (mesmo host) para acordar o kiosk via SSE.
+- **URL publica HTTPS por instituicao**: cada `Institution` tem
+  `public_url` (string nullable) — preenchida pelo super_admin em
+  `/admin/platform/institutions/<id>/edit`, secao "Acesso publico".
+  Quando definida, o link "Ver Totem" no sidebar do painel admin abre
+  essa URL em vez da rota interna `core.home`. Resolucao centralizada
+  em `Institution.effective_public_url(env_fallback)`: 1) campo da inst,
+  2) `TOTEM_PUBLIC_URL` do env (deploys single-tunnel), 3) None
+  (template cai na rota interna `/<slug>/`). Validacao em
+  `app.routes.admin_platform._clean_public_url`: REGEX exige `https://`
+  (Secure Origin obrigatorio pra liberar microfone fora de localhost),
+  rejeita HTTP/scheme malformado, max 255 chars, strip de barra final.
+  `inject_globals` (context processor) resolve `ver_totem_href` +
+  `current_institution` automaticamente em qualquer rota admin com
+  `<int:iid>` no path — o sidebar usa direto.
 - **HTTPS publico (Cloudflare Tunnel)**: caminho recomendado pra expor o
   totem na internet. `deploy/install_cloudflared.sh` automatiza tudo
   (download do binario, auth, criacao do tunel, CNAME, systemd). Por que

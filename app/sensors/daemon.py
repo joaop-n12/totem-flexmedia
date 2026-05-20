@@ -53,6 +53,7 @@ class SensorDaemon:
         heartbeat_interval: float = 60.0,
         distance_post_interval: float = 1.0,
         distance_change_threshold_cm: float = 5.0,
+        distance_keepalive_interval: float = 10.0,
     ) -> None:
         self.wake_url = wake_url
         self.wake_secret = wake_secret
@@ -80,6 +81,11 @@ class SensorDaemon:
         self._last_distance_posted: float | None = None
         self._distance_post_interval = distance_post_interval
         self._distance_change_threshold = distance_change_threshold_cm
+        # Keep-alive: mesmo sem mudanca de leitura, reposta a distancia atual
+        # a cada N segundos. Sem isso, visitante parado em frente ao totem
+        # nunca renovava state_since no servidor — _evaluate_timeout caia em
+        # IDLE depois de ACTIVE_TIMEOUT_S (60s) por falsa "ausencia de leituras".
+        self._distance_keepalive_interval = distance_keepalive_interval
         self._stop = threading.Event()
 
     # ── callbacks dos sensores ─────────────────────────────────────────────
@@ -120,6 +126,12 @@ class SensorDaemon:
                 if abs(d - prev) >= self._distance_change_threshold:
                     should_post = True
             if elapsed >= self._distance_post_interval and (d != prev):
+                should_post = True
+            # Keep-alive: reposta a leitura atual mesmo identica a anterior
+            # quando passou `_distance_keepalive_interval`. Sinaliza ao servidor
+            # "ainda estou vendo essa distancia" — renova state_since e impede
+            # IDLE com presenca constante.
+            if elapsed >= self._distance_keepalive_interval:
                 should_post = True
 
             if not should_post:

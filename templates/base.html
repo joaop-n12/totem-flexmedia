@@ -8,18 +8,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <style>
-    /* Toggle de idioma — discreto no topbar, alta legibilidade no totem. */
-    .lang-switch { display:inline-flex; gap:4px; align-items:center; margin-right:10px; }
-    .lang-btn {
-      padding:6px 10px; font-size:12px; font-weight:600; letter-spacing:.5px;
-      border:1px solid currentColor; border-radius:8px; background:transparent;
-      color:inherit; cursor:pointer; opacity:.55; transition:opacity .15s, transform .12s;
-    }
-    .lang-btn:hover { opacity:1; transform:translateY(-1px); }
-    .lang-btn.active { opacity:1; background:currentColor; }
-    .lang-btn.active { color:var(--bg, #040c10); }
-  </style>
+  {# O seletor de idioma do topbar (.lang-switch / .lang-btn) foi removido
+     em prol de uma fonte unica no rodape da Home (.nc-lang em
+     templates/core/home.html). O locale fica gravado na sessao via
+     /api/locale e e' herdado por todas as rotas (voz, chat, conteudo,
+     alimentacao, etc.) — nao ha necessidade de oferecer a troca em cada
+     pagina. Para trocar de idioma, o visitante volta a Home (logo no
+     topbar ou item "Home" na bottom-nav). #}
 
   {# ── Dynamic institution theming ── #}
   {% if institution %}
@@ -151,20 +146,8 @@
       </div>
     </a>
 
-    {# ─── Cluster a direita: idioma + relogio + tela cheia ─── #}
+    {# ─── Cluster a direita: relogio (seletor de idioma vive na Home) ─── #}
     <div class="topbar-meta">
-      {# Toggle de idioma — Trello Modulo 3 - Acessibilidade. Sem JS heavy:
-         POST para /api/locale e recarrega a pagina (estado fica na sessao). #}
-      <div class="lang-switch" role="group" aria-label="{{ t('common.language') }}">
-        {% for code, label in supported_locales.items() %}
-        <button type="button"
-                class="lang-btn {% if current_locale() == code %}active{% endif %}"
-                data-locale="{{ code }}" title="{{ label }}">
-          {{ code|upper }}
-        </button>
-        {% endfor %}
-      </div>
-
       <div class="topbar-clock" aria-live="polite">
         <span class="topbar-clock-time" id="topbarClock">--:--</span>
         <span class="topbar-clock-date" id="topbarDate">&nbsp;</span>
@@ -247,27 +230,9 @@
 </nav>
 {% endif %}
 
-<script>
-  // ── Toggle de idioma (POST /api/locale + reload) ─────────────────────────────
-  // Estrategia simples: persiste na sessao server-side e recarrega para que
-  // todas as strings traduzidas via `t()` sejam re-renderizadas. Sem reload,
-  // teriamos que duplicar todo o catalogo no cliente.
-  (function () {
-    const buttons = document.querySelectorAll('.lang-btn[data-locale]');
-    if (!buttons.length) return;
-    buttons.forEach(btn => btn.addEventListener('click', async () => {
-      const locale = btn.dataset.locale;
-      try {
-        const r = await fetch("{{ url_for('core.set_session_locale') }}", {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ locale }),
-        });
-        if (r.ok) location.reload();
-      } catch (_) { /* sem rede — ignora silenciosamente */ }
-    }));
-  })();
-</script>
+{# Handler do .lang-btn do topbar foi removido junto com o componente.
+   A troca de idioma agora vive somente em templates/core/home.html
+   (botoes .nc-lang-btn, com handler proprio que faz POST /api/locale). #}
 
 <script>
   // ── Inactivity redirect ──────────────────────────────────────────────────────
@@ -430,6 +395,44 @@
     {% endif %}
     const GREETING_COOLDOWN_MS = 5000;
     let greetingAudio = null;
+    // Pre-warm: faz o fetch+decode do TTS uma vez no load, deixa o Audio
+    // armado e em pause. Quando ACTIVE chega, basta play() — corta o
+    // round-trip OpenAI (~1-3s) do caminho critico do disparo.
+    let greetingReady = null; // Promise resolvida quando greetingAudio[0] estiver pronto
+
+    async function fetchGreetingAudio() {
+      if (!GREETING_URL) return null;
+      const r = await fetch(GREETING_URL, { cache: 'no-store' });
+      if (!r.ok) return null;
+      const ct = (r.headers.get('content-type') || '').toLowerCase();
+      let src;
+      if (ct.includes('application/json')) {
+        const data = await r.json();
+        if (!data || !data.tts_base64) return null;
+        src = 'data:audio/mpeg;base64,' + data.tts_base64;
+      } else if (ct.startsWith('audio/')) {
+        const blob = await r.blob();
+        src = URL.createObjectURL(blob);
+      } else {
+        return null;
+      }
+      const audio = new Audio(src);
+      audio.crossOrigin = 'anonymous';
+      audio.preload = 'auto';
+      // Forca o browser a decodificar o stream agora — quando ACTIVE chegar,
+      // play() resolve imediato em vez de esperar buffer minimo.
+      try { audio.load(); } catch (_) {}
+      return audio;
+    }
+
+    function prewarmGreeting() {
+      if (!GREETING_URL) return;
+      greetingReady = fetchGreetingAudio()
+        .then(a => { greetingAudio = a; return a; })
+        .catch(() => null);
+    }
+    // Dispara no load — totem ja chega com o audio pronto antes do 1o visitante.
+    prewarmGreeting();
 
     async function playProactiveGreeting() {
       if (!GREETING_URL) return;
@@ -438,35 +441,34 @@
       greetingPlayedAt = now;
       try { sessionStorage.setItem(GREETING_TS_KEY, String(now)); } catch (_) {}
       try {
-        const r = await fetch(GREETING_URL, { cache: 'no-store' });
-        if (!r.ok) return;
-        const ct = (r.headers.get('content-type') || '').toLowerCase();
-        let src;
-        if (ct.includes('application/json')) {
-          const data = await r.json();
-          if (!data || !data.tts_base64) return;
-          src = 'data:audio/mpeg;base64,' + data.tts_base64;
-        } else if (ct.startsWith('audio/')) {
-          // Fallback estatico (greeting_<locale>.mp3) — serve binario direto.
-          const blob = await r.blob();
-          src = URL.createObjectURL(blob);
-        } else {
-          return;
+        // Caminho rapido: audio ja pre-aquecido pelo prewarm.
+        let audio = greetingAudio;
+        if (!audio && greetingReady) {
+          // Pre-warm ainda nao terminou (rede lenta) — aguarda a promise
+          // em vez de disparar fetch novo, evita dupla geracao.
+          audio = await greetingReady;
         }
-        try { greetingAudio && greetingAudio.pause(); } catch (_) {}
-        greetingAudio = new Audio(src);
-        greetingAudio.crossOrigin = 'anonymous';
+        if (!audio) {
+          // Pre-warm falhou (offline no load) — tenta agora como fallback.
+          audio = await fetchGreetingAudio();
+          if (audio) greetingAudio = audio;
+        }
+        if (!audio) return;
+        // Reset cursor caso seja replay (cooldown ja garante distancia minima).
+        try { audio.currentTime = 0; } catch (_) {}
         // Sincroniza animacao da onda com o audio: a pagina de voz ouve este
         // evento e conecta um AnalyserNode no Audio antes do play() para que
         // o canvas reaja ao espectro real do TTS — mesmo efeito visual da
         // conversa por voz, sem duplicar codigo.
         window.dispatchEvent(new CustomEvent('flexmedia:greeting-audio', {
-          detail: { audio: greetingAudio }
+          detail: { audio }
         }));
         // Kiosk Chromium roda com --autoplay-policy=no-user-gesture-required.
         // Em dev o autoplay pode falhar — falha silenciosa, sem quebrar UI.
-        const p = greetingAudio.play();
+        const p = audio.play();
         if (p && typeof p.catch === 'function') p.catch(() => {});
+        // Re-arma para o proximo visitante (gera novo Audio em background).
+        prewarmGreeting();
       } catch (_) { /* offline / rede instavel — ignora */ }
     }
 
