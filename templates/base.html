@@ -55,6 +55,21 @@
    - `totem_disable_sensors` (config TOTEM_DISABLE_SENSORS) suprime overlay
      e JS de sensor para teste sem hardware (laptop/VM).
 #}
+{% if institution %}
+<script>
+  const GREETING_URL  = "{{ url_for('voice.voice_greeting', slug=slug) }}";
+  const VOICE_URL     = "{{ url_for('voice.ia_page', slug=slug) }}";
+  const ON_VOICE_PAGE = {{ ('voice.ia_page' == request.endpoint) | tojson }};
+  const ON_HOME_PAGE  = {{ ('core.home' == request.endpoint) | tojson }};
+</script>
+{% else %}
+<script>
+  const GREETING_URL  = null;
+  const VOICE_URL     = null;
+  const ON_VOICE_PAGE = false;
+  const ON_HOME_PAGE  = false;
+</script>
+{% endif %}
 {% if not totem_disable_sensors %}
 <div id="totemPresence" class="presence-overlay" data-state="idle" hidden aria-hidden="true">
   <div class="presence-stage">
@@ -237,7 +252,7 @@
 <script>
   // ── Inactivity redirect ──────────────────────────────────────────────────────
   (function () {
-    const IDLE_MS  = 60 * 1000;
+    const IDLE_MS  = 15 * 1000;
     const HOME_URL = "{{ url_for('core.home', slug=slug) if slug else url_for('core.selector') }}";
     const inIframe = window.parent !== window;
     let timer = null;
@@ -345,13 +360,7 @@
   // Falhas sao silenciosas: sem Flask/daemon, o totem segue funcionando.
   (function () {
     const HOME_URL  = "{{ url_for('core.home', slug=slug) if slug else url_for('core.selector') }}";
-    {% if institution and institution.has_module('ia') %}
-    const VOICE_URL = "{{ url_for('voice.ia_page', slug=slug) }}";
-    {% else %}
-    const VOICE_URL = null;
-    {% endif %}
-    const ON_VOICE_PAGE = ({{ 'true' if (request.endpoint or '') == 'voice.ia_page' else 'false' }});
-    const ON_HOME_PAGE  = ({{ 'true' if (request.endpoint or '') == 'core.home'     else 'false' }});
+
 
     const overlay = document.getElementById('totemPresence');
     const elTitle = overlay && overlay.querySelector('.presence-title');
@@ -369,11 +378,20 @@
     // Persistido em sessionStorage para nao reiniciar a saudacao a cada
     // navegacao entre paginas — sem isso, ir de /home → /mapa → /voice
     // re-disparava o greeting porque a closure JS perdia o estado.
-    const GREETING_TS_KEY = 'flexmedia_greeting_at';
-    const ACTIVE_TS_KEY   = 'flexmedia_active_at';
-    let activeTriggeredAt = parseInt(sessionStorage.getItem(ACTIVE_TS_KEY)   || '0', 10);
-    let greetingPlayedAt  = parseInt(sessionStorage.getItem(GREETING_TS_KEY) || '0', 10);
-    let lastInteraction   = Date.now();
+    const GREETING_TS_KEY    = 'flexmedia_greeting_at';
+    const ACTIVE_TS_KEY      = 'flexmedia_active_at';
+    const INTERACTION_TS_KEY = 'flexmedia_last_interaction';
+    // Grace period: clicar/tocar e' evidencia DIRETA de presenca. Se o sensor
+    // disser IDLE logo apos uma interacao (oscilacao de leitura, kiosk em LAN
+    // sem reach do sensor loopback, sensor mal posicionado), respeitamos o
+    // usuario por N segundos antes de re-mostrar o overlay. Sem isso, cada
+    // navegacao entre paginas re-cobria a UI porque a closure JS resetava.
+    const PRESENCE_GRACE_MS = 15000;
+    let activeTriggeredAt = parseInt(sessionStorage.getItem(ACTIVE_TS_KEY)      || '0', 10);
+    let greetingPlayedAt  = parseInt(sessionStorage.getItem(GREETING_TS_KEY)    || '0', 10);
+    // Default 0 (nao Date.now()): primeira carga sem historico permite overlay
+    // aparecer normalmente. So depois do 1o clique o grace period entra em jogo.
+    let lastInteraction   = parseInt(sessionStorage.getItem(INTERACTION_TS_KEY) || '0', 10);
     // Tap-through: quando o sensor nao alcanca o visitante (cenario tipico do
     // Fully Kiosk acessando o Pi via LAN — o SSE de wake e' loopback-only e
     // nunca chega ao Android), o overlay ficaria preso em IDLE bloqueando
@@ -388,11 +406,7 @@
     //
     // Cooldown evita que o totem fique repetindo a frase enquanto a pessoa
     // permanece em frente (oscilacoes de leitura podem re-disparar).
-    {% if institution and institution.has_module('ia') %}
-    const GREETING_URL = "{{ url_for('voice.voice_greeting', slug=institution.slug) }}";
-    {% else %}
-    const GREETING_URL = null;
-    {% endif %}
+
     const GREETING_COOLDOWN_MS = 5000;
     let greetingAudio = null;
     // Pre-warm: faz o fetch+decode do TTS uma vez no load, deixa o Audio
@@ -472,8 +486,21 @@
       } catch (_) { /* offline / rede instavel — ignora */ }
     }
 
-    ["click","keydown","touchstart","mousemove"].forEach(ev =>
-      window.addEventListener(ev, () => { lastInteraction = Date.now(); }, { passive: true })
+    // PROPOSITAL: nao incluir 'mousemove' aqui. Em dev/Fully Kiosk o cursor
+    // parado em qualquer ponto da tela ja dispara mousemove no carregamento,
+    // o que ativava o grace period imediatamente e suprimia o overlay IDLE
+    // no primeiro load. Touchscreens reais nao tem cursor — drop mousemove
+    // nao muda nada em producao, mas conserta o modo descanso em dev.
+    // Quem precisa de "qualquer movimento conta" e' o inactivity-redirect
+    // (60s -> volta home), que vive em outro IIFE com seu proprio listener.
+    ["click","keydown","touchstart"].forEach(ev =>
+      window.addEventListener(ev, () => {
+        lastInteraction = Date.now();
+        // Persiste em sessionStorage para que o grace period sobreviva a
+        // navegacao entre paginas. Sem isso, ir de /home -> /animais resetava
+        // a closure JS e o overlay reaparecia cobrindo a UI.
+        try { sessionStorage.setItem(INTERACTION_TS_KEY, String(lastInteraction)); } catch (_) {}
+      }, { passive: true })
     );
 
     function applySnapshot(s) {
@@ -519,6 +546,15 @@
           }
         }
       } else {
+        // Grace period: usuario clicou no totem ha menos de PRESENCE_GRACE_MS?
+        // Entao ele esta ali, ignora o IDLE do sensor. Resolve o bug "ao clicar
+        // em qualquer funcionalidade, o totem volta pra tela de descanso" — a
+        // navegacao perde a closure JS mas o timestamp vive em sessionStorage.
+        if (Date.now() - lastInteraction < PRESENCE_GRACE_MS) {
+          overlay.setAttribute('hidden', '');
+          overlay.setAttribute('aria-hidden', 'true');
+          return;
+        }
         // Se o usuario ja dispensou manualmente nesta sessao, NAO volta a
         // cobrir a UI enquanto sensor permanecer em idle — a 'inactivity'
         // redirect (60s) ja devolve o totem para home, momento em que a
