@@ -99,6 +99,20 @@ class SensorDaemon:
                 self._last_temp = reading.temp_c
             if reading.humidity_pct is not None:
                 self._last_hum = reading.humidity_pct
+        # Alem de cachear pro heartbeat HMAC ao servidor (painel admin),
+        # empurra a leitura para o Flask local via /api/local/wake type=
+        # environment. Esse e' o canal que alimenta /api/session/state,
+        # consumido pelos widgets TEMP/UMID no frontend (base.html:511-512).
+        # Sem este post, o session_state ficava com temp_c/humidity_pct
+        # null pra sempre — DHT podia estar lendo OK e o totem ainda
+        # mostrava "--" nos cards.
+        if reading.temp_c is not None or reading.humidity_pct is not None:
+            self._post_wake({
+                "type": "environment",
+                "temp_c": reading.temp_c,
+                "humidity_pct": reading.humidity_pct,
+                "source": "dht",
+            })
 
     def _on_distance(self, reading: DistanceReading) -> None:
         """Recebe leitura do HC-SR04 e empurra para o Flask local quando vale.

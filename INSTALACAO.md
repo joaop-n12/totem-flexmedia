@@ -1,40 +1,90 @@
-# Instalação do Totem FlexMedia
+# Instalação do Totem FlexMedia no Raspberry Pi
 
-Guia direto para colocar um Raspberry Pi 3 rodando como totem. **Siga na ordem.**
+Guia passo a passo para instalar do zero. **Cada passo tem 3 partes:** o
+comando para copiar, o que deve acontecer e por que esse passo existe.
 
-## Antes de começar
-
-Você precisa de:
-- Raspberry Pi 3 B/B+ com fonte 5V/2.5A
-- Cartão SD ≥ 16 GB
-- Chave da OpenAI (`sk-...`)
-- Domínio na Cloudflare (ex: `flextotem.uk`)
+> Tempo estimado: ~30 min (sem contar download de pacotes).
+> Pré-requisito mental: você sabe abrir um terminal e copiar/colar comandos.
 
 ---
 
-## 1. Gravar o SD
+## O que você precisa antes de começar
 
-No PC, instale o **Raspberry Pi Imager** → escolha **Raspberry Pi OS Lite (32-bit)**.
+| Item | Detalhe |
+|---|---|
+| Raspberry Pi 3 B/B+ | Fonte oficial 5V/2.5A (fonte fraca trava o Pi em uso) |
+| Cartão SD | 16 GB ou maior, classe 10 |
+| Cabo de rede | Wi-Fi do Pi 3 é instável em ambiente cheio; prefira cabo |
+| Chave OpenAI | Formato `sk-proj-...` (criada em platform.openai.com) |
+| Domínio na Cloudflare | Ex: `flextotem.uk`. É grátis para .uk em alguns anos |
+| PC para SSH | Windows/Mac/Linux — qualquer um |
 
-Na engrenagem ⚙ configure: hostname `totem-pi01`, **SSH habilitado**, usuário `pi`, senha forte, Wi-Fi com país `BR`.
+---
 
-Grave o SD, ponha no Pi, ligue.
+## 1. Gravar o sistema no SD
 
-## 2. Entrar no Pi
+**Comando:** baixe o **Raspberry Pi Imager** em rpi.org e abra.
+
+No Imager:
+1. Sistema operacional → **Raspberry Pi OS Lite (32-bit)**.
+2. Clique na **engrenagem (⚙)** e configure:
+   - Hostname: `totem-pi01`
+   - SSH: **habilitado** (com senha)
+   - Usuário: `pi` + senha forte
+   - Wi-Fi (se for usar): país `BR`
+3. Escolha o SD e clique **Gravar**.
+
+**O que deve acontecer:** ~10 minutos depois, o SD está pronto. Coloque
+no Pi, ligue na energia e na rede.
+
+**Por que assim:** o sistema "Lite" é sem interface gráfica — menos
+software rodando, mais RAM livre para o totem. O hostname `totem-pi01`
+deixa você acessar via `totem-pi01.local` sem precisar saber o IP.
+
+---
+
+## 2. Entrar no Pi via SSH
+
+**Comando** (no seu PC):
 
 ```bash
 ssh pi@totem-pi01.local
+```
+
+Digite a senha que você configurou no Imager. Já dentro do Pi:
+
+```bash
 sudo apt update && sudo apt upgrade -y
 sudo reboot
 ```
 
-Espere o reboot e entre de novo via SSH.
+Espere ~1 minuto e entre de novo:
 
-## 3. Instalar pacotes
+```bash
+ssh pi@totem-pi01.local
+```
+
+**O que deve acontecer:** terminal mostra `pi@totem-pi01:~ $` — você
+está dentro do Pi.
+
+**Por que assim:** `apt upgrade` atualiza tudo antes de instalar coisa
+nova. `reboot` aplica updates de kernel.
+
+---
+
+## 3. Instalar pacotes do sistema
 
 ```bash
 sudo apt install -y git python3-venv python3-pip sqlite3 redis-server
 ```
+
+**O que deve acontecer:** ~3 minutos baixando. Termina sem erro vermelho.
+
+**Por que assim:** `git` clona o projeto · `python3-venv` cria ambiente
+isolado · `sqlite3` é o banco do totem · `redis-server` faz cache e
+rate-limit em produção.
+
+---
 
 ## 4. Clonar o projeto
 
@@ -44,17 +94,43 @@ git clone <URL-DO-REPO> totem_flexmedia
 cd totem_flexmedia
 ```
 
-## 5. Python + dependências
+Troque `<URL-DO-REPO>` pelo link real do Git (ex:
+`https://github.com/sua-org/totem_flexmedia.git`).
+
+**O que deve acontecer:** pasta `~/totem_flexmedia` criada com os
+arquivos do projeto.
+
+**Por que assim:** `cd ~` garante que você está na home do `pi`.
+Mantenha sempre o projeto em `~/totem_flexmedia` — os scripts do
+deploy assumem esse caminho.
+
+---
+
+## 5. Criar ambiente virtual Python
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt -r requirements-pi.txt
 ```
 
-> A partir daqui, **sempre** rode `source .venv/bin/activate` antes de qualquer `flask` ou `pip`.
+**O que deve acontecer:** ~5-8 minutos. Aparece `(.venv)` no início do
+prompt depois do `source`.
 
-## 6. Configurar `.env`
+**Por que assim:** o ambiente virtual evita conflito com pacotes do
+sistema. `requirements-pi.txt` instala drivers dos sensores (RPi.GPIO,
+adafruit-dht) que **só funcionam no Pi** — não rodam em laptop.
+
+> **A partir daqui, sempre rode `source .venv/bin/activate`** antes de
+> usar `flask` ou `pip` no projeto. Sem isso, os comandos não acham as
+> dependências.
+
+---
+
+## 6. Configurar o `.env`
+
+Esse arquivo guarda chaves secretas. Vamos criar:
 
 ```bash
 cp .env.example .env
@@ -63,21 +139,32 @@ python3 -c "from cryptography.fernet import Fernet; print('FIELD_ENCRYPTION_KEY=
 nano .env
 ```
 
-No editor, preencha:
+No editor `nano`, preencha estas três linhas (procure usando `Ctrl+W`):
 
 ```
-OPENAI_API_KEY=sk-proj-...
+OPENAI_API_KEY=sk-proj-... (cole sua chave)
 SUPERADMIN_EMAIL=seu@email.com
-SUPERADMIN_PASSWORD=Senha-Forte-10-Chars!
+SUPERADMIN_PASSWORD=SenhaForte-Pelo-Menos-12-Chars!
 ```
 
-Salve (`Ctrl+O`, `Enter`, `Ctrl+X`) e trave:
+Salve: `Ctrl+O`, `Enter`, `Ctrl+X`. Agora trave o arquivo:
 
 ```bash
 chmod 600 .env
 ```
 
-## 7. Criar o banco
+**O que deve acontecer:** `ls -la .env` mostra `-rw-------` (só o dono
+lê).
+
+**Por que assim:** `SECRET_KEY` assina sessões e `FIELD_ENCRYPTION_KEY`
+cifra dados sensíveis no banco (TOTP, segredos de totem). Sem eles, o
+app **não sobe em produção** — falha duro de propósito. `chmod 600` é
+obrigatório: senha forte em arquivo legível por todo mundo é o mesmo
+que senha fraca.
+
+---
+
+## 7. Criar o banco de dados
 
 ```bash
 export FLASK_APP=wsgi.py
@@ -85,66 +172,132 @@ flask db upgrade
 flask seed
 ```
 
+**O que deve acontecer:** `flask db upgrade` aplica migrations sem erro.
+`flask seed` cria o super admin e o zoo demo. No log: "Super admin
+criado: seu@email.com".
+
+**Por que assim:** o seed é **idempotente** — rodar duas vezes não cria
+duplicado. Útil em reinstalações.
+
+---
+
 ## 8. Túnel Cloudflare (HTTPS público)
 
-Necessário para liberar o microfone no navegador.
+Esse passo é **obrigatório** se você quer usar o microfone. Navegador
+moderno bloqueia microfone em HTTP fora de `localhost`.
 
 ```bash
 bash deploy/install_cloudflared.sh
 ```
 
-Quando perguntar, informe: **domínio** (`flextotem.uk`), **subdomínio** (`pi01`), **nome do túnel** (`totem-pi01`).
+O script pergunta:
+- **Domínio raiz:** `flextotem.uk`
+- **Subdomínio:** `pi01` (deixa o totem em `pi01.flextotem.uk`)
+- **Nome do túnel:** `totem-pi01`
 
-O script grava `TOTEM_PUBLIC_URL=https://pi01.flextotem.uk` no `.env` automaticamente.
+Vai abrir uma URL para você autorizar na Cloudflare — copie, cole no
+navegador do PC, faça login, autorize o domínio. Volta pro Pi e o
+script termina sozinho.
 
-## 9. Modo quiosque
+**O que deve acontecer:** ~2 minutos. No final, o script grava
+`TOTEM_PUBLIC_URL=https://pi01.flextotem.uk` no `.env` automaticamente.
+Teste: abra essa URL no PC — deve carregar a tela do totem em HTTPS.
+
+**Por que assim:** o Cloudflare Tunnel cria um caminho HTTPS público
+sem precisar de IP fixo, port-forwarding ou certificado SSL próprio.
+Funciona em qualquer rede que tenha internet de saída (até atrás do
+NAT do roteador 4G).
+
+---
+
+## 9. Modo quiosque (Chromium em tela cheia)
 
 ```bash
 ./install_totem.sh
+```
+
+O script pergunta **uma vez** se os sensores físicos (HC-SR04 +
+DHT11/DHT22) já estão plugados nos GPIOs:
+
+- **Responda `s`** se o hardware está ligado → sensores reais ativos.
+- **Responda `n`** (padrão) se ainda vai conectar depois → grava
+  `TOTEM_DISABLE_SENSORS=1` no `.env`. O totem fica utilizável
+  imediatamente, sem overlay "Aproxime-se" preso na tela.
+
+Quando terminar:
+
+```bash
 sudo reboot
 ```
 
-O instalador pergunta **uma única vez** se os sensores físicos (HC-SR04 + DHT11/DHT22) já estão conectados nos GPIOs:
+**O que deve acontecer:** o Pi reinicia, monitor abre Chromium em tela
+cheia direto no totem. Cursor do mouse some sozinho depois de 1s.
 
-- **Responda `s`** se o hardware já está plugado → daemon lê os pinos reais.
-- **Responda `n` (default)** se ainda vai conectar depois → grava `TOTEM_DISABLE_SENSORS=1` no `.env` automaticamente. O overlay de proximidade some e o totem fica usável imediatamente.
+**Por que assim:** o script cria três serviços systemd:
+- `totem-flexmedia` (o servidor Flask)
+- `totem-sensors` (o daemon dos sensores, só roda se `TOTEM_DISABLE_SENSORS=0`)
+- `totem-kiosk` (Chromium fullscreen com watchdog)
 
-Para rodar sem interação (CI, automação):
-```bash
-DISABLE_SENSORS=1 ./install_totem.sh   # forca mock
-DISABLE_SENSORS=0 ./install_totem.sh   # forca hardware
-```
+Cada um reinicia sozinho se cair. Se o navegador travar, watchdog
+reabre em segundos.
 
-Trocar depois sem reinstalar: edite `.env` (e `/etc/totem/credenciais.env` se já existir), troque `TOTEM_DISABLE_SENSORS=0|1` e reinicie:
+**Trocar de modo depois:** edite `.env` E `/etc/totem/credenciais.env`
+(os dois!), mude `TOTEM_DISABLE_SENSORS=0|1`, e:
+
 ```bash
 sudo systemctl restart totem-flexmedia totem-sensors
 ```
 
-Após o reboot, o monitor abre o Chromium em tela cheia direto no totem.
+---
 
 ## 10. Primeiro login no admin
 
-No seu PC, abra `https://pi01.flextotem.uk/admin/login` e use o e-mail/senha do passo 6.
+No seu PC, abra `https://pi01.flextotem.uk/admin/login` e use:
+- E-mail: o `SUPERADMIN_EMAIL` que você botou no `.env`
+- Senha: o `SUPERADMIN_PASSWORD`
 
-No primeiro acesso: troque a senha → configure 2FA (Google Authenticator) → **salve os códigos de backup** (só aparecem uma vez).
+**No primeiro acesso o sistema obriga:**
+1. **Trocar a senha** (a do `.env` é considerada temporária).
+2. **Configurar 2FA** — abra Google Authenticator no celular, escaneie
+   o QR code, digite o código de 6 dígitos.
+3. **Salvar os códigos de backup** — aparecem **uma única vez**.
+   Imprima ou guarde em gerenciador de senhas. Se você perder o celular
+   sem esses códigos, vai precisar resetar o Pi.
 
-Em **Clientes → Editar**, preencha o campo **URL pública** com `https://pi01.flextotem.uk`. Pronto.
+Depois, vá em **Plataforma → Instituições → Editar** e preencha
+**URL pública** com `https://pi01.flextotem.uk`.
+
+**Pronto.** O totem está no ar.
 
 ---
 
 ## Se algo der errado
 
-**Servidor não sobe:**
+### Servidor não sobe (Pi liga mas totem mostra erro)
+
 ```bash
 sudo journalctl -u totem-flexmedia -n 50
 ```
 
-**Túnel não responde:**
+Procure linhas em vermelho. Erros comuns:
+- `SECRET_KEY ausente` → você pulou parte do passo 6.
+- `no such column` → falta rodar migration. Veja "Migration" abaixo.
+- `OPENAI_API_KEY invalid` → chave errada ou revogada.
+
+### Túnel Cloudflare não responde
+
 ```bash
 sudo systemctl restart cloudflared
+sudo journalctl -u cloudflared -f
 ```
 
-**Erro `no such column`** após atualizar o código:
+Se o problema persistir, verifique status em
+`https://www.cloudflarestatus.com`.
+
+### Erro `no such column` depois de atualizar o código
+
+Você puxou código novo que tem mudanças no banco. Rode a migration:
+
 ```bash
 cd ~/totem_flexmedia && source .venv/bin/activate
 export FLASK_APP=wsgi.py
@@ -152,48 +305,85 @@ flask db upgrade
 sudo systemctl restart totem-flexmedia
 ```
 
-**Microfone não funciona:** confirme que está em `https://...` (não `http://`).
+### Microfone não funciona
 
-**Overlay "Aproxime-se" preso** mesmo com hardware plugado: confira `cat .env | grep TOTEM_DISABLE_SENSORS` — se estiver `=1`, troque para `=0` e reinicie os serviços. Se estiver `=0` e o overlay persiste, veja `journalctl -u totem-sensors -n 50`.
+Confirme que você está acessando via `https://...` (não `http://`).
+Cloudflare Tunnel cuida disso automaticamente. Se acessar pelo IP
+local (`192.168.x.x:8000`) o navegador bloqueia microfone.
+
+### Overlay "Aproxime-se" preso na tela
+
+```bash
+grep TOTEM_DISABLE_SENSORS .env /etc/totem/credenciais.env
+```
+
+- Se você **não tem** o hardware: ambos os arquivos devem mostrar `=1`.
+  Se algum estiver `=0`, mude para `=1` e reinicie:
+  `sudo systemctl restart totem-flexmedia totem-sensors`.
+- Se você **tem** o hardware mas o overlay persiste:
+  `sudo journalctl -u totem-sensors -n 50`. Procure erro de GPIO ou
+  permissão.
+
+### Esqueci a senha do admin / perdi o 2FA
+
+Veja `docs/OPERACAO.md` §2.3.
 
 ---
 
 ## Testar sem hardware físico (simulador)
 
-Útil para validar overlay, áudio de boas-vindas e máquina de estados antes de plugar os sensores. Funciona no Pi ou em laptop/VM.
+Útil para validar overlay, áudio de boas-vindas e máquina de estados
+**antes** de plugar sensores reais. Roda no Pi ou em laptop.
 
 ```bash
 cd ~/totem_flexmedia
 source ./scripts/simular_sensores.sh
 ```
 
-Comandos disponíveis após o `source`:
+Comandos disponíveis depois do `source`:
 
-| Comando | Cenário |
+| Comando | O que faz |
 |---|---|
-| `aproximar` | Visitante chega (50 cm) → ACTIVE, áudio toca |
-| `afastar` | Visitante sai (250 cm) → IDLE após 30 s |
-| `fora_alcance` | Sensor sem eco → IDLE após 30 s |
-| `presenca_constante` | Parado a 50 cm por 100 s (valida o fix de IDLE espúrio) |
-| `ambiente 25.5 60` | DHT11/DHT22 mock (só telemetria) |
-| `estado` | Snapshot atual da máquina de estados |
+| `aproximar` | Simula visitante chegando (50 cm) — totem entra em ACTIVE, áudio toca |
+| `afastar` | Simula visitante saindo (250 cm) — entra em IDLE em ~30s |
+| `fora_alcance` | Sensor sem eco — entra em IDLE em ~30s |
+| `presenca_constante` | Visitante parado a 50 cm por 100s (testa fix de IDLE espúrio) |
+| `ambiente 25.5 60` | DHT11/DHT22 mock — manda temp/umidade |
+| `estado` | Mostra snapshot atual da máquina de estados |
 | `reset` | Força IDLE sem reiniciar |
 | `demo` | Roteiro completo de ponta a ponta |
 
-No Windows (PowerShell): `. .\scripts\simular_sensores.ps1` — mesmas funções com nomes equivalentes (`Aproximar`, `Afastar`, etc.).
+No Windows (PowerShell):
+
+```powershell
+. .\scripts\simular_sensores.ps1
+```
+
+Mesmas funções com nomes equivalentes (`Aproximar`, `Afastar`, etc.).
 
 ---
 
 ## Backup antes de reinstalar
 
-Se já tem dados em produção:
+Já tem totem em produção e vai reinstalar?
 
 ```bash
 bash deploy/backup.sh
 ```
 
-Copie os arquivos de `backups/` para fora do Pi (`scp` para outra máquina). Para restaurar, substitua `instance/flexmedia.db` no Pi novo entre os passos 6 e 7, pulando o `flask seed`.
+Os backups ficam em `backups/` com data no nome. Copie para outra
+máquina via `scp`. Para restaurar no Pi novo: substitua
+`instance/flexmedia.db` entre os passos 6 e 7, e **pule o `flask seed`**
+para não sobrescrever.
 
 ---
 
-Mais detalhes em [docs/OPERACAO.md](docs/OPERACAO.md) (rotina, troubleshooting profundo, rotação de chaves).
+## Próximos passos
+
+- Adicionar mais instituições: `docs/OPERACAO.md` §4
+- Rotacionar chaves: `docs/OPERACAO.md` §2 ou `bash deploy/rotate_secrets.sh`
+- Adicionar outro totem à frota: `docs/OPERACAO.md` §5.4
+- Entender o que cada sensor faz: `app/sensors/` (cada arquivo tem
+  docstring explicando)
+
+Mais detalhes em [docs/OPERACAO.md](docs/OPERACAO.md).

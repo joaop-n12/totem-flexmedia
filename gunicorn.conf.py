@@ -12,8 +12,12 @@ bind = os.environ.get("GUNICORN_BIND", "unix:/tmp/totem-flexmedia.sock")
 # Workers: para um Raspberry Pi 4/5 (4 cores) mantemos 2 workers.
 # Totens atendem poucos usuários simultâneos, não precisa (2*cores)+1.
 workers = int(os.environ.get("GUNICORN_WORKERS", 2))
-worker_class = "sync"
-threads = 2
+# gthread (nao "sync"): o worker sync IGNORA `threads`, entao com sync o totem
+# tinha so 2 slots reais (workers x 1). A SSE de /api/local/wake-stream prende
+# 1 slot permanentemente — sobra 1 pro resto e qualquer concorrencia fila.
+# Sintoma: POST /api/heartbeat travando ate o timeout do client.
+worker_class = "gthread"
+threads = int(os.environ.get("GUNICORN_THREADS", 4))
 
 # Timeouts (segundos). A IA/Whisper pode demorar, por isso 60s.
 timeout = 60

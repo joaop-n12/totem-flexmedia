@@ -250,11 +250,45 @@ body:not(.totem-mode):not(.neural-home)::after {
   color: var(--muted);
 }
 
+/* Pill de clima (DHT11/DHT22) ao lado do relogio. */
+.topbar-climate {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 14px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  user-select: none;
+}
+.topbar-climate-item {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: clamp(13px, 1.3vw, 17px);
+  font-weight: 700;
+  color: #f0f0f0;
+  letter-spacing: .4px;
+}
+.topbar-climate-icon { font-size: 1.05em; line-height: 1; }
+.topbar-climate-val  { min-width: 2ch; text-align: right; }
+.topbar-climate-unit {
+  font-size: .72em;
+  font-weight: 600;
+  opacity: .75;
+  margin-left: 1px;
+}
+.topbar-climate-sep {
+  width: 1px; height: 16px;
+  background: rgba(255,255,255,.18);
+}
+
 @media (max-width: 540px) {
   /* Em totens muito estreitos, esconde a data e mantem so a hora. */
   .topbar-sensors    { display: none; }
   .topbar-clock-date { display: none; }
   .topbar-clock      { padding: 6px 10px; }
+  /* Encolhe mas mantem visivel: temperatura e umidade ainda devem aparecer. */
+  .topbar-climate { padding: 6px 10px; gap: 6px; }
+  .topbar-climate-item { font-size: 12px; }
 }
 
 /* ================================================================
@@ -1397,6 +1431,17 @@ body:not(.neural-home) .topbar-clock {
 body:not(.neural-home) .topbar-clock-time {
   color: var(--accent);
   text-shadow: 0 0 14px rgba(245,179,74,.45);
+}
+body:not(.neural-home) .topbar-climate {
+  background: rgba(245,179,74,.06);
+  border-color: rgba(245,179,74,.18);
+}
+body:not(.neural-home) .topbar-climate-item {
+  color: var(--accent);
+  text-shadow: 0 0 12px rgba(245,179,74,.25);
+}
+body:not(.neural-home) .topbar-climate-sep {
+  background: rgba(245,179,74,.25);
 }
 
 /* page header com mesma "vibe" do hero da home */

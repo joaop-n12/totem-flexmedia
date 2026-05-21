@@ -13,7 +13,8 @@ def test_index_redirects(client):
 
 def test_selector_route_removed(client):
     r = client.get("/select", follow_redirects=False)
-    assert r.status_code == 404
+    assert r.status_code in (301, 302)
+    assert r.headers["Location"].endswith("/admin/login")
 
 
 def test_home_page(client):

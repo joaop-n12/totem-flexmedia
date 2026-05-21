@@ -1,11 +1,29 @@
 """Core routes: admin entry, public home, map, events, food."""
 import random
+import unicodedata
 from flask import Blueprint, render_template, redirect, url_for, abort, jsonify, g, request, send_from_directory, current_app
-from app.models import Event, MapArea
+from app.models import Event, MapArea, Store
 from app.helpers import load_institution
 from app.services.i18n import SUPPORTED_LOCALES, set_locale
 
 core_bp = Blueprint("core", __name__)
+
+
+def _plain_text(value):
+    value = (value or "").lower()
+    value = unicodedata.normalize("NFKD", value)
+    return "".join(ch for ch in value if not unicodedata.combining(ch))
+
+
+def _is_food_store(store):
+    haystack = _plain_text(f"{store.name} {store.category} {store.description}")
+    keywords = (
+        "alimentacao", "restaurante", "restaurant", "food", "praca",
+        "lanchonete", "lanche", "cafe", "cafeteria", "sorvete",
+        "sorveteria", "pizza", "hamburguer", "burger", "doces",
+        "chocolate", "pastel", "acai", "suco", "bar", "bistro",
+    )
+    return any(word in haystack for word in keywords)
 
 
 # Sprint 4: a sessao orientada por sensores NAO tem rota dedicada.
@@ -66,6 +84,12 @@ def index():
     return redirect(url_for("auth.login"))
 
 
+@core_bp.route("/select")
+def select_removed():
+    """Legacy selector URL now goes straight to the admin login."""
+    return redirect(url_for("auth.login"))
+
+
 @core_bp.route("/<slug>")
 @core_bp.route("/<slug>/")
 def home(slug):
@@ -82,7 +106,8 @@ def mapa(slug):
         abort(404)
     areas = MapArea.query.filter_by(institution_id=inst.id).all()
     if inst.type == "shopping":
-        return render_template("core/mapa_shopping.html", institution=inst, areas=areas)
+        stores = Store.query.filter_by(institution_id=inst.id).all()
+        return render_template("core/mapa_shopping.html", institution=inst, areas=areas, stores=stores)
     return render_template("core/mapa.html", institution=inst, areas=areas)
 
 
@@ -100,6 +125,14 @@ def alimentacao(slug):
     inst = load_institution(slug)
     if not inst.has_module("alimentacao"):
         abort(404)
+    if inst.type == "shopping":
+        stores = Store.query.filter_by(institution_id=inst.id).order_by(Store.name).all()
+        food_stores = [store for store in stores if _is_food_store(store)]
+        return render_template(
+            "core/alimentacao_shopping.html",
+            institution=inst,
+            stores=food_stores,
+        )
     return render_template("core/alimentacao.html", institution=inst)
 
 

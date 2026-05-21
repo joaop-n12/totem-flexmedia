@@ -28,6 +28,30 @@
     }
   </style>
   {% endif %}
+  <style>
+    .brand { position: relative; }
+    .brand-logo-wrap {
+      position: relative;
+      display: inline-flex;
+      flex: 0 0 auto;
+    }
+    .brand-admin-hotspot {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: block;
+      opacity: 0;
+      background: transparent;
+      border: 0;
+      border-radius: inherit;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .brand-text {
+      color: inherit;
+      text-decoration: none;
+    }
+  </style>
 </head>
 <body class="{% block body_class %}{% endblock %}">
 
@@ -149,30 +173,43 @@
 <div class="page-wrapper" id="pageWrapper">
 
   <header class="topbar">
-    <a class="brand" href="{{ url_for('core.home', slug=slug) if slug else url_for('core.index') }}">
+    <div class="brand">
+      <span class="brand-logo-wrap">
       {% if institution and institution.logo_path %}
         <img class="logo" src="{{ url_for('static', filename=institution.logo_path) }}" alt="Logo">
       {% else %}
         <div class="logo" style="background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;">🏛️</div>
       {% endif %}
-      <div class="brand-text">
+        {% if institution %}
+        <a class="brand-admin-hotspot"
+           href="{{ url_for('auth.login') }}"
+           aria-label="Abrir login administrativo"></a>
+        {% endif %}
+      </span>
+      <a class="brand-text" href="{{ url_for('core.home', slug=slug) if slug else url_for('core.index') }}">
         <div class="brand-title">{{ institution.name if institution else 'FlexMedia' }}</div>
         <div class="brand-subtitle">{{ institution.tagline if institution else 'Plataforma White Label' }}</div>
-      </div>
-    </a>
+      </a>
+    </div>
 
     {# ─── Cluster a direita: relogio (seletor de idioma vive na Home) ─── #}
     <div class="topbar-meta">
-      <div class="topbar-sensors" aria-label="Dados do sensor DHT11">
-        <div class="topbar-sensor-chip">
-          <span class="topbar-sensor-label">Temp</span>
-          <span class="topbar-sensor-value"><b id="topbarTemp">--</b><small>°C</small></span>
-        </div>
-        <div class="topbar-sensor-chip">
-          <span class="topbar-sensor-label">Umid</span>
-          <span class="topbar-sensor-value"><b id="topbarHum">--</b><small>%</small></span>
-        </div>
+      {% if not totem_disable_sensors %}
+      {# Pill de clima alimentado pelo DHT11/DHT22 via /api/session/state.
+         O mesmo applySnapshot() do bloco de presenca atualiza estes spans. #}
+      <div class="topbar-climate" id="topbarClimate" aria-live="polite"
+           title="Temperatura e umidade ambiente (DHT)">
+        <span class="topbar-climate-item">
+          <span class="topbar-climate-icon" aria-hidden="true">🌡️</span>
+          <span class="topbar-climate-val" id="topbarTemp">--</span><span class="topbar-climate-unit">°C</span>
+        </span>
+        <span class="topbar-climate-sep" aria-hidden="true"></span>
+        <span class="topbar-climate-item">
+          <span class="topbar-climate-icon" aria-hidden="true">💧</span>
+          <span class="topbar-climate-val" id="topbarHum">--</span><span class="topbar-climate-unit">%</span>
+        </span>
       </div>
+      {% endif %}
       <div class="topbar-clock" aria-live="polite">
         <span class="topbar-clock-time" id="topbarClock">--:--</span>
         <span class="topbar-clock-date" id="topbarDate">&nbsp;</span>
@@ -524,8 +561,10 @@
     const elDist  = document.getElementById('presDist');
     const elTemp  = document.getElementById('presTemp');
     const elHum   = document.getElementById('presHum');
-    const topbarTemp = document.getElementById('topbarTemp');
-    const topbarHum  = document.getElementById('topbarHum');
+    // Pill de clima no topbar (visivel em todas as paginas internas). Pode
+    // estar ausente quando sensores estao desativados; update silencioso.
+    const elTopTemp = document.getElementById('topbarTemp');
+    const elTopHum  = document.getElementById('topbarHum');
 
     const COPY = {
       idle:   { t: 'Aproxime-se para começar',  s: 'Toque ou caminhe até o totem para iniciar uma conversa.' },
@@ -668,8 +707,10 @@
       if (elDist) elDist.textContent = (s.distance_cm == null ? '—' : s.distance_cm.toFixed(0));
       if (elTemp) elTemp.textContent = (s.temp_c == null ? '—' : s.temp_c.toFixed(1));
       if (elHum)  elHum.textContent  = (s.humidity_pct == null ? '—' : s.humidity_pct.toFixed(0));
-      if (topbarTemp) topbarTemp.textContent = (s.temp_c == null ? '--' : s.temp_c.toFixed(1));
-      if (topbarHum)  topbarHum.textContent  = (s.humidity_pct == null ? '--' : s.humidity_pct.toFixed(0));
+      // Espelha clima no topbar (ao lado do relogio). Arredonda a temperatura
+      // para 1 casa e umidade para inteiro: espaco apertado, evita pular linha.
+      if (elTopTemp) elTopTemp.textContent = (s.temp_c == null ? '--' : s.temp_c.toFixed(1));
+      if (elTopHum)  elTopHum.textContent  = (s.humidity_pct == null ? '--' : s.humidity_pct.toFixed(0));
 
       if (st === lastState) return;
       const previous = lastState;

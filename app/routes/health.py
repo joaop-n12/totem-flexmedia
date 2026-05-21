@@ -25,6 +25,16 @@ def readyz():
     return jsonify(status="ok"), 200
 
 
+# Alias publico simples — monitoring externo (Cloudflare, UptimeRobot, curl)
+# costuma bater em /health sem barra. strict_slashes=False evita 308 redirect
+# para /health/, que quebrava uptime checkers que nao seguem redirect.
+@health_bp.route("/health", strict_slashes=False)
+@limiter.exempt
+def health_alias():
+    """Liveness alias — equivalente a /readyz, sem redirect 308."""
+    return jsonify(status="ok"), 200
+
+
 @health_bp.route("/healthz")
 @limiter.exempt
 def healthz():

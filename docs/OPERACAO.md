@@ -1,15 +1,20 @@
 # Manual de Operação — Totem FlexMedia
 
-Guia prático para quem opera a plataforma em produção. Cobre cinco fluxos:
+Guia prático para quem opera a plataforma em produção. Cobre seis fluxos:
 
 1. [Instalação no Raspberry Pi](#1-instalação-no-raspberry-pi)
 2. [Troca de chaves e segredos](#2-troca-de-chaves-e-segredos)
 3. [Restauração de backup](#3-restauração-de-backup)
 4. [Adicionar uma nova instituição](#4-adicionar-uma-nova-instituição)
 5. [Operar o Cloudflare Tunnel (HTTPS público)](#5-operar-o-cloudflare-tunnel-https-público)
+6. [Sensores físicos (HC-SR04 + DHT)](#6-sensores-físicos-hc-sr04--dht)
 
 Todos os caminhos assumem a instalação padrão em `/opt/totem-flexmedia`
 com usuário de serviço `totem`.
+
+> **Para a primeira instalação**, use o guia simplificado
+> [INSTALACAO.md](../INSTALACAO.md). Este manual cobre operação contínua
+> e cenários avançados.
 
 ---
 
@@ -99,13 +104,29 @@ Em cada Raspberry que vai exibir o totem:
 sudo bash install_totem.sh
 ```
 
+O script pergunta **uma única vez** se os sensores físicos (HC-SR04 +
+DHT11/DHT22) já estão conectados nos GPIOs:
+
+- `s` → daemon `totem-sensors` ativo, lê GPIO real.
+- `n` (default) → grava `TOTEM_DISABLE_SENSORS=1` em `.env` e em
+  `/etc/totem/credenciais.env`. Daemon roda em mock e o overlay
+  "Aproxime-se" some — totem fica usável imediatamente, sem hardware.
+
+Override não-interativo (CI/automação):
+
+```bash
+DISABLE_SENSORS=1 ./install_totem.sh   # força mock
+DISABLE_SENSORS=0 ./install_totem.sh   # força hardware real
+```
+
 Esse script configura:
 
 - Chromium em modo fullscreen apontando para a URL do totem.
 - Unclutter para esconder o cursor do mouse.
 - Watchdog para reiniciar o navegador em caso de travamento.
 - Autostart no LXDE/GNOME para subir após o boot.
-- Serviço systemd com `Restart=always`.
+- Três serviços systemd: `totem-flexmedia` (Flask), `totem-sensors`
+  (daemon de sensores) e `totem-kiosk` (Chromium), todos com `Restart=always`.
 
 ### 1.4 Verificação
 
@@ -456,13 +477,110 @@ Para verificar status global: https://www.cloudflarestatus.com/
 
 ---
 
+## 6. Sensores físicos (HC-SR04 + DHT)
+
+### 6.1 Arquitetura
+
+O daemon `totem-sensors.service` roda **fora** do worker Gunicorn:
+
+- **HC-SR04** (presença/distância) — GPIO TRIG=23, ECHO=24 por padrão.
+- **DHT11 ou DHT22** (temp/umidade) — GPIO DATA=4, modelo via env
+  `DHT_MODEL`.
+
+Fluxo de dados:
+
+```
+[GPIO] → app/sensors/daemon.py
+            ├─ HC-SR04: POST /api/local/wake type=distance (loopback)
+            │           → SessionStateMachine → SSE → kiosk reage
+            └─ DHT:     POST /api/local/wake type=environment (loopback)
+                        → widgets TEMP/UMID na home (templates/base.html)
+                       + heartbeat HMAC → painel admin (frota)
+```
+
+Detalhes técnicos por arquivo em `app/sensors/` (docstrings explicam
+cada decisão).
+
+### 6.2 Verificar status no Pi
+
+```bash
+sudo systemctl status totem-sensors
+sudo journalctl -u totem-sensors -f
+```
+
+Sinais de saúde:
+- `SensorDaemon online (dht mock=False, hcsr04 mock=False)` → hardware OK.
+- `mock=True` em Pi com hardware plugado → veja `TOTEM_DISABLE_SENSORS`
+  no `.env` E em `/etc/totem/credenciais.env` (precisam estar **ambos** `=0`).
+
+### 6.3 Alternar entre hardware e mock sem reinstalar
+
+```bash
+# Para mock (overlay some, widgets ficam em "--")
+sudo sed -i 's/^TOTEM_DISABLE_SENSORS=.*/TOTEM_DISABLE_SENSORS=1/' \
+  /opt/totem-flexmedia/.env /etc/totem/credenciais.env
+
+# Para hardware real
+sudo sed -i 's/^TOTEM_DISABLE_SENSORS=.*/TOTEM_DISABLE_SENSORS=0/' \
+  /opt/totem-flexmedia/.env /etc/totem/credenciais.env
+
+# Aplica nos dois serviços
+sudo systemctl restart totem-flexmedia totem-sensors
+```
+
+**Por que dois arquivos:** `.env` é lido pelo Flask (controla overlay
+no template); `/etc/totem/credenciais.env` é lido pelo daemon (controla
+leitura real do GPIO). Mudar só um deixa os dois canais
+dessincronizados — daemon lendo GPIO e overlay sumido, ou vice-versa.
+
+### 6.4 Trocar o modelo DHT (DHT11 ↔ DHT22)
+
+```bash
+sudo nano /etc/totem/credenciais.env
+# Adicione ou altere: DHT_MODEL=DHT11   (ou DHT22)
+sudo systemctl restart totem-sensors
+```
+
+O driver propaga essa env via `os.environ.setdefault` no startup do
+daemon — não precisa mexer no systemd unit.
+
+### 6.5 Testar widgets TEMP/UMID sem hardware
+
+Use o simulador (também serve para HC-SR04):
+
+```bash
+cd /opt/totem-flexmedia
+source ./scripts/simular_sensores.sh
+ambiente 25.5 60        # manda temp=25.5 / umid=60
+estado                  # ver snapshot atual
+```
+
+Mais cenários em [INSTALACAO.md](../INSTALACAO.md#testar-sem-hardware-físico-simulador).
+
+### 6.6 Telemetria no painel admin
+
+`totem-sensors` envia heartbeat HMAC a cada 60s incluindo
+`ambient_temp_c` e `ambient_humidity_pct`. Aparece em
+**Plataforma → Totens** → linha do device, colunas TEMP/UMID.
+
+Se ficar `null` no painel:
+1. Daemon está rodando? `systemctl status totem-sensors`.
+2. Credenciais HMAC corretas? `cat /etc/totem/credenciais.env` deve
+   ter `TOTEM_API_KEY_ID` e `TOTEM_API_KEY_SECRET` válidos
+   (regerados em `/admin/platform/devices`).
+3. Heartbeat aceito? `journalctl -u totem-sensors | grep -i heartbeat`.
+
+---
+
 ## Referência rápida — comandos do dia a dia
 
 | Ação                         | Comando                                              |
 |------------------------------|------------------------------------------------------|
 | Status do serviço            | `systemctl status totem-flexmedia`                   |
 | Logs ao vivo                 | `journalctl -u totem-flexmedia -f`                   |
-| Reiniciar após mudar `.env`  | `sudo systemctl restart totem-flexmedia`             |
+| Status do daemon de sensores | `systemctl status totem-sensors`                     |
+| Logs dos sensores            | `journalctl -u totem-sensors -f`                     |
+| Reiniciar após mudar `.env`  | `sudo systemctl restart totem-flexmedia totem-sensors` |
 | Backup manual                | `sudo -u totem /opt/totem-flexmedia/deploy/backup.sh`|
 | Purga de logs (LGPD, 90d)    | `flask purge-logs` (agendado no cron)                |
 | Aplicar migrations           | `flask db upgrade`                                   |
@@ -470,3 +588,4 @@ Para verificar status global: https://www.cloudflarestatus.com/
 | Rotacionar segredos          | `bash deploy/rotate_secrets.sh`                      |
 | Status do túnel HTTPS        | `sudo systemctl status cloudflared`                  |
 | Logs do túnel                | `sudo journalctl -u cloudflared -f`                  |
+| Simular sensores             | `source ./scripts/simular_sensores.sh`               |

@@ -1,145 +1,645 @@
 {% extends "base.html" %}
 {% block content %}
 
+{% set floor_order = [] %}
+{% for store in stores %}
+  {% set floor = store.floor or 'Terreo' %}
+  {% if floor not in floor_order %}{% set _ = floor_order.append(floor) %}{% endif %}
+{% endfor %}
+{% set active_floor = floor_order[0] if floor_order else 'Terreo' %}
+
 <style>
   .mall-map-shell {
     display: grid;
-    grid-template-columns: 320px minmax(0, 1fr);
-    gap: 22px;
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    gap: 18px;
     min-height: calc(100vh - 190px);
   }
-  .mall-panel {
-    border: 1px solid rgba(255,255,255,.12);
+  .mall-panel,
+  .mall-map-card {
+    border: 1px solid rgba(245,179,74,.14);
     border-radius: 8px;
-    background: rgba(12,18,30,.88);
-    padding: 20px;
+    background: linear-gradient(180deg, rgba(22,36,58,.9), rgba(10,19,32,.96));
+    box-shadow: 0 16px 44px rgba(0,0,0,.34);
   }
-  .mall-panel h2 {
-    margin: 0 0 8px;
-    font-size: 26px;
+  .mall-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 18px;
+    min-height: 0;
   }
-  .mall-panel p {
-    color: var(--muted);
-    line-height: 1.45;
-    margin: 0 0 18px;
-  }
-  .mall-list {
-    display: grid;
-    gap: 10px;
-  }
-  .mall-list a {
+  .mall-panel-title {
     display: flex;
     justify-content: space-between;
     gap: 12px;
+    align-items: flex-start;
+  }
+  .mall-panel-title h2 {
+    margin: 0 0 4px;
+    font-size: 24px;
+  }
+  .mall-count {
+    color: var(--accent);
+    font-weight: 900;
+    white-space: nowrap;
+  }
+  .mall-search {
+    width: 100%;
+    min-height: 50px;
     padding: 13px 14px;
-    border: 1px solid rgba(255,255,255,.10);
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.06);
+    color: var(--text);
+    font: 700 15px var(--font);
+    outline: none;
+  }
+  .mall-search:focus {
+    border-color: rgba(245,179,74,.52);
+    box-shadow: 0 0 0 3px rgba(245,179,74,.12);
+  }
+  .mall-filter-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .mall-chip {
+    min-height: 42px;
+    padding: 9px 13px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.045);
+    color: var(--text-soft);
+    font: 800 12px var(--font);
+    letter-spacing: .2px;
+    cursor: pointer;
+  }
+  .mall-chip.active {
+    color: #190e02;
+    background: linear-gradient(135deg, var(--accent-lt), var(--accent));
+    border-color: transparent;
+  }
+  .mall-store-list {
+    display: grid;
+    gap: 9px;
+    overflow: auto;
+    padding-right: 3px;
+    max-height: 42vh;
+  }
+  .mall-store {
+    display: grid;
+    gap: 4px;
+    text-align: left;
+    width: 100%;
+    padding: 12px 13px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.1);
+    background: rgba(255,255,255,.045);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .mall-store strong {
+    font-size: 15px;
+  }
+  .mall-store span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .mall-store.active,
+  .mall-store:hover {
+    border-color: rgba(245,179,74,.52);
+    background: rgba(245,179,74,.09);
+  }
+  .mall-actions {
+    display: grid;
+    gap: 9px;
+    margin-top: auto;
+  }
+  .mall-actions a {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 48px;
+    align-items: center;
+    padding: 11px 13px;
+    border: 1px solid rgba(255,255,255,.1);
     border-radius: 8px;
     color: var(--text);
     text-decoration: none;
-    background: rgba(255,255,255,.035);
+    background: rgba(255,255,255,.04);
+    font-weight: 800;
   }
-  .mall-list a:hover {
-    border-color: rgba(255,190,92,.42);
-  }
-  .mall-stage {
-    position: relative;
-    border: 1px solid rgba(255,255,255,.12);
-    border-radius: 8px;
-    background:
-      linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px),
-      linear-gradient(180deg, rgba(255,255,255,.04) 1px, transparent 1px),
-      radial-gradient(circle at 50% 50%, rgba(255,190,92,.12), transparent 44%),
-      #08101c;
-    background-size: 42px 42px, 42px 42px, auto, auto;
-    min-height: 620px;
+  .mall-map-card {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     overflow: hidden;
+  }
+  .mall-map-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px;
+    border-bottom: 1px solid rgba(245,179,74,.12);
+  }
+  .mall-floor-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .mall-tool-buttons {
+    display: flex;
+    gap: 8px;
+  }
+  .mall-icon-btn {
+    width: 46px;
+    height: 46px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(255,255,255,.06);
+    color: var(--text);
+    font: 900 20px var(--font);
+    cursor: pointer;
+  }
+  .mall-viewport {
+    position: relative;
+    min-height: 610px;
+    overflow: hidden;
+    touch-action: none;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px),
+      linear-gradient(180deg, rgba(255,255,255,.035) 1px, transparent 1px),
+      #07101d;
+    background-size: 44px 44px;
+    cursor: grab;
+  }
+  .mall-viewport.dragging {
+    cursor: grabbing;
+  }
+  .mall-canvas {
+    position: absolute;
+    inset: 30px;
+    transform-origin: 50% 50%;
+    transition: transform .12s ease;
   }
   .mall-floor {
     position: absolute;
-    inset: 42px;
+    inset: 0;
     display: grid;
-    grid-template-columns: 1.05fr .46fr 1fr .62fr;
-    grid-template-rows: .9fr .72fr 1fr;
+    grid-template-columns: 1.05fr .48fr 1fr .65fr;
+    grid-template-rows: .88fr .72fr 1fr;
     gap: 14px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease;
+  }
+  .mall-floor.active {
+    opacity: 1;
+    pointer-events: auto;
   }
   .mall-zone {
-    border: 1px solid rgba(255,255,255,.14);
-    border-radius: 8px;
-    background: rgba(255,255,255,.055);
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
     text-align: center;
     padding: 12px;
-    color: rgba(255,255,255,.86);
-    font-weight: 800;
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 8px;
+    background: rgba(255,255,255,.055);
+    color: rgba(255,255,255,.9);
+    font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: .5px;
+    cursor: pointer;
+    overflow: hidden;
   }
-  .mall-zone.food { background: rgba(255,190,92,.13); border-color: rgba(255,190,92,.38); }
-  .mall-zone.service { background: rgba(94,230,197,.10); border-color: rgba(94,230,197,.34); }
-  .mall-zone.anchor { background: rgba(255,116,95,.10); border-color: rgba(255,116,95,.32); }
+  .mall-zone::after {
+    content: attr(data-count);
+    position: absolute;
+    right: 10px;
+    bottom: 8px;
+    min-width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: rgba(0,0,0,.34);
+    color: var(--accent-lt);
+    font-size: 12px;
+  }
+  .mall-zone.active,
+  .mall-zone:hover {
+    border-color: rgba(245,179,74,.58);
+    box-shadow: inset 0 0 0 2px rgba(245,179,74,.12), 0 14px 34px rgba(0,0,0,.28);
+  }
+  .mall-zone.food { background: rgba(245,179,74,.13); border-color: rgba(245,179,74,.36); }
+  .mall-zone.service { background: rgba(77,217,208,.10); border-color: rgba(77,217,208,.34); }
+  .mall-zone.anchor { background: rgba(232,93,78,.12); border-color: rgba(232,93,78,.34); }
   .mall-corridor {
     grid-column: 2;
     grid-row: 1 / span 3;
-    color: #ffbe5c;
+    color: var(--accent);
     writing-mode: vertical-rl;
+  }
+  .mall-pin {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 3px solid #07101d;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px rgba(245,179,74,.2), 0 8px 20px rgba(0,0,0,.4);
+    transform: translate(-50%, -50%);
+    z-index: 5;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .mall-pin.active {
+    opacity: 1;
   }
   .mall-entrance {
     position: absolute;
     left: 50%;
-    bottom: 18px;
+    bottom: -18px;
     transform: translateX(-50%);
-    color: #ffbe5c;
+    color: var(--accent);
     font-weight: 900;
     letter-spacing: 3px;
     text-transform: uppercase;
   }
-  @media (max-width: 900px) {
+  .mall-detail {
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    border-top: 1px solid rgba(245,179,74,.12);
+    background: rgba(255,255,255,.035);
+  }
+  .mall-detail h3 {
+    margin: 0 0 4px;
+    font-size: 19px;
+  }
+  .mall-detail p {
+    margin: 0;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .mall-empty {
+    padding: 18px;
+    border: 1px dashed rgba(255,255,255,.14);
+    border-radius: 8px;
+    color: var(--muted);
+    text-align: center;
+    font-weight: 700;
+  }
+  @media (max-width: 980px) {
     .mall-map-shell { grid-template-columns: 1fr; }
-    .mall-stage { min-height: 520px; }
+    .mall-store-list { max-height: 260px; }
+    .mall-viewport { min-height: 520px; }
+  }
+  @media (max-width: 620px) {
+    .mall-map-toolbar,
+    .mall-detail { align-items: stretch; flex-direction: column; }
+    .mall-tool-buttons { justify-content: space-between; }
+    .mall-icon-btn { flex: 1; }
+    .mall-canvas { inset: 22px; }
+    .mall-floor { gap: 9px; }
+    .mall-zone { font-size: 11px; padding: 8px; }
   }
 </style>
 
 <div class="page-header">
   <div class="page-eyebrow">Mapa do Shopping</div>
   <h2 class="page-title">{{ institution.name }}</h2>
-  <p class="page-desc">Visao geral do shopping para localizar lojas, alimentacao, servicos e entradas.</p>
+  <p class="page-desc">Toque em um setor, busque uma loja ou aproxime o mapa para se orientar.</p>
 </div>
 
 <div class="mall-map-shell">
-  <aside class="mall-panel">
-    <h2>Setores</h2>
-    <p>Use os atalhos abaixo para ir direto ao conteudo principal do shopping.</p>
-    <div class="mall-list">
+  <aside class="mall-panel" aria-label="Busca e atalhos do mapa">
+    <div class="mall-panel-title">
+      <div>
+        <h2>Encontrar loja</h2>
+        <p class="muted">Filtre por piso ou toque em uma loja para destacar a posicao aproximada.</p>
+      </div>
+      <span class="mall-count" id="mallStoreCount">{{ stores|length }}</span>
+    </div>
+
+    <input class="mall-search" id="mallSearch" type="search" placeholder="Buscar loja ou setor..." autocomplete="off">
+
+    <div class="mall-filter-row" id="mallFloorFilters">
+      <button class="mall-chip active" type="button" data-floor="all">Todos</button>
+      {% for floor in floor_order %}
+      <button class="mall-chip" type="button" data-floor="{{ floor }}">{{ floor }}</button>
+      {% endfor %}
+    </div>
+
+    <div class="mall-filter-row" id="mallCategoryFilters">
+      <button class="mall-chip active" type="button" data-category="all">Tudo</button>
+      <button class="mall-chip" type="button" data-category="moda">Moda</button>
+      <button class="mall-chip" type="button" data-category="alimentacao">Alimentacao</button>
+      <button class="mall-chip" type="button" data-category="servicos">Servicos</button>
+      <button class="mall-chip" type="button" data-category="tecnologia">Tecnologia</button>
+    </div>
+
+    <div class="mall-store-list" id="mallStoreList">
+      {% for store in stores %}
+      <button class="mall-store"
+              type="button"
+              data-name="{{ store.name }}"
+              data-category="{{ store.category or 'Loja' }}"
+              data-floor="{{ store.floor or 'Terreo' }}"
+              data-slug="{{ store.slug }}">
+        <strong>{{ store.name }}</strong>
+        <span>{{ store.category or 'Loja' }}{% if store.floor %} - Piso {{ store.floor }}{% endif %}</span>
+      </button>
+      {% else %}
+      <div class="mall-empty">Nenhuma loja cadastrada ainda.</div>
+      {% endfor %}
+    </div>
+
+    <nav class="mall-actions" aria-label="Atalhos do shopping">
       {% if institution.has_module('lojas') %}
-      <a href="{{ url_for('shopping.lojas', slug=institution.slug) }}"><span>Lojas</span><span>→</span></a>
+      <a href="{{ url_for('shopping.lojas', slug=institution.slug) }}"><span>Ver todas as lojas</span><span>&gt;</span></a>
       {% endif %}
       {% if institution.has_module('alimentacao') %}
-      <a href="{{ url_for('core.alimentacao', slug=institution.slug) }}"><span>Praca de alimentacao</span><span>→</span></a>
+      <a href="{{ url_for('core.alimentacao', slug=institution.slug) }}"><span>Praca de alimentacao</span><span>&gt;</span></a>
       {% endif %}
       {% if institution.has_module('ia') %}
-      <a href="{{ url_for('voice.ia_page', slug=institution.slug) }}"><span>Assistente IA</span><span>→</span></a>
+      <a href="{{ url_for('voice.ia_page', slug=institution.slug) }}"><span>Perguntar ao assistente</span><span>&gt;</span></a>
       {% endif %}
-      <a href="{{ url_for('core.home', slug=institution.slug) }}"><span>Voltar ao inicio</span><span>→</span></a>
-    </div>
+    </nav>
   </aside>
 
-  <section class="mall-stage" aria-label="Mapa visual do shopping">
-    <div class="mall-floor">
-      <div class="mall-zone anchor">Loja ancora</div>
-      <div class="mall-zone mall-corridor">Corredor principal</div>
-      <div class="mall-zone">Moda</div>
-      <div class="mall-zone service">Servicos</div>
-      <div class="mall-zone">Tecnologia</div>
-      <div class="mall-zone food">Alimentacao</div>
-      <div class="mall-zone">Casa e presentes</div>
-      <div class="mall-zone anchor">Cinema</div>
-      <div class="mall-zone">Kids</div>
-      <div class="mall-zone service">Atendimento</div>
+  <section class="mall-map-card" aria-label="Mapa interativo do shopping">
+    <div class="mall-map-toolbar">
+      <div class="mall-floor-tabs" id="mallFloorTabs">
+        {% for floor in floor_order %}
+        <button class="mall-chip {% if loop.first %}active{% endif %}" type="button" data-floor-tab="{{ floor }}">{{ floor }}</button>
+        {% else %}
+        <button class="mall-chip active" type="button" data-floor-tab="Terreo">Terreo</button>
+        {% endfor %}
+      </div>
+      <div class="mall-tool-buttons" aria-label="Controles do mapa">
+        <button class="mall-icon-btn" type="button" id="mallZoomOut" aria-label="Reduzir zoom">-</button>
+        <button class="mall-icon-btn" type="button" id="mallReset" aria-label="Centralizar mapa">o</button>
+        <button class="mall-icon-btn" type="button" id="mallZoomIn" aria-label="Aumentar zoom">+</button>
+      </div>
     </div>
-    <div class="mall-entrance">Entrada principal</div>
+
+    <div class="mall-viewport" id="mallViewport">
+      <div class="mall-canvas" id="mallCanvas">
+        {% for floor in floor_order %}
+        <div class="mall-floor {% if loop.first %}active{% endif %}" data-floor-view="{{ floor }}">
+          <button class="mall-zone anchor" type="button" data-sector="ancora" data-count="1">Loja ancora</button>
+          <button class="mall-zone mall-corridor" type="button" data-sector="corredor" data-count="">Corredor principal</button>
+          <button class="mall-zone" type="button" data-sector="moda" data-count="0">Moda</button>
+          <button class="mall-zone service" type="button" data-sector="servicos" data-count="0">Servicos</button>
+          <button class="mall-zone" type="button" data-sector="tecnologia" data-count="0">Tecnologia</button>
+          <button class="mall-zone food" type="button" data-sector="alimentacao" data-count="0">Alimentacao</button>
+          <button class="mall-zone" type="button" data-sector="casa" data-count="0">Casa e presentes</button>
+          <button class="mall-zone anchor" type="button" data-sector="cinema" data-count="1">Cinema</button>
+          <button class="mall-zone" type="button" data-sector="kids" data-count="0">Kids</button>
+          <button class="mall-zone service" type="button" data-sector="atendimento" data-count="1">Atendimento</button>
+        </div>
+        {% else %}
+        <div class="mall-floor active" data-floor-view="Terreo">
+          <button class="mall-zone anchor" type="button" data-sector="ancora" data-count="1">Loja ancora</button>
+          <button class="mall-zone mall-corridor" type="button" data-sector="corredor" data-count="">Corredor principal</button>
+          <button class="mall-zone" type="button" data-sector="moda" data-count="0">Moda</button>
+          <button class="mall-zone service" type="button" data-sector="servicos" data-count="0">Servicos</button>
+          <button class="mall-zone" type="button" data-sector="tecnologia" data-count="0">Tecnologia</button>
+          <button class="mall-zone food" type="button" data-sector="alimentacao" data-count="0">Alimentacao</button>
+          <button class="mall-zone" type="button" data-sector="casa" data-count="0">Casa e presentes</button>
+          <button class="mall-zone anchor" type="button" data-sector="cinema" data-count="1">Cinema</button>
+          <button class="mall-zone" type="button" data-sector="kids" data-count="0">Kids</button>
+          <button class="mall-zone service" type="button" data-sector="atendimento" data-count="1">Atendimento</button>
+        </div>
+        {% endfor %}
+        <div class="mall-pin" id="mallPin"></div>
+        <div class="mall-entrance">Entrada principal</div>
+      </div>
+    </div>
+
+    <div class="mall-detail">
+      <div>
+        <h3 id="mallDetailTitle">Selecione um setor</h3>
+        <p id="mallDetailText">O painel mostra lojas e orientacao conforme a area tocada.</p>
+      </div>
+      {% if institution.has_module('lojas') %}
+      <a class="btn sm" id="mallDetailLink" href="{{ url_for('shopping.lojas', slug=institution.slug) }}">Abrir lojas</a>
+      {% endif %}
+    </div>
   </section>
 </div>
 
+<script>
+(function(){
+  const stores = [
+    {% for store in stores %}
+    {
+      name: {{ store.name|tojson }},
+      category: {{ (store.category or 'Loja')|tojson }},
+      floor: {{ (store.floor or 'Terreo')|tojson }},
+      slug: {{ (store.slug or '')|tojson }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ];
+  const baseStoresUrl = "{{ url_for('shopping.lojas', slug=institution.slug) }}";
+  const foodUrl = "{% if institution.has_module('alimentacao') %}{{ url_for('core.alimentacao', slug=institution.slug) }}{% else %}{{ url_for('shopping.lojas', slug=institution.slug) }}{% endif %}";
+  const viewport = document.getElementById('mallViewport');
+  const canvas = document.getElementById('mallCanvas');
+  const search = document.getElementById('mallSearch');
+  const count = document.getElementById('mallStoreCount');
+  const detailTitle = document.getElementById('mallDetailTitle');
+  const detailText = document.getElementById('mallDetailText');
+  const detailLink = document.getElementById('mallDetailLink');
+  const pin = document.getElementById('mallPin');
+  let activeFloor = {{ active_floor|tojson }};
+  let activeCategory = 'all';
+  let query = '';
+  let scale = 1;
+  let tx = 0;
+  let ty = 0;
+  let dragging = false;
+  let startX = 0;
+  let startY = 0;
+
+  const sectorWords = {
+    moda: ['moda', 'roupa', 'calcado', 'acessorio'],
+    alimentacao: ['alimentacao', 'food', 'restaurante', 'cafe', 'lanche', 'sorvete'],
+    servicos: ['servico', 'banco', 'atendimento', 'lavanderia', 'loterica'],
+    tecnologia: ['tecnologia', 'eletronico', 'celular', 'informatica'],
+    casa: ['casa', 'presente', 'decoracao'],
+    kids: ['kids', 'infantil', 'brinquedo'],
+    cinema: ['cinema'],
+    ancora: ['ancora', 'departamento'],
+    atendimento: ['atendimento', 'informacao']
+  };
+  const sectorPoints = {
+    ancora: [16, 18],
+    corredor: [41, 50],
+    moda: [62, 20],
+    servicos: [88, 18],
+    tecnologia: [16, 52],
+    alimentacao: [63, 52],
+    casa: [16, 84],
+    cinema: [63, 84],
+    kids: [88, 52],
+    atendimento: [88, 84]
+  };
+
+  function normalize(value) {
+    return (value || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+  function storeSector(store) {
+    const hay = normalize(store.category + ' ' + store.name);
+    for (const [sector, words] of Object.entries(sectorWords)) {
+      if (words.some(word => hay.includes(normalize(word)))) return sector;
+    }
+    return 'moda';
+  }
+  function visibleStores() {
+    return stores.filter(store => {
+      const text = normalize(store.name + ' ' + store.category + ' ' + store.floor);
+      const sameFloor = activeFloor === 'all' || store.floor === activeFloor;
+      const sameCat = activeCategory === 'all' || storeSector(store) === activeCategory;
+      return sameFloor && sameCat && text.includes(normalize(query));
+    });
+  }
+  function updateZoneCounts() {
+    document.querySelectorAll('.mall-floor').forEach(floorEl => {
+      const floor = floorEl.dataset.floorView;
+      floorEl.querySelectorAll('.mall-zone').forEach(zone => {
+        const sector = zone.dataset.sector;
+        const total = stores.filter(store => store.floor === floor && storeSector(store) === sector).length;
+        if (total > 0) zone.dataset.count = total;
+      });
+    });
+  }
+  function renderStores() {
+    const filtered = visibleStores();
+    count.textContent = filtered.length;
+    document.querySelectorAll('.mall-store').forEach(btn => {
+      const name = btn.dataset.name;
+      const floor = btn.dataset.floor;
+      const store = stores.find(item => item.name === name && item.floor === floor);
+      const show = store && filtered.includes(store);
+      btn.hidden = !show;
+    });
+  }
+  function setFloor(floor) {
+    activeFloor = floor;
+    document.querySelectorAll('[data-floor-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.floorTab === floor));
+    document.querySelectorAll('[data-floor-view]').forEach(view => view.classList.toggle('active', view.dataset.floorView === floor));
+    document.querySelectorAll('#mallFloorFilters .mall-chip').forEach(btn => btn.classList.toggle('active', btn.dataset.floor === floor));
+    renderStores();
+  }
+  function setDetail(title, text, href) {
+    detailTitle.textContent = title;
+    detailText.textContent = text;
+    if (detailLink) detailLink.href = href || baseStoresUrl;
+  }
+  function movePin(sector) {
+    const point = sectorPoints[sector] || [50, 50];
+    pin.style.left = point[0] + '%';
+    pin.style.top = point[1] + '%';
+    pin.classList.add('active');
+  }
+  function focusSector(sector) {
+    activeCategory = sector;
+    document.querySelectorAll('#mallCategoryFilters .mall-chip').forEach(btn => btn.classList.toggle('active', btn.dataset.category === sector));
+    document.querySelectorAll('.mall-zone').forEach(zone => zone.classList.toggle('active', zone.dataset.sector === sector));
+    const total = stores.filter(store => (activeFloor === 'all' || store.floor === activeFloor) && storeSector(store) === sector).length;
+    const label = sector.charAt(0).toUpperCase() + sector.slice(1);
+    const href = sector === 'alimentacao' ? foodUrl : baseStoresUrl + '?categoria=' + encodeURIComponent(label);
+    setDetail(label, total ? total + ' loja(s) neste setor.' : 'Setor destacado na planta.', href);
+    movePin(sector);
+    renderStores();
+  }
+  function focusStore(button) {
+    const store = stores.find(item => item.name === button.dataset.name && item.floor === button.dataset.floor);
+    if (!store) return;
+    setFloor(store.floor);
+    const sector = storeSector(store);
+    document.querySelectorAll('.mall-store').forEach(btn => btn.classList.toggle('active', btn === button));
+    document.querySelectorAll('.mall-zone').forEach(zone => zone.classList.toggle('active', zone.dataset.sector === sector));
+    setDetail(store.name, (store.category || 'Loja') + ' - Piso ' + store.floor, baseStoresUrl + '/' + store.slug);
+    movePin(sector);
+  }
+  function applyTransform() {
+    canvas.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  }
+  function zoom(next) {
+    scale = Math.min(2.4, Math.max(.85, next));
+    applyTransform();
+  }
+  function resetMap() {
+    scale = 1;
+    tx = 0;
+    ty = 0;
+    applyTransform();
+  }
+
+  search.addEventListener('input', () => {
+    query = search.value;
+    renderStores();
+  });
+  document.querySelectorAll('#mallFloorFilters .mall-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#mallFloorFilters .mall-chip').forEach(item => item.classList.remove('active'));
+      btn.classList.add('active');
+      if (btn.dataset.floor !== 'all') setFloor(btn.dataset.floor);
+      else {
+        activeFloor = 'all';
+        renderStores();
+      }
+    });
+  });
+  document.querySelectorAll('[data-floor-tab]').forEach(btn => btn.addEventListener('click', () => setFloor(btn.dataset.floorTab)));
+  document.querySelectorAll('#mallCategoryFilters .mall-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeCategory = btn.dataset.category;
+      document.querySelectorAll('#mallCategoryFilters .mall-chip').forEach(item => item.classList.toggle('active', item === btn));
+      document.querySelectorAll('.mall-zone').forEach(zone => zone.classList.remove('active'));
+      if (activeCategory !== 'all') movePin(activeCategory);
+      renderStores();
+    });
+  });
+  document.querySelectorAll('.mall-zone').forEach(zone => zone.addEventListener('click', () => focusSector(zone.dataset.sector)));
+  document.querySelectorAll('.mall-store').forEach(btn => btn.addEventListener('click', () => focusStore(btn)));
+  document.getElementById('mallZoomIn').addEventListener('click', () => zoom(scale + .2));
+  document.getElementById('mallZoomOut').addEventListener('click', () => zoom(scale - .2));
+  document.getElementById('mallReset').addEventListener('click', resetMap);
+  viewport.addEventListener('pointerdown', event => {
+    if (event.target.closest('button')) return;
+    dragging = true;
+    startX = event.clientX - tx;
+    startY = event.clientY - ty;
+    viewport.classList.add('dragging');
+    viewport.setPointerCapture(event.pointerId);
+  });
+  viewport.addEventListener('pointermove', event => {
+    if (!dragging) return;
+    tx = event.clientX - startX;
+    ty = event.clientY - startY;
+    applyTransform();
+  });
+  viewport.addEventListener('pointerup', () => {
+    dragging = false;
+    viewport.classList.remove('dragging');
+  });
+  viewport.addEventListener('wheel', event => {
+    event.preventDefault();
+    zoom(scale + (event.deltaY < 0 ? .12 : -.12));
+  }, { passive: false });
+
+  updateZoneCounts();
+  renderStores();
+  applyTransform();
+})();
+</script>
 {% endblock %}

@@ -30,11 +30,14 @@ Cada instituição tem tema visual próprio, módulos configuráveis e um assist
 | Backend | Python, Flask, Flask-SQLAlchemy, Flask-Migrate, Flask-Login, Flask-Limiter |
 | Auth | Werkzeug scrypt, **TOTP 2FA** (`pyotp` + `qrcode`), códigos de backup |
 | IA STT / Chat / TTS | OpenAI Whisper · GPT-4o-mini · OpenAI TTS |
+| Tradução | OpenAI (`gpt-4o-mini`) · cache Redis · PT/EN/ES/FR (`app/services/translation.py`) |
+| i18n da UI | Catálogo puro Python PT/EN (`app/services/i18n.py`) — sem Babel |
 | Banco | SQLite (dev) · PostgreSQL via `psycopg[binary]` (prod) |
 | Cache / Rate limit | Redis (loopback) |
 | Frontend | HTML, CSS e JavaScript vanilla |
 | Servidor produção | Gunicorn + Nginx + systemd + Let's Encrypt **ou** Cloudflare Tunnel |
 | HTTPS público (frota) | **Cloudflare Tunnel** (`deploy/install_cloudflared.sh`) — sem IP público, sem cert próprio, microfone/câmera funcionam em qualquer rede |
+| Sensores físicos | **DHT11/DHT22** (ambiente) + **HC-SR04** (presença/distância) via daemon systemd separado (`totem-sensors.service`) |
 | Hardware alvo | **Raspberry Pi 3 B/B+** (piloto) — Pi 4 também suportado |
 | Kiosk | Chromium fullscreen + watchdog + unclutter (`install_totem.sh`) ou Fully Kiosk Browser (Android) |
 
@@ -70,12 +73,18 @@ Acesse `http://localhost:5000`.
 | Variável | Obrig. | Descrição |
 |----------|--------|-----------|
 | `SECRET_KEY` | sim | Chave Flask (`python -c "import secrets; print(secrets.token_hex(32))"`) |
+| `FIELD_ENCRYPTION_KEY` | sim em prod | Fernet — cifra TOTP secret e `device.api_key_secret` (`Fernet.generate_key()`) |
 | `OPENAI_API_KEY` | sim | Chave OpenAI |
 | `SUPERADMIN_EMAIL` | sim | E-mail do primeiro super admin (seed) |
-| `SUPERADMIN_PASSWORD` | sim | Senha (mín. 10 caracteres) |
+| `SUPERADMIN_PASSWORD` | sim | Senha (mín. 12 caracteres) |
 | `DATABASE_URL` | não | Ex: `postgresql+psycopg://user:pw@host/flexmedia` (default: SQLite) |
 | `INTERACTION_LOG_RETENTION_DAYS` | não | Retenção LGPD — default 90 |
-| `REDIS_URL` | não | Para Flask-Limiter em produção (default: memória) |
+| `REDIS_URL` | não | Para Flask-Limiter e cache de tradução em produção (default: memória) |
+| `TOTEM_PUBLIC_URL` | não | URL HTTPS pública (preenchido automaticamente por `install_cloudflared.sh`) |
+| `TOTEM_WAKE_SECRET` | sim no Pi | Segredo loopback do `/api/local/wake` (daemon de sensores ↔ Flask) |
+| `TOTEM_DISABLE_SENSORS` | não | `1` força sensores em mock no próprio Pi (e suprime overlay) |
+| `DHT_MODEL` | não | `DHT11` ou `DHT22` — default `DHT22` |
+| `REQUIRE_TOTP_FOR_SUPERADMIN` | não | `1` (default) obriga 2FA em super admins |
 
 ---
 
@@ -109,8 +118,11 @@ Acesse `/admin/login`. Suporta **2FA via TOTP** (Google Authenticator, Authy, 1P
 | `/<slug>/lojas` | Lojas (shopping) |
 | `/<slug>/produtos` | Produtos (farmácia) |
 | `/<slug>/ia` | Assistente IA |
+| `/<slug>/quiz` | Quiz educativo (gabarito server-side) |
+| `/<slug>/rating` | Avaliação anônima (estrelas + comentário) |
 | `/privacidade` | Aviso LGPD |
 | `/offline` · `/sw.js` | Modo offline + service worker |
+| `POST /api/locale` | Toggle de idioma da UI (PT/EN) |
 
 ### Admin
 | URL | Descrição |
@@ -131,7 +143,16 @@ Acesse `/admin/login`. Suporta **2FA via TOTP** (Google Authenticator, Authy, 1P
 |-----|--------|-----------|
 | `/api/voice` | POST | Áudio → resposta em áudio |
 | `/api/chat` | POST | Texto → texto |
-| `/api/heartbeat` | POST | Pulso do totem (HMAC + API key) |
+| `/<slug>/api/translate` | POST | Tradução PT/EN/ES/FR (cache Redis) |
+| `/api/translate/languages` | GET | Lista pública de idiomas suportados |
+| `/<slug>/api/quiz/answer` | POST | Valida resposta (gabarito server-side) + curiosidade |
+| `/<slug>/api/rating` | POST | Avaliação anônima (sem PII) |
+| `/<slug>/api/sync/version` | GET | Versão do conteúdo (polling do kiosk) |
+| `/api/sync/snapshot` | GET | Snapshot completo (HMAC + ETag/304) |
+| `/api/heartbeat` | POST | Pulso do totem (HMAC + API key + anti-replay) |
+| `/api/local/wake` | POST | Daemon de sensores → Flask local (loopback + secret) |
+| `/api/local/wake-stream` | GET | SSE consumido pelo kiosk para reagir a presença |
+| `/api/session/state` | GET | Snapshot da máquina de estados (kiosk polla) |
 | `/health` | GET | Liveness / readiness |
 
 ---
@@ -153,68 +174,70 @@ Acesse `/admin/login`. Suporta **2FA via TOTP** (Google Authenticator, Authy, 1P
 
 ## Estrutura do projeto
 
+Visão de alto nível — para a árvore completa e regras de cada arquivo,
+ver [CLAUDE.md](CLAUDE.md).
+
 ```
 totem_flexmedia/
 ├── app/
-│   ├── __init__.py              # App factory + CLI (seed, init-db, purge-logs)
+│   ├── __init__.py              # App factory + CLI (seed, init-db, purge-logs, security-upgrade)
 │   ├── extensions.py            # db, migrate, login_manager, limiter
-│   ├── helpers.py               # CSRF, decoradores, load_institution, build_ai_context
-│   ├── twofa.py                 # TOTP, QR code, códigos de backup
+│   ├── crypto.py                # Fernet helpers (FIELD_ENCRYPTION_KEY) — dual-key
+│   ├── helpers.py               # CSRF, decoradores, tenant_get_or_404, build_ai_context, save_upload
+│   ├── twofa.py                 # TOTP + códigos de backup (hashados)
 │   ├── seed.py                  # Seed inicial (zoo demo + super admin)
-│   ├── models/
-│   │   ├── institution.py       # Institution, Module, InstitutionModule
-│   │   ├── content.py           # Animal, Event, Store, Product, FAQ, MapArea
-│   │   ├── log.py               # InteractionLog
-│   │   ├── user.py              # User, AuthLog
-│   │   ├── device.py            # TotemDevice (API key + HMAC)
-│   │   └── audit.py             # AdminAuditLog
-│   └── routes/
-│       ├── core.py              # Home, mapa, programação, alimentação, /sw.js
-│       ├── zoo.py · shopping.py · pharmacy.py
-│       ├── voice.py             # IA voz/chat (rate-limit + quota)
-│       ├── admin_auth.py        # Login, logout, 2FA, troca de senha
-│       ├── admin_platform.py    # Super admin (instituições, usuários, logs)
-│       ├── admin_institution.py # Client admin (conteúdo)
-│       ├── devices.py           # CRUD de totens + heartbeat
-│       └── health.py            # /health
-├── templates/
-│   ├── base.html · selector.html · privacidade.html · offline.html
-│   ├── 403.html · 404.html · 500.html
-│   ├── core/                    # home, mapa, programacao, alimentacao
-│   ├── modules/                 # zoo/, shopping/, pharmacy/
-│   ├── voice/index.html         # Assistente (consentimento LGPD + microfone)
-│   └── admin/
-│       ├── base.html · login.html · change_password.html · forgot_password.html
-│       ├── totp_setup.html · totp_challenge.html
-│       ├── totp_backup_codes.html · totp_backup_codes_regen.html
-│       ├── platform/            # dashboard, institutions, users, devices, audit, logs
-│       └── institution/         # dashboard + CRUD por instituição
-├── static/
-│   ├── css/style.css            # Totem
-│   ├── css/admin.css            # Painel admin
-│   ├── js/sw.js                 # Service worker
-│   ├── images/                  # Assets do zoo demo + logo
-│   └── uploads/                 # Uploads via admin (gitignored)
-├── migrations/                  # Alembic (Flask-Migrate)
-├── tests/
-│   ├── conftest.py
-│   ├── test_smoke.py            # Rotas públicas
-│   ├── test_voice_api.py        # /api/chat e /api/voice (OpenAI mockada)
-│   ├── test_2fa.py              # TOTP + códigos de backup
-│   ├── test_security.py         # Política de senha, lockout, auditoria
-│   └── test_heartbeat.py        # /api/heartbeat (HMAC, API key)
-├── data/                        # Seed JSON (zoo demo)
-├── deploy/                      # Nginx + systemd + backup + install_production.sh
-├── docs/OPERACAO.md             # Manual de operação (Pi 3)
+│   ├── models/                  # Institution, User, Device, Animal/Event/Store/Product/FAQ,
+│   │                            # InteractionLog, AdminAuditLog, QuizQuestion, ExperienceRating
+│   ├── routes/
+│   │   ├── core.py              # Totem público + /api/locale + service worker
+│   │   ├── zoo.py · shopping.py · pharmacy.py
+│   │   ├── voice.py             # IA voz/chat (rate-limit + quota + erros OpenAI)
+│   │   ├── translate.py         # POST /<slug>/api/translate (PT/EN/ES/FR)
+│   │   ├── quiz.py · rating.py  # Quiz com gabarito server-side + rating anônimo
+│   │   ├── sync.py              # /<slug>/api/sync/version + /api/sync/snapshot (HMAC + ETag)
+│   │   ├── admin_auth.py        # Login, 2FA, troca de senha, backup codes
+│   │   ├── admin_platform.py    # super_admin (instituições, usuários, devices, métricas, audit)
+│   │   ├── admin_institution.py # client_admin (conteúdo da própria instituição)
+│   │   ├── devices.py           # CRUD totens + /api/heartbeat + /api/local/wake(-stream) + /api/session/state
+│   │   └── health.py
+│   ├── services/                # Integrações plugáveis (registry pattern)
+│   │   ├── integrations.py      # Protocol + registry com health-check
+│   │   ├── translation.py       # OpenAI gpt-4o-mini + cache Redis
+│   │   ├── metrics.py           # Agregações de InteractionLog por instituição
+│   │   └── i18n.py              # Catálogo PT/EN puro Python — t(), get_locale, set_locale
+│   └── sensors/                 # Drivers físicos (Pi-only; mock automático fora do Pi)
+│       ├── base.py · dht22.py · hcsr04.py
+│       └── daemon.py            # SensorDaemon (threads + heartbeat HMAC + post local wake)
+├── templates/                   # Layout + módulos (zoo/shopping/pharmacy/quiz/rating) + admin
+├── static/                      # CSS, sw.js, images, uploads (gitignored)
+├── migrations/                  # Alembic — sempre via flask db migrate
+├── tests/                       # 14 suites: smoke, voice, 2fa, security, heartbeat, sensors,
+│                                # translation, metrics, tenant_isolation, sync, preview, quiz,
+│                                # i18n, rating
+├── scripts/
+│   ├── totem_sensor_daemon.py   # Entry point do daemon (systemd: totem-sensors.service)
+│   ├── simular_sensores.sh      # Simulador HC-SR04 + DHT (Linux/Pi)
+│   ├── simular_sensores.ps1     # Mesma coisa para Windows/dev
+│   └── teste_dht11.py           # Teste rápido isolado do DHT
+├── deploy/
+│   ├── install_production.sh    # Nginx + Gunicorn + Let's Encrypt + cron
+│   ├── install_cloudflared.sh   # Cloudflare Tunnel (HTTPS público)
+│   ├── rotate_secrets.sh        # Rotação assistida (SECRET_KEY, WAKE_SECRET, FIELD_ENCRYPTION_KEY)
+│   ├── backup.sh                # Backup diário com retenção 14 dias
+│   ├── nginx.conf.template
+│   ├── totem-flexmedia.service
+│   └── totem-sensors.service    # systemd unit do daemon de sensores
+├── docs/
+│   ├── OPERACAO.md              # Manual operacional (Pi 3 piloto)
+│   └── AUDITORIA_SEGURANCA.md   # Auditoria de hardening (histórico)
+├── data/                        # Seeds JSON
 ├── instance/                    # SQLite + uploads (gitignored)
-├── logs/app.log                 # Log rotativo (gitignored)
-├── run.py                       # Entrypoint dev
-├── wsgi.py                      # Entrypoint prod (Gunicorn)
-├── gunicorn.conf.py
-├── install_totem.sh             # Configura Pi como kiosk
+├── logs/                        # Rotativo (gitignored)
+├── install_totem.sh             # Configura Pi como kiosk (prompt: TOTEM_DISABLE_SENSORS)
 ├── INSTALACAO.md                # Guia passo a passo
-├── config.py · pytest.ini
-├── requirements.txt · requirements-dev.txt
+├── CLAUDE.md                    # Mapa completo + regras de engenharia
+├── config.py · run.py · wsgi.py · gunicorn.conf.py · pytest.ini
+├── requirements.txt · requirements-dev.txt · requirements-pi.txt
 └── .env.example
 ```
 
@@ -232,7 +255,9 @@ totem_flexmedia/
 - **Cookies** `SESSION_COOKIE_SECURE=True` em prod, `HttpOnly`, `SameSite=Lax`.
 - **Tenant isolation** — `client_admin` não acessa outra instituição.
 - **Auditoria** — toda ação sensível (criar/editar/excluir, login, 2FA, devices) grava em `AdminAuditLog`.
-- **Heartbeat de totem** — HMAC SHA-256 com timestamp anti-replay (janela 5 min) + API key rotacionável.
+- **Heartbeat de totem** — HMAC SHA-256 com timestamp anti-replay (janela 5 min, comparado com `time.time()` Unix epoch — independente de timezone do host) + API key rotacionável.
+- **Sensores físicos isolados** — `totem-sensors.service` roda fora do worker Gunicorn; `/api/local/wake` exige loopback + `X-Wake-Secret` (fail-closed sem segredo).
+- **Cifragem em repouso** — `User.totp_secret` e `TotemDevice.api_key_secret` cifrados via Fernet (`FIELD_ENCRYPTION_KEY`), com rotação dual-key suportada.
 
 ---
 
@@ -275,11 +300,33 @@ Documentação operacional completa em **[docs/OPERACAO.md](docs/OPERACAO.md)** 
 
 | Script | Função |
 |--------|--------|
-| `install_totem.sh` | Setup do Pi como kiosk (venv, .env, banco, systemd, Chromium fullscreen) |
+| `install_totem.sh` | Setup do Pi como kiosk (venv, .env, banco, systemd, Chromium fullscreen, prompt de sensores) |
 | `deploy/install_cloudflared.sh` | HTTPS público via Cloudflare Tunnel (resolve bloqueio de microfone) |
 | `deploy/install_production.sh` | Alternativa on-prem: Nginx + Gunicorn + Let's Encrypt + cron |
 | `deploy/rotate_secrets.sh` | Rotação assistida de `SECRET_KEY`, `TOTEM_WAKE_SECRET`, `FIELD_ENCRYPTION_KEY` |
 | `deploy/backup.sh` | Backup diário (retenção 14 dias) |
+| `scripts/simular_sensores.{sh,ps1}` | Simulador de HC-SR04 + DHT (testar overlay/áudio sem hardware) |
+| `scripts/totem_sensor_daemon.py` | Entry point do daemon de sensores (rodado via `totem-sensors.service`) |
+
+---
+
+## Sensores físicos (piloto Pi 3)
+
+Dois sensores integrados via daemon systemd separado do Flask:
+
+| Sensor | GPIO padrão | Função |
+|---|---|---|
+| **HC-SR04** (ultrassônico) | TRIG=23, ECHO=24 | Detecta aproximação → muda estado da sessão (IDLE → ACTIVE) → toca áudio de boas-vindas |
+| **DHT11 / DHT22** | DATA=GPIO 4 | Telemetria de temperatura/umidade — alimenta widgets TEMP/UMID na home e heartbeat para o painel admin |
+
+Características:
+- **Daemon isolado** (`totem-sensors.service`) — não roda no worker Gunicorn.
+- **Mock automático** fora do Pi (laptop, CI, servidor remoto).
+- **`TOTEM_DISABLE_SENSORS=1`** força mock no próprio Pi e suprime o overlay de proximidade.
+- **Sem PIR** — presença detectada apenas pelo HC-SR04 (evita falsos positivos com passantes distantes).
+- **Simuladores** em `scripts/simular_sensores.{sh,ps1}` para testar fluxo completo sem hardware.
+
+Detalhes técnicos de cada driver em `app/sensors/` (cada arquivo tem docstring explicativa).
 
 ---
 

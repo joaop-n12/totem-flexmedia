@@ -73,9 +73,14 @@ def _next_url_safe(default_redirect):
 @limiter.limit("20 per minute; 100 per hour")
 def login():
     if current_user.is_authenticated and current_user.active:
-        if current_user.must_change_password:
+        if request.method == "GET":
+            audit_log(ACTION_LOGOUT, actor=current_user, commit=True)
+            logout_user()
+            session.clear()
+        elif current_user.must_change_password:
             return redirect(url_for("auth.change_password"))
-        return _redirect_by_role(current_user)
+        else:
+            return _redirect_by_role(current_user)
 
     error = None
 

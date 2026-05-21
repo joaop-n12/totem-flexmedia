@@ -284,6 +284,17 @@ README.md                   # Apresentação pública do projeto
   Fail-closed se o segredo nao estiver configurado. Aceita apenas
   `type=distance` (HC-SR04) e `type=environment` (DHT). Usado pelo daemon
   de sensores (mesmo host) para acordar o kiosk via SSE.
+- **Telemetria DHT11/DHT22 alimenta DOIS canais distintos** (nao confundir):
+  1. **Heartbeat HMAC → painel admin**: `daemon._on_env` cacheia em
+     `_last_temp`/`_last_hum`; `_heartbeat_payload` exporta como
+     `ambient_temp_c`/`ambient_humidity_pct`; `routes/devices.py:heartbeat`
+     persiste em `TotemDevice` — `device_list.html` mostra na frota.
+  2. **`/api/local/wake type=environment` → frontend do kiosk**: `_on_env`
+     chama `_post_wake` no Flask local; `SessionStateMachine.update_environment`
+     popula `temp_c`/`humidity_pct` no snapshot; o polling de `base.html:
+     511-512` pinta os widgets TEMP/UMID. Sem este post, o widget fica "--"
+     mesmo com DHT lendo OK. Regressao coberta por
+     `test_daemon_posta_environment_para_flask_local`.
 - **URL publica HTTPS por instituicao**: cada `Institution` tem
   `public_url` (string nullable) — preenchida pelo super_admin em
   `/admin/platform/institutions/<id>/edit`, secao "Acesso publico".
