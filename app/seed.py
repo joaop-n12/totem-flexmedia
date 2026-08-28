@@ -4,7 +4,10 @@ import os
 
 from app.extensions import db
 from app.helpers import slugify
-from app.models import Animal, Event, FAQ, Institution, InstitutionModule, Module, User
+from app.models import (
+    Animal, Event, FAQ, Institution, InstitutionModule, Module, Store, TotemDevice, User,
+)
+from app.models.device import generate_api_key_id, generate_api_key_secret
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
@@ -131,6 +134,88 @@ def seed_zoo():
     print("[seed] Zoo institution created and populated.")
 
 
+def _enable_modules(institution, slugs):
+    """Ativa módulos demo sem duplicar vínculos existentes."""
+    existing = {item.module_slug for item in institution.modules}
+    for order, slug in enumerate(slugs):
+        if slug not in existing:
+            db.session.add(InstitutionModule(
+                institution_id=institution.id,
+                module_slug=slug,
+                enabled=True,
+                order=order,
+            ))
+
+
+def seed_neural_shopping():
+    """Cria o cliente Neural Shopping, com conteúdo mínimo para o totem."""
+    shopping = Institution.query.filter_by(slug="neural-shopping").first()
+    if not shopping:
+        shopping = Institution(
+            slug="neural-shopping",
+            name="Neural Shopping",
+            type="shopping",
+            tagline="Tudo que você precisa em um só lugar",
+            primary_color="#f5b34a",
+            secondary_color="#4dd9d0",
+            bg_color="#040c10",
+            text_color="#ddeef7",
+            theme="dark",
+            opening_hours="Seg-Sáb, 9h30 às 22h.",
+            ai_name="Neural Guide",
+            ai_context=(
+                "Você é o assistente virtual do Neural Shopping. "
+                "Responda em português sobre lojas, horários, alimentação e serviços."
+            ),
+        )
+        db.session.add(shopping)
+        db.session.flush()
+        print("[seed] Shopping institution created.")
+
+    _enable_modules(shopping, ["home", "lojas", "mapa", "programacao", "alimentacao", "ia"])
+    if not Store.query.filter_by(institution_id=shopping.id).first():
+        stores = [
+            ("Nike", "Moda", "Piso 1"),
+            ("Adidas", "Moda", "Piso 1"),
+        ]
+        for name, category, floor in stores:
+            store = Store(
+                institution_id=shopping.id,
+                name=name,
+                category=category,
+                floor=floor,
+                description=f"Loja demo {name}.",
+                hours="10h às 22h",
+            )
+            store.generate_slug()
+            db.session.add(store)
+    db.session.commit()
+
+
+def seed_demo_devices():
+    """Provisiona um dispositivo fictício para cada cliente demo, uma vez."""
+    for slug, name, location in (
+        ("zoo", "Totem Zoo Demo", "Entrada principal"),
+        ("neural-shopping", "Totem Shopping Demo", "Piso 1"),
+    ):
+        institution = Institution.query.filter_by(slug=slug).first()
+        if not institution or TotemDevice.query.filter_by(institution_id=institution.id).first():
+            continue
+        device = TotemDevice(
+            institution_id=institution.id,
+            name=name,
+            location=location,
+            api_key_id=generate_api_key_id(),
+            status="active",
+        )
+        # O segredo é aleatório e fica cifrado; o dispositivo demo não é uma
+        # credencial operacional nem expõe segredo no repositório.
+        device.set_secret(generate_api_key_secret())
+        db.session.add(device)
+        print(f"[seed] Totem demo criado para {institution.name}: {name}")
+    db.session.commit()
+
+
 def seed_super_admin():
     """
     Cria o primeiro super_admin a partir de variaveis de ambiente.
@@ -201,4 +286,6 @@ def seed_super_admin():
 def run_seed():
     seed_modules()
     seed_zoo()
+    seed_neural_shopping()
+    seed_demo_devices()
     seed_super_admin()

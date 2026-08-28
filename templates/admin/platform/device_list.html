@@ -61,7 +61,6 @@
           <th>Versão</th>
           <th>CPU</th>
           <th>Ambiente</th>
-          <th>Presença</th>
           <th>Disco livre</th>
           <th>Ações</th>
         </tr>
@@ -98,13 +97,6 @@
               <span style="color:var(--a-muted);">sem sensor</span>
             {% endif %}
           </td>
-          <td>
-            {% if d.last_motion_at %}
-              {{ d.last_motion_at.strftime('%d/%m %H:%M') }}
-            {% else %}
-              —
-            {% endif %}
-          </td>
           <td>{{ '%d MB' % d.free_disk_mb if d.free_disk_mb else '—' }}</td>
           <td>
             {% if d.is_active %}
@@ -120,7 +112,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="11" style="text-align:center;padding:24px;color:var(--a-muted);">
+        <tr><td colspan="10" style="text-align:center;padding:24px;color:var(--a-muted);">
           Nenhum totem provisionado ainda.
         </td></tr>
         {% endfor %}
