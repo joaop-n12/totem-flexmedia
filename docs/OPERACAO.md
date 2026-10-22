@@ -358,7 +358,26 @@ db.session.commit()
 - `https://<dominio>/i/<slug>/` → entrada direta daquele totem
   (recomendado configurar como URL do kiosk em `install_totem.sh`).
 
-### 4.4 Checklist pós-criação
+### 4.4 Acesso operacional no equipamento
+
+O super admin pode criar em **Usuários → Novo** uma conta com role
+`operational`. Essa conta não é vinculada a um cliente e não acessa dashboard,
+clientes, usuários, relatórios ou configurações administrativas.
+
+Fluxo no Raspberry Pi:
+
+1. Acesse `/admin/login` e autentique a conta operacional.
+2. Em `/operacional/`, escolha o cliente e um Totem ativo.
+3. Clique em **INICIAR TOTEM**; o sistema reutiliza a interface `/<slug>/`.
+4. Para trocar o equipamento, use a engrenagem discreta no canto superior do
+   kiosk e faça uma nova seleção.
+
+O ID selecionado é mantido somente na sessão assinada do Flask por até 8 horas.
+Senhas, API keys e segredos HMAC nunca são gravados no navegador. Se o Totem for
+revogado ou o cliente desativado, `/operacional/iniciar` descarta a seleção e
+volta ao seletor.
+
+### 4.5 Checklist pós-criação
 
 - [ ] Logo carregada e visível na home da instituição.
 - [ ] Pelo menos um item em cada módulo habilitado (evita tela vazia).

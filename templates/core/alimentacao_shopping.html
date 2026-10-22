@@ -241,6 +241,14 @@
     color: var(--accent-lt);
     font-size: 22px;
     font-weight: 900;
+    overflow: hidden;
+  }
+  .food-store-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #fff;
+    border-radius: inherit;
   }
   .food-promo {
     padding: 6px 9px;
@@ -387,7 +395,7 @@
            data-floor="{{ store.floor or 'Terreo' }}"
            data-promo="{{ 1 if store.on_promotion else 0 }}">
           <div class="food-store-top">
-            <span class="food-store-icon">+</span>
+            <span class="food-store-icon">{% if store.logo_path %}<img src="{{ url_for('static', filename=store.logo_path) }}" alt="Logo de {{ store.name }}" loading="lazy">{% else %}+{% endif %}</span>
             {% if store.on_promotion %}
             <span class="food-promo">Promocao</span>
             {% endif %}

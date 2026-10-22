@@ -339,6 +339,18 @@ def _apply_preview_overrides(inst, src):
         inst.ai_name = ai_name[:_PREVIEW_MAX_AI_NAME]
 
 
+def _apply_preview_modules(inst, src):
+    """Aplica módulos e ordem enviados pelo formulário, somente em memória."""
+    inst.modules = [
+        InstitutionModule(
+            module_slug=slug,
+            enabled=True,
+            order=_safe_int(src.get(f"order_{slug}"), 99),
+        )
+        for slug in dict.fromkeys(src.getlist("modules"))
+    ]
+
+
 @admin_platform_bp.route("/institutions/<int:iid>/preview", methods=["GET", "POST"])
 @super_admin_required
 def institution_preview(iid):
@@ -352,6 +364,7 @@ def institution_preview(iid):
     src = request.form if request.method == "POST" else request.args
     if request.method == "POST":
         validate_csrf_token()
+        _apply_preview_modules(inst, request.form)
 
     # Mantemos `inst` atachada a sessao para que lazy loads (modules etc.)
     # funcionem no template. Mudancas em atributos NAO sao persistidas porque
@@ -365,8 +378,39 @@ def institution_preview(iid):
     # "PREVIEW — alteracoes nao salvas".
     g.institution = inst
     g.preview_mode = True
-    rendered = render_template("core/home.html", institution=inst, preview_mode=True)
+    template = "core/home_shopping.html" if inst.type == "shopping" else "core/home.html"
+    rendered = render_template(template, institution=inst, preview_mode=True)
     # Garantia explicita: nada de mutacao sobrevive a este request.
+    db.session.rollback()
+    return rendered
+
+
+@admin_platform_bp.route("/institutions/preview-new", methods=["POST"])
+@super_admin_required
+def institution_preview_new():
+    """Preview de um cliente ainda nao salvo, sem criar registros no banco."""
+    validate_csrf_token()
+    src = request.form
+    name = (src.get("name") or "Novo cliente").strip()[:120]
+    inst = Institution(
+        id=0,
+        name=name or "Novo cliente",
+        slug=slugify(src.get("slug") or name or "preview"),
+        type=src.get("type", "zoo"),
+        tagline="",
+        primary_color="#f4b860",
+        secondary_color="#4dd9d0",
+        bg_color="#040c10",
+        text_color="#ddeef7",
+        theme="dark",
+        ai_name="Assistente",
+    )
+    _apply_preview_overrides(inst, src)
+    _apply_preview_modules(inst, request.form)
+    g.institution = inst
+    g.preview_mode = True
+    template = "core/home_shopping.html" if inst.type == "shopping" else "core/home.html"
+    rendered = render_template(template, institution=inst, preview_mode=True)
     db.session.rollback()
     return rendered
 
@@ -396,10 +440,13 @@ def user_new():
         if not email:
             errors.append("E-mail obrigatório.")
         errors.extend(validate_password_strength(password))
-        if role not in ("super_admin", "client_admin"):
+        if role not in ("super_admin", "client_admin", "operational"):
             errors.append("Role inválida.")
-        if role == "client_admin" and not iid_raw:
+        if role in ("client_admin", "operational") and not iid_raw:
             errors.append("Client admin deve ter uma instituição vinculada.")
+        institution = Institution.query.get(int(iid_raw)) if iid_raw.isdigit() else None
+        if role in ("client_admin", "operational") and iid_raw and not institution:
+            errors.append("Cliente inválido.")
         if User.query.filter_by(email=email).first():
             errors.append("E-mail já cadastrado.")
 
@@ -409,7 +456,7 @@ def user_new():
             return render_template("admin/platform/user_form.html",
                                    user=None, institutions=institutions, action="new")
 
-        institution_id = int(iid_raw) if iid_raw else None
+        institution_id = int(iid_raw) if role in ("client_admin", "operational") and iid_raw else None
         user = User(
             email=email,
             name=name,
@@ -455,10 +502,13 @@ def user_edit(uid):
         errors = []
         if not email:
             errors.append("E-mail obrigatório.")
-        if role not in ("super_admin", "client_admin"):
+        if role not in ("super_admin", "client_admin", "operational"):
             errors.append("Role inválida.")
-        if role == "client_admin" and not iid_raw:
+        if role in ("client_admin", "operational") and not iid_raw:
             errors.append("Client admin deve ter uma instituição vinculada.")
+        institution = Institution.query.get(int(iid_raw)) if iid_raw.isdigit() else None
+        if role in ("client_admin", "operational") and iid_raw and not institution:
+            errors.append("Cliente inválido.")
         conflict = User.query.filter(User.email == email, User.id != uid).first()
         if conflict:
             errors.append("E-mail já usado por outro usuário.")
@@ -478,7 +528,7 @@ def user_edit(uid):
         user.email          = email
         user.name           = name
         user.role           = role
-        user.institution_id = int(iid_raw) if iid_raw else None
+        user.institution_id = int(iid_raw) if role in ("client_admin", "operational") and iid_raw else None
         user.active         = "active" in request.form
         password_changed = False
         if password:

@@ -172,13 +172,27 @@
 
 <div class="page-wrapper" id="pageWrapper">
 
+  {% if current_user.is_authenticated and current_user.is_operational and
+        session.get('operational_device_id') %}
+  <a href="{{ url_for('operational.select_totem') }}"
+     aria-label="Trocar Totem" title="Trocar Totem"
+     style="position:fixed;right:10px;top:10px;z-index:10001;width:34px;height:34px;
+            display:flex;align-items:center;justify-content:center;border-radius:50%;
+            color:rgba(255,255,255,.45);background:rgba(0,0,0,.28);
+            text-decoration:none;font-size:16px;">&#9881;</a>
+  {% endif %}
+
   <header class="topbar">
     <div class="brand">
       <span class="brand-logo-wrap">
       {% if institution and institution.logo_path %}
-        <img class="logo" src="{{ url_for('static', filename=institution.logo_path) }}" alt="Logo">
+        <img class="logo" src="{{ url_for('static', filename=institution.logo_path) }}" alt="Logo do Neural Shopping" data-fallback-src="{{ url_for('static', filename='uploads/neural-shopping/logo.jpg') if institution.type == 'shopping' else url_for('static', filename='images/flexmedia-logo.png') }}" onerror="this.onerror=null;this.src=this.dataset.fallbackSrc;">
       {% else %}
+        {% if institution and institution.type == 'shopping' %}
+        <img class="logo" src="{{ url_for('static', filename='uploads/neural-shopping/logo.jpg') if institution.type == 'shopping' else url_for('static', filename='images/flexmedia-logo.png') }}" alt="Logo do Neural Shopping">
+        {% else %}
         <div class="logo" style="background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;">🏛️</div>
+        {% endif %}
       {% endif %}
         {% if institution %}
         <a class="brand-admin-hotspot"
@@ -296,7 +310,7 @@
   <canvas id="sleepNeuralCanvas" class="sleep-neural-canvas" aria-hidden="true"></canvas>
   <div class="sleep-card" role="dialog" aria-modal="true" aria-labelledby="sleepTitle">
     {% if institution and institution.logo_path %}
-      <img class="sleep-logo" src="{{ url_for('static', filename=institution.logo_path) }}" alt="{{ institution.name }}">
+      <img class="sleep-logo" src="{{ url_for('static', filename=institution.logo_path) }}" alt="{{ institution.name }}" data-fallback-src="{{ url_for('static', filename='uploads/neural-shopping/logo.jpg') if institution.type == 'shopping' else url_for('static', filename='images/flexmedia-logo.png') }}" onerror="this.onerror=null;this.src=this.dataset.fallbackSrc;">
     {% else %}
       <div class="sleep-logo" aria-hidden="true" style="background:var(--accent);display:inline-flex;align-items:center;justify-content:center;font-size:44px;">FM</div>
     {% endif %}

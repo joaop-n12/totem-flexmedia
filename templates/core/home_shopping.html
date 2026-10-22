@@ -91,6 +91,12 @@
     position: relative;
     overflow: hidden;
   }
+  .shop-map-card { display: grid; grid-template-rows: auto minmax(260px, 1fr) auto; gap: 12px; }
+  .shop-floor-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .shop-floor-tab { min-height: 44px; border: 1px solid var(--shop-line); border-radius: 8px; background: rgba(13,20,34,.82); color: var(--shop-muted); font: 800 13px var(--font); cursor: pointer; }
+  .shop-floor-tab.active { color: #16110a; background: var(--shop-gold); border-color: var(--shop-gold); }
+  .shop-map-caption { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--shop-muted); font-size: 13px; }
+  .shop-map-caption strong { color: var(--shop-gold); }
   .shop-floor {
     position: absolute;
     inset: 44px;
@@ -207,42 +213,72 @@
       </p>
     </div>
 
-    <a class="shop-map-preview" href="{{ url_for('core.mapa', slug=institution.slug) }}" aria-label="Abrir mapa do shopping">
-      <div class="shop-floor">
-        <div class="shop-zone anchor">Lojas</div>
-        <div class="shop-zone center">Corredor principal</div>
-        <div class="shop-zone anchor">Servicos</div>
-        <div class="shop-zone food">Praca de alimentacao</div>
-        <div class="shop-zone">Eventos</div>
-        <div class="shop-zone">Cinema</div>
-        <div class="shop-zone">Entrada</div>
+    <div class="shop-map-card">
+      <div class="shop-floor-tabs" role="tablist" aria-label="Pisos do shopping">
+        <button class="shop-floor-tab active" type="button" role="tab" aria-selected="true" data-home-floor="Terreo">Térreo</button>
+        <button class="shop-floor-tab" type="button" role="tab" aria-selected="false" data-home-floor="Piso 1">Piso 1</button>
+        <button class="shop-floor-tab" type="button" role="tab" aria-selected="false" data-home-floor="Piso 2">Piso 2</button>
       </div>
-    </a>
+      <a class="shop-map-preview" id="homeMapPreview" href="{{ url_for('core.mapa', slug=institution.slug) }}" aria-label="Abrir mapa do shopping">
+        <div class="shop-floor">
+          <div class="shop-zone anchor" data-zone="one">Lojas</div>
+          <div class="shop-zone center">Corredor principal</div>
+          <div class="shop-zone anchor" data-zone="two">Serviços</div>
+          <div class="shop-zone food" data-zone="three">Lojas</div>
+          <div class="shop-zone" data-zone="four">Eventos</div>
+          <div class="shop-zone" data-zone="five">Cinema</div>
+          <div class="shop-zone" data-zone="six">Entrada</div>
+        </div>
+      </a>
+      <div class="shop-map-caption"><span id="homeFloorCaption">Visão geral do Térreo</span><strong id="homeFoodCaption">Explore o shopping</strong></div>
+    </div>
   </section>
 
+  {% set module_order = {} %}
+  {% for item in institution.enabled_modules() %}
+    {% set _ = module_order.update({item.module_slug: item.order}) %}
+  {% endfor %}
   <nav class="shop-actions" aria-label="Menu principal do shopping">
     {% if institution.has_module('lojas') %}
-    <a class="shop-action" href="{{ url_for('shopping.lojas', slug=institution.slug) }}">
+    <a class="shop-action" style="order:{{ module_order.get('lojas', 99) }}" href="{{ url_for('shopping.lojas', slug=institution.slug) }}">
       <div class="shop-action-icon">L</div>
       <div><strong>Lojas</strong><span>Busque marcas, categorias, piso e promocoes.</span></div>
     </a>
     {% endif %}
     {% if institution.has_module('alimentacao') %}
-    <a class="shop-action" href="{{ url_for('core.alimentacao', slug=institution.slug) }}">
+    <a class="shop-action" style="order:{{ module_order.get('alimentacao', 99) }}" href="{{ url_for('core.alimentacao', slug=institution.slug) }}">
       <div class="shop-action-icon">A</div>
       <div><strong>Alimentacao</strong><span>Restaurantes, cafes e praca de alimentacao.</span></div>
     </a>
     {% endif %}
     {% if institution.has_module('mapa') %}
-    <a class="shop-action" href="{{ url_for('core.mapa', slug=institution.slug) }}">
+    <a class="shop-action" style="order:{{ module_order.get('mapa', 99) }}" href="{{ url_for('core.mapa', slug=institution.slug) }}">
       <div class="shop-action-icon">M</div>
       <div><strong>Mapa</strong><span>Veja entradas, corredores, pisos e pontos principais.</span></div>
     </a>
     {% endif %}
     {% if institution.has_module('ia') %}
-    <a class="shop-action" href="{{ url_for('voice.ia_page', slug=institution.slug) }}">
+    <a class="shop-action" style="order:{{ module_order.get('ia', 99) }}" href="{{ url_for('voice.ia_page', slug=institution.slug) }}">
       <div class="shop-action-icon">IA</div>
       <div><strong>Assistente</strong><span>Pergunte por voz ou texto sobre o shopping.</span></div>
+    </a>
+    {% endif %}
+    {% if institution.has_module('produtos') %}
+    <a class="shop-action" style="order:{{ module_order.get('produtos', 99) }}" href="{{ url_for('pharmacy.produtos', slug=institution.slug) }}">
+      <div class="shop-action-icon">P</div>
+      <div><strong>Produtos</strong><span>{{ t('home.products_desc') }}</span></div>
+    </a>
+    {% endif %}
+    {% if institution.has_module('quiz') %}
+    <a class="shop-action" style="order:{{ module_order.get('quiz', 99) }}" href="{{ url_for('quiz.quiz_page', slug=institution.slug) }}">
+      <div class="shop-action-icon">?</div>
+      <div><strong>{{ t('nav.quiz') }}</strong><span>{{ t('quiz.intro_subtitle') }}</span></div>
+    </a>
+    {% endif %}
+    {% if institution.has_module('avaliacao') %}
+    <a class="shop-action" style="order:{{ module_order.get('avaliacao', 99) }}" href="{{ url_for('rating.rating_page', slug=institution.slug) }}">
+      <div class="shop-action-icon">★</div>
+      <div><strong>Avaliar experiência</strong><span>Sua opinião nos ajuda a melhorar.</span></div>
     </a>
     {% endif %}
   </nav>
@@ -252,5 +288,35 @@
     <span>{{ institution.opening_hours or 'Consulte horarios nas lojas' }}</span>
   </footer>
 </div>
+
+<script>
+(function () {
+  const tabButtons = document.querySelectorAll('[data-home-floor]');
+  const caption = document.getElementById('homeFloorCaption');
+  const foodCaption = document.getElementById('homeFoodCaption');
+  const preview = document.getElementById('homeMapPreview');
+  if (!tabButtons.length || !preview) return;
+  const layouts = {
+    'Terreo': ['Lojas', 'Serviços', 'Lojas', 'Entrada', 'Acesso', 'Recepção'],
+    'Piso 1': ['Moda', 'Serviços', 'Lojas', 'Lazer', 'Cinema', 'Escadas'],
+    'Piso 2': ['Restaurantes', 'Praça de alimentação', 'Cafés', 'Mesas', 'Elevadores', 'Escadas']
+  };
+  tabButtons.forEach(button => button.addEventListener('click', () => {
+    const floor = button.dataset.homeFloor;
+    tabButtons.forEach(item => {
+      const active = item === button;
+      item.classList.toggle('active', active);
+      item.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-zone]').forEach((zone, index) => {
+      zone.textContent = layouts[floor][index];
+      zone.classList.toggle('food', floor === 'Piso 2' && index === 1);
+    });
+    caption.textContent = 'Visão geral do ' + floor;
+    foodCaption.textContent = floor === 'Piso 2' ? 'Praça de alimentação' : 'Toque para abrir o mapa';
+    preview.setAttribute('aria-label', 'Abrir mapa do ' + floor);
+  }));
+})();
+</script>
 
 {% endblock %}

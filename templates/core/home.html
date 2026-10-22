@@ -13,28 +13,28 @@
 <style>
   /* ── Paleta Neural Crew ── */
   body.neural-home {
-    --nc-coral:        #e85d4e;   /* coral do cérebro */
-    --nc-coral-bright: #ff7a5c;   /* hover/glow */
-    --nc-coral-deep:   #b8392c;
-    --nc-amber:        #f5b34a;   /* dourado do texto */
-    --nc-amber-bright: #ffc966;
-    --nc-amber-deep:   #c98a28;
-    --nc-bg:           #0a1320;   /* grafite profundo */
-    --nc-bg-2:         #0f1a2b;   /* superfícies */
-    --nc-bg-3:         #16243a;   /* superfícies elevadas */
-    --nc-line:         rgba(245,179,74,0.12);
-    --nc-text:         #f4f1ea;
-    --nc-text-dim:     #8a96a8;
+    --nc-coral:        var(--accent, #e85d4e);
+    --nc-coral-bright: color-mix(in srgb, var(--nc-coral) 82%, white);
+    --nc-coral-deep:   color-mix(in srgb, var(--nc-coral) 72%, black);
+    --nc-amber:        var(--teal, #f5b34a);
+    --nc-amber-bright: color-mix(in srgb, var(--nc-amber) 82%, white);
+    --nc-amber-deep:   color-mix(in srgb, var(--nc-amber) 72%, black);
+    --nc-bg:           var(--bg, #0a1320);
+    --nc-bg-2:         color-mix(in srgb, var(--nc-bg) 88%, white);
+    --nc-bg-3:         color-mix(in srgb, var(--nc-bg) 78%, white);
+    --nc-line:         color-mix(in srgb, var(--nc-amber) 12%, transparent);
+    --nc-text:         var(--text, #f4f1ea);
+    --nc-text-dim:     color-mix(in srgb, var(--nc-text) 58%, var(--nc-bg));
   }
 
   /* ── Fundo dark com gradiente e glow central ── */
   body.neural-home {
     background:
-      radial-gradient(ellipse at 50% 30%, rgba(232,93,78,0.10) 0%, transparent 45%),
-      radial-gradient(ellipse at 50% 70%, rgba(245,179,74,0.08) 0%, transparent 50%),
-      radial-gradient(circle at 15% 85%, rgba(232,93,78,0.06), transparent 40%),
-      radial-gradient(circle at 85% 15%, rgba(245,179,74,0.06), transparent 40%),
-      linear-gradient(180deg, #060c17 0%, #0a1320 50%, #0d1828 100%) !important;
+      radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--nc-coral) 10%, transparent) 0%, transparent 45%),
+      radial-gradient(ellipse at 50% 70%, color-mix(in srgb, var(--nc-amber) 8%, transparent) 0%, transparent 50%),
+      radial-gradient(circle at 15% 85%, color-mix(in srgb, var(--nc-coral) 6%, transparent), transparent 40%),
+      radial-gradient(circle at 85% 15%, color-mix(in srgb, var(--nc-amber) 6%, transparent), transparent 40%),
+      linear-gradient(180deg, var(--nc-bg) 0%, var(--nc-bg-2) 50%, var(--nc-bg-3) 100%) !important;
     color: var(--nc-text);
     /* Apenas o eixo X fica travado — o eixo Y precisa rolar para que a
        scrollbar padronizada do kiosk-scroll (mesma do Assistente de IA)
@@ -65,7 +65,7 @@
 
   /* ── Topbar futurista ── */
   body.neural-home .topbar {
-    background: rgba(10,19,32,0.80);
+    background: color-mix(in srgb, var(--nc-bg) 80%, transparent);
     backdrop-filter: blur(18px) saturate(120%);
     -webkit-backdrop-filter: blur(18px) saturate(120%);
     border-bottom: 1px solid var(--nc-line);
@@ -237,8 +237,9 @@
     justify-content: center;
     gap: 14px;
     padding: 38px 24px;
-    background:
-      linear-gradient(180deg, rgba(22,36,58,0.85) 0%, rgba(15,26,43,0.95) 100%);
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--nc-bg-3) 85%, var(--nc-coral) 15%) 0%,
+      color-mix(in srgb, var(--nc-bg-2) 95%, var(--nc-amber) 5%) 100%);
     border: 1px solid var(--nc-line);
     border-radius: 22px;
     color: var(--nc-text);
@@ -296,8 +297,8 @@
     justify-content: center;
     border-radius: 18px;
     background:
-      radial-gradient(circle at 30% 20%, rgba(232,93,78,0.22), transparent 65%),
-      linear-gradient(135deg, rgba(245,179,74,0.10), rgba(232,93,78,0.06));
+      radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--nc-coral) 22%, transparent), transparent 65%),
+      linear-gradient(135deg, color-mix(in srgb, var(--nc-amber) 10%, transparent), color-mix(in srgb, var(--nc-coral) 6%, transparent));
     border: 1px solid rgba(245,179,74,0.22);
     position: relative;
     z-index: 1;
@@ -478,11 +479,15 @@
   {% set url_mapa        = url_for('core.mapa',        slug=institution.slug) %}
   {% set url_programacao = url_for('core.programacao', slug=institution.slug) %}
   {% set url_ia          = url_for('voice.ia_page',    slug=institution.slug) %}
+  {% set module_order = {} %}
+  {% for item in institution.enabled_modules() %}
+    {% set _ = module_order.update({item.module_slug: item.order}) %}
+  {% endfor %}
 
   <main class="nc-grid" role="navigation" aria-label="Menu principal do totem">
 
     {% if institution.has_module('animais') %}
-    <a class="nc-btn" data-key="animais" href="{{ url_animais }}" aria-label="Animais">
+    <a class="nc-btn" data-key="animais" style="order:{{ module_order.get('animais', 99) }}" href="{{ url_animais }}" aria-label="Animais">
       <span class="nc-btn-icon-wrap">
         {# pata estilizada — line icon #}
         <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
@@ -500,7 +505,7 @@
 
     {# Mapa #}
     {% if institution.has_module('lojas') %}
-    <a class="nc-btn" data-key="lojas" href="{{ url_for('shopping.lojas', slug=institution.slug) }}" aria-label="{{ t('nav.stores') }}">
+    <a class="nc-btn" data-key="lojas" style="order:{{ module_order.get('lojas', 99) }}" href="{{ url_for('shopping.lojas', slug=institution.slug) }}" aria-label="{{ t('nav.stores') }}">
       <span class="nc-btn-icon-wrap">
         <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
           <path d="M10 18 L13 9 H35 L38 18"/>
@@ -515,7 +520,7 @@
     {% endif %}
 
     {% if institution.has_module('alimentacao') %}
-    <a class="nc-btn" data-key="alimentacao" href="{{ url_for('core.alimentacao', slug=institution.slug) }}" aria-label="Alimentacao">
+    <a class="nc-btn" data-key="alimentacao" style="order:{{ module_order.get('alimentacao', 99) }}" href="{{ url_for('core.alimentacao', slug=institution.slug) }}" aria-label="Alimentacao">
       <span class="nc-btn-icon-wrap">
         <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
           <path d="M16 8 V40"/>
@@ -530,7 +535,7 @@
     {% endif %}
 
     {% if institution.has_module('mapa') %}
-    <a class="nc-btn" data-key="mapa" href="{{ url_mapa }}" aria-label="Mapa">
+    <a class="nc-btn" data-key="mapa" style="order:{{ module_order.get('mapa', 99) }}" href="{{ url_mapa }}" aria-label="Mapa">
       <span class="nc-btn-icon-wrap">
         <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
           <path d="M6 12 L18 8 L30 12 L42 8 L42 36 L30 40 L18 36 L6 40 Z"/>
@@ -546,7 +551,7 @@
 
     {# Programação e Alimentação #}
     {% if institution.has_module('programacao') %}
-    <a class="nc-btn" data-key="programacao" href="{{ url_programacao }}" aria-label="Programacao">
+    <a class="nc-btn" data-key="programacao" style="order:{{ module_order.get('programacao', 99) }}" href="{{ url_programacao }}" aria-label="Programacao">
       <span class="nc-btn-icon-wrap">
         <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
           <rect x="7" y="10" width="34" height="32" rx="3"/>
@@ -565,9 +570,46 @@
     </a>
     {% endif %}
 
+    {% if institution.has_module('produtos') %}
+    <a class="nc-btn" data-key="produtos" style="order:{{ module_order.get('produtos', 99) }}" href="{{ url_for('pharmacy.produtos', slug=institution.slug) }}" aria-label="Produtos">
+      <span class="nc-btn-icon-wrap">
+        <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
+          <rect x="12" y="9" width="24" height="30" rx="5"/>
+          <path d="M18 9V7a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v2M18 24h12M24 18v12"/>
+        </svg>
+      </span>
+      <span class="nc-btn-label">{{ t('nav.products') }}</span>
+      <span class="nc-btn-desc">{{ t('home.products_desc') }}</span>
+    </a>
+    {% endif %}
+
+    {% if institution.has_module('quiz') %}
+    <a class="nc-btn" data-key="quiz" style="order:{{ module_order.get('quiz', 99) }}" href="{{ url_for('quiz.quiz_page', slug=institution.slug) }}" aria-label="Quiz">
+      <span class="nc-btn-icon-wrap">
+        <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
+          <circle cx="24" cy="24" r="17"/><path d="M19 18a5 5 0 1 1 8 4c-2 1-3 2-3 5M24 33v1"/>
+        </svg>
+      </span>
+      <span class="nc-btn-label">{{ t('nav.quiz') }}</span>
+      <span class="nc-btn-desc">{{ t('quiz.intro_subtitle') }}</span>
+    </a>
+    {% endif %}
+
+    {% if institution.has_module('avaliacao') %}
+    <a class="nc-btn" data-key="avaliacao" style="order:{{ module_order.get('avaliacao', 99) }}" href="{{ url_for('rating.rating_page', slug=institution.slug) }}" aria-label="Avaliar experiência">
+      <span class="nc-btn-icon-wrap">
+        <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">
+          <path d="m24 6 5.4 11 12.1 1.8-8.8 8.5 2.1 12-10.8-5.7-10.8 5.7 2.1-12-8.8-8.5L18.6 17 24 6Z"/>
+        </svg>
+      </span>
+      <span class="nc-btn-label">Avaliar experiência</span>
+      <span class="nc-btn-desc">Sua opinião nos ajuda a melhorar</span>
+    </a>
+    {% endif %}
+
     {# Assistente IA — leva à rota voice.ia_page (já integrada com /api/chat e /api/voice) #}
     {% if institution.has_module('ia') %}
-    <a class="nc-btn" data-key="ia" href="{{ url_ia }}" aria-label="Assistente de inteligencia artificial">
+    <a class="nc-btn" data-key="ia" style="order:{{ module_order.get('ia', 99) }}" href="{{ url_ia }}" aria-label="Assistente de inteligencia artificial">
       <span class="nc-btn-icon-wrap">
         {# cérebro estilizado — combina com a logo Neural Crew #}
         <svg class="nc-btn-icon" viewBox="0 0 48 48" aria-hidden="true">

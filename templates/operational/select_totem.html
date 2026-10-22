@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Selecionar Totem · FlexMedia</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/operational.css') }}">
+</head>
+<body>
+<main class="operational-page">
+  <section class="operational-box">
+    <img src="{{ url_for('static', filename='images/flexmedia-logo.png') }}"
+         alt="FlexMedia" style="display:block;max-width:170px;margin:0 auto 28px;">
+    <h1 class="login-box-title">Selecione o Totem</h1>
+    <p class="login-box-sub">Selecione um equipamento do cliente vinculado à sua conta.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+      <div class="login-error">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% if not devices %}
+      <div class="login-error">Nenhum Totem ativo está disponível. Solicite o provisionamento ao administrador.</div>
+    {% else %}
+    <div id="clientIdentity" style="display:none;text-align:center;margin:0 0 22px;">
+      <img id="clientLogo" alt="" style="display:none;max-width:120px;max-height:70px;margin:0 auto 8px;">
+      <strong id="clientName" style="color:var(--a-text);"></strong>
+    </div>
+    <form method="post">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group" style="margin-bottom:18px;display:none;">
+        <label class="form-label" for="institution">Cliente</label>
+        <select class="form-control" id="institution" required>
+          <option value="">Selecione o cliente</option>
+          {% for institution in institutions %}
+          <option value="{{ institution.id }}" data-name="{{ institution.name }}"
+                  data-logo="{{ url_for('static', filename=institution.logo_path) if institution.logo_path else '' }}"
+                  {{ 'selected' if (selected and selected.institution_id == institution.id) or institutions|length == 1 }}>
+            {{ institution.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:26px;">
+        <label class="form-label" for="device">Totem</label>
+        <select class="form-control" id="device" name="device_id" required>
+          <option value="">Selecione o Totem</option>
+          {% for device in devices %}
+          <option value="{{ device.id }}" data-institution="{{ device.institution_id }}"
+                  {{ 'selected' if selected and selected.id == device.id }}>
+            {{ device.name }}{% if device.location %} · {{ device.location }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-primary btn-block btn-lg" type="submit">INICIAR TOTEM</button>
+    </form>
+    {% endif %}
+
+    <p style="text-align:center;margin-top:24px;font-size:13px;">
+      <a href="{{ url_for('auth.logout') }}" style="color:var(--a-muted);">Sair da conta</a>
+    </p>
+  </section>
+</main>
+<script>
+(() => {
+  const institution = document.getElementById('institution');
+  const device = document.getElementById('device');
+  if (!institution || !device) return;
+  const options = Array.from(device.options).slice(1);
+  const identity = document.getElementById('clientIdentity');
+  const clientName = document.getElementById('clientName');
+  const clientLogo = document.getElementById('clientLogo');
+  function filterDevices(reset) {
+    const selectedInstitution = institution.value;
+    options.forEach(option => {
+      option.hidden = option.dataset.institution !== selectedInstitution;
+      option.disabled = option.hidden;
+    });
+    if (reset || (device.selectedOptions[0] && device.selectedOptions[0].disabled)) device.value = '';
+    device.disabled = !selectedInstitution;
+    const client = institution.selectedOptions[0];
+    identity.style.display = selectedInstitution ? '' : 'none';
+    clientName.textContent = client && client.dataset.name ? client.dataset.name : '';
+    const logo = client && client.dataset.logo ? client.dataset.logo : '';
+    clientLogo.style.display = logo ? 'block' : 'none';
+    if (logo) clientLogo.src = logo;
+  }
+  institution.addEventListener('change', () => filterDevices(true));
+  filterDevices(false);
+})();
+</script>
+</body>
+</html>

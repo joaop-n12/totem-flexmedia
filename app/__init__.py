@@ -144,6 +144,7 @@ def create_app(env: str = "default") -> Flask:
     from app.routes.admin_institution import admin_institution_bp
     from app.routes.health            import health_bp
     from app.routes.devices           import devices_bp
+    from app.routes.operational       import operational_bp
 
     app.register_blueprint(core_bp)
     app.register_blueprint(zoo_bp)
@@ -161,6 +162,7 @@ def create_app(env: str = "default") -> Flask:
     # devices_bp expoe /api/heartbeat (publico HMAC) + /admin/platform/devices/*
     # As rotas declaram seu proprio prefixo dentro do blueprint para diferenciar.
     app.register_blueprint(devices_bp)
+    app.register_blueprint(operational_bp, url_prefix="/operacional")
 
     # ── Sentry (opcional) ───────────────────────────────────────────────────────
     # Se SENTRY_DSN estiver definido no .env, envia erros para o Sentry.

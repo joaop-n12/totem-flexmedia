@@ -30,12 +30,14 @@
           <td>
             {% if u.role == 'super_admin' %}
             <span class="badge badge-accent">super_admin</span>
+            {% elif u.role == 'operational' %}
+            <span class="badge badge-success">operational</span>
             {% else %}
             <span class="badge badge-muted">client_admin</span>
             {% endif %}
           </td>
           <td class="td-muted">
-            {{ u.institution.name if u.institution else '(teste)' }}
+            {{ u.institution.name if u.institution else '—' }}
           </td>
           <td>
             {% if u.active %}

@@ -6,7 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from app.crypto import encrypt_field, safe_decrypt_field
 from app.extensions import db
 
-ROLES = ("super_admin", "client_admin")
+ROLES = ("super_admin", "client_admin", "operational")
 
 
 class User(UserMixin, db.Model):
@@ -77,6 +77,10 @@ class User(UserMixin, db.Model):
     @property
     def is_super_admin(self):
         return self.role == "super_admin"
+
+    @property
+    def is_operational(self):
+        return self.role == "operational"
 
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)

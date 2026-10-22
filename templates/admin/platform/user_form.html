@@ -50,12 +50,15 @@
             <option value="super_admin" {{ 'selected' if user and user.role == 'super_admin' }}>
               super_admin — Acesso global à plataforma
             </option>
+            <option value="operational" {{ 'selected' if user and user.role == 'operational' }}>
+              operational — Somente selecionar e iniciar Totem
+            </option>
           </select>
         </div>
 
         <div class="form-group" id="institution-field"
              style="{{ 'display:none' if user and user.role == 'super_admin' else '' }}">
-          <label class="form-label">Cliente vinculado</label>
+          <label class="form-label">Cliente vinculado *</label>
           <select class="form-control" name="institution_id">
             <option value="">— Selecione —</option>
             {% for inst in institutions %}
@@ -65,7 +68,7 @@
             </option>
             {% endfor %}
           </select>
-          <span class="form-hint">Obrigatório para client_admin.</span>
+          <span class="form-hint">Obrigatório para client_admin e operational.</span>
         </div>
 
         {% if action == 'edit' %}
@@ -93,6 +96,8 @@
 function toggleInstitution(role) {
   var field = document.getElementById('institution-field');
   field.style.display = role === 'super_admin' ? 'none' : '';
+  document.querySelector('[name="institution_id"]').required = role !== 'super_admin';
 }
+toggleInstitution(document.getElementById('role-select').value);
 </script>
 {% endblock %}

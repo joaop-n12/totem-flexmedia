@@ -126,6 +126,17 @@
         <span class="nav-icon">{{ icon('shop') }}</span> Lojas
       </a>
       {% endif %}
+      {% if admin_inst and admin_inst.has_module('alimentacao') and admin_inst.type == 'shopping' %}
+      <a class="nav-item {% if 'food_' in (request.endpoint or '') %}active{% endif %}"
+         href="{{ url_for('admin_institution.food_list', iid=iid) }}">
+        <span class="nav-icon">🍽️</span> Alimentação
+      </a>
+      {% endif %}
+      {% if admin_inst and admin_inst.has_module('mapa') and admin_inst.type == 'shopping' %}
+      <a class="nav-item {% if 'map_point_' in (request.endpoint or '') %}active{% endif %}" href="{{ url_for('admin_institution.map_point_list', iid=iid) }}">
+        <span class="nav-icon">⌖</span> Pontos do mapa
+      </a>
+      {% endif %}
       {% if admin_inst and admin_inst.has_module('produtos') %}
       <a class="nav-item {% if 'product' in (request.endpoint or '') %}active{% endif %}"
          href="{{ url_for('admin_institution.product_list', iid=iid) }}">

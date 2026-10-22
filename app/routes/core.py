@@ -2,7 +2,7 @@
 import random
 import unicodedata
 from flask import Blueprint, render_template, redirect, url_for, abort, jsonify, g, request, send_from_directory, current_app
-from app.models import Event, MapArea, Store
+from app.models import Event, FAQ, MapArea, Store
 from app.helpers import load_institution
 from app.services.i18n import SUPPORTED_LOCALES, set_locale
 
@@ -107,8 +107,46 @@ def mapa(slug):
     areas = MapArea.query.filter_by(institution_id=inst.id).all()
     if inst.type == "shopping":
         stores = Store.query.filter_by(institution_id=inst.id).all()
-        return render_template("core/mapa_shopping.html", institution=inst, areas=areas, stores=stores)
-    return render_template("core/mapa.html", institution=inst, areas=areas)
+        food_store_ids = {store.id for store in stores if _is_food_store(store)}
+        return render_template("core/mapa_shopping.html", institution=inst, areas=areas,
+                               stores=stores, food_store_ids=food_store_ids)
+    area_targets = {}
+    has_food_area = False
+    has_entry_area = False
+    for area in areas:
+        area_slug = _plain_text(area.slug).replace("_", "-").replace(" ", "-")
+        area_name = _plain_text(area.name).strip()
+        if area_slug in {"alimentacao", "praca-de-alimentacao", "food-court"} or area_name in {
+            "alimentacao", "praca de alimentacao", "praca de alimentacao do parque",
+        }:
+            area_targets[area.id] = url_for("core.alimentacao", slug=inst.slug)
+            has_food_area = True
+        elif area_slug in {"entrada", "entrada-principal", "bilheteria", "portao-principal"} or area_name in {
+            "entrada", "entrada principal", "portao principal", "bilheteria",
+        }:
+            area_targets[area.id] = url_for("core.visitar", slug=inst.slug)
+            has_entry_area = True
+        elif area.slug:
+            area_targets[area.id] = url_for("zoo.animais_por_area", slug=inst.slug, area_slug=area.slug)
+        else:
+            area_targets[area.id] = url_for("zoo.catalogo", slug=inst.slug)
+    return render_template("core/mapa.html", institution=inst, areas=areas,
+                           area_targets=area_targets, has_food_area=has_food_area,
+                           has_entry_area=has_entry_area)
+
+
+@core_bp.route("/<slug>/visitar")
+@core_bp.route("/<slug>/ingressos")
+def visitar(slug):
+    inst = load_institution(slug)
+    faqs = FAQ.query.filter_by(institution_id=inst.id).order_by(FAQ.category, FAQ.question).all()
+    ticket_faqs = [faq for faq in faqs if any(term in _plain_text(f"{faq.category} {faq.question}")
+                   for term in ("ingresso", "bilheteria", "preco", "valor", "meia-entrada", "gratuidade"))]
+    hours_faqs = [faq for faq in faqs if any(term in _plain_text(f"{faq.category} {faq.question}")
+                  for term in ("horario", "funcionamento"))]
+    office_faqs = [faq for faq in faqs if "bilheteria" in _plain_text(f"{faq.category} {faq.question}")]
+    return render_template("core/visitar.html", institution=inst, ticket_faqs=ticket_faqs,
+                           hours_faqs=hours_faqs, office_faqs=office_faqs)
 
 
 @core_bp.route("/<slug>/programacao")
@@ -123,9 +161,9 @@ def programacao(slug):
 @core_bp.route("/<slug>/alimentacao")
 def alimentacao(slug):
     inst = load_institution(slug)
-    if not inst.has_module("alimentacao"):
-        abort(404)
     if inst.type == "shopping":
+        if not inst.has_module("alimentacao"):
+            abort(404)
         stores = Store.query.filter_by(institution_id=inst.id).order_by(Store.name).all()
         food_stores = [store for store in stores if _is_food_store(store)]
         return render_template(

@@ -1,0 +1,12 @@
+{% extends "admin/base.html" %}
+{% block title %}Pontos do mapa · {{ inst.name }}{% endblock %}
+{% block topbar_title %}Pontos do mapa{% endblock %}
+{% block breadcrumb %}<a href="{{ url_for('admin_institution.dashboard', iid=inst.id) }}">{{ inst.name }}</a><span class="sep">/</span> Pontos do mapa{% endblock %}
+{% block content %}
+<div class="page-hd"><div><h1>Pontos de interesse</h1><div class="page-hd-sub">{{ points|length }} cadastrados · posições em percentual da planta de demonstração</div></div><a class="btn btn-primary" href="{{ url_for('admin_institution.map_point_new', iid=inst.id) }}">+ Novo ponto</a></div>
+<div class="card"><div class="table-wrap"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Piso</th><th>Posição</th><th>Ações</th></tr></thead><tbody>
+{% for point in points %}<tr><td><strong>{{ point.icon or '•' }} {{ point.name }}</strong></td><td>{{ point.category or '—' }}</td><td>{{ point.floor or 'Terreo' }}</td><td>{% if point.x_pos is not none and point.y_pos is not none %}{{ '%.1f'|format(point.x_pos) }}%, {{ '%.1f'|format(point.y_pos) }}%{% else %}Sem posição{% endif %}</td><td><div class="td-actions"><a class="btn btn-secondary btn-sm" href="{{ url_for('admin_institution.map_point_edit', iid=inst.id, mid=point.id) }}">Editar</a><form class="delete-form" method="post" action="{{ url_for('admin_institution.map_point_delete', iid=inst.id, mid=point.id) }}" onsubmit="return confirm('Remover {{ point.name }}?')"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-danger btn-sm" type="submit">Remover</button></form></div></td></tr>
+{% else %}<tr><td colspan="5"><div class="empty-state"><div class="empty-state-title">Nenhum ponto cadastrado</div><p>Cadastre entradas, elevadores, escadas, sanitários e outros serviços.</p></div></td></tr>{% endfor %}
+</tbody></table></div></div>
+<p class="td-muted" style="margin-top:12px">As plantas atuais são esquemáticas e demonstrativas. Confirme a planta do shopping antes de cadastrar coordenadas reais.</p>
+{% endblock %}

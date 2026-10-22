@@ -208,7 +208,8 @@ def _event_to_dict(e: Event) -> dict:
 def _store_to_dict(s: Store) -> dict:
     return {
         "id": s.id, "slug": s.slug, "name": s.name, "category": s.category,
-        "floor": s.floor, "description": s.description, "hours": s.hours,
+        "floor": s.floor, "unit_code": s.unit_code, "x_pos": s.x_pos, "y_pos": s.y_pos,
+        "description": s.description, "hours": s.hours,
         "phone": s.phone, "on_promotion": s.on_promotion,
         "promo_text": s.promo_text,
     }
@@ -236,6 +237,10 @@ def _map_area_to_dict(m: MapArea) -> dict:
     return {
         "id": m.id,
         "name": getattr(m, "name", None),
+        "floor": getattr(m, "floor", None),
+        "category": getattr(m, "category", None),
+        "x_pos": getattr(m, "x_pos", None),
+        "y_pos": getattr(m, "y_pos", None),
         "kind": getattr(m, "kind", None),
         "data": getattr(m, "data", None),
     }

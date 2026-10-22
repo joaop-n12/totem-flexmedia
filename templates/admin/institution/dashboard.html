@@ -89,7 +89,7 @@
   <div class="card">
     <div class="card-header"><h2>Acesso rapido</h2></div>
     <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <a class="btn btn-secondary" href="{{ url_for('core.home', slug=inst.slug) }}" target="_blank" rel="noopener noreferrer">Home</a>
+      <a class="btn btn-secondary" href="{{ ver_totem_href or url_for('core.home', slug=inst.slug) }}" target="_blank" rel="noopener noreferrer">Home</a>
 
       {% if inst.has_module('alimentacao') %}
       <a class="btn btn-secondary" href="{{ url_for('core.alimentacao', slug=inst.slug) }}" target="_blank" rel="noopener noreferrer">Alimentacao</a>
@@ -114,6 +114,14 @@
 
       {% if inst.has_module('lojas') %}
       <a class="btn btn-secondary" href="{{ url_for('admin_institution.store_list', iid=inst.id) }}">Lojas</a>
+      {% endif %}
+
+      {% if inst.has_module('alimentacao') and inst.type == 'shopping' %}
+      <a class="btn btn-secondary" href="{{ url_for('admin_institution.food_list', iid=inst.id) }}">Pontos de alimentação</a>
+      {% endif %}
+
+      {% if inst.has_module('mapa') and inst.type == 'shopping' %}
+      <a class="btn btn-secondary" href="{{ url_for('admin_institution.map_point_list', iid=inst.id) }}">Pontos do mapa</a>
       {% endif %}
 
       {% if inst.has_module('produtos') %}

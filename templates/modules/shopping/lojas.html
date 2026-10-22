@@ -21,6 +21,7 @@
   {% for store in stores %}
   <div class="card">
     <div class="card-body">
+      {% if store.logo_path %}<img src="{{ url_for('static', filename=store.logo_path) }}" alt="Logo de {{ store.name }}" loading="lazy" style="display:block;width:84px;height:84px;object-fit:contain;border-radius:10px;margin-bottom:12px;">{% endif %}
       <h3 class="card-title">{{ store.name }}</h3>
       <p class="card-meta">{{ store.category or '' }} {% if store.floor %}· Piso {{ store.floor }}{% endif %}</p>
       {% if store.description %}<p class="card-desc">{{ store.description }}</p>{% endif %}

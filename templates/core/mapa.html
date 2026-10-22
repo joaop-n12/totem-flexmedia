@@ -21,44 +21,27 @@
            class="interactive-map" id="interactiveMap" draggable="false">
       <div class="hotspots horizontal">
         {% for area in areas %}
-        <button class="hotspot"
-                style="top:{{ area.y_pos }}%;left:{{ area.x_pos }}%;"
-                onclick="abrirArea('{{ area.slug }}')"
-                aria-label="{{ area.name|tr }}"></button>
+        <a class="hotspot" href="{{ area_targets[area.id] }}" title="{{ area.name|tr }}"
+           style="top:{{ area.y_pos }}%;left:{{ area.x_pos }}%;"
+           aria-label="{{ area.name|tr }}"></a>
         {% endfor %}
         {# fallback: hardcoded zoo hotspots if no DB areas #}
         {% if not areas %}
-        <button class="hotspot" style="top:22%;left:33%;" onclick="abrirArea('savana-africana')"   aria-label="Savana Africana"></button>
-        <button class="hotspot" style="top:50%;left:21%;" onclick="abrirArea('ilha-dos-primatas')" aria-label="Ilha dos Primatas"></button>
-        <button class="hotspot" style="top:56%;left:39%;" onclick="abrirArea('aviario')"           aria-label="Aviário"></button>
-        <button class="hotspot" style="top:55%;left:58%;" onclick="abrirArea('alimentacao')"       aria-label="Alimentação"></button>
-        <button class="hotspot" style="top:67%;left:32%;" onclick="abrirArea('reptil-e-anfibios')" aria-label="Répteis"></button>
-        <button class="hotspot" style="top:39%;left:82%;" onclick="abrirArea('fauna-brasileira')"  aria-label="Fauna Brasileira"></button>
-        <button class="hotspot" style="top:83%;left:40%;" onclick="abrirArea('zona-australia')"    aria-label="Zona Austrália"></button>
-        <button class="hotspot" style="top:87%;left:80%;" onclick="abrirArea('entrada')"           aria-label="Entrada"></button>
+        <a class="hotspot" style="top:22%;left:33%;" href="/{{ institution.slug }}/animais/area/savana-africana" aria-label="Savana Africana" title="Savana Africana"></a>
+        <a class="hotspot" style="top:50%;left:21%;" href="/{{ institution.slug }}/animais/area/ilha-dos-primatas" aria-label="Ilha dos Primatas" title="Ilha dos Primatas"></a>
+        <a class="hotspot" style="top:56%;left:39%;" href="/{{ institution.slug }}/animais/area/aviario" aria-label="Aviário" title="Aviário"></a>
+        <a class="hotspot" style="top:67%;left:32%;" href="/{{ institution.slug }}/animais/area/reptil-e-anfibios" aria-label="Répteis e anfíbios" title="Répteis e anfíbios"></a>
+        <a class="hotspot" style="top:39%;left:82%;" href="/{{ institution.slug }}/animais/area/fauna-brasileira" aria-label="Fauna Brasileira" title="Fauna Brasileira"></a>
+        <a class="hotspot" style="top:83%;left:40%;" href="/{{ institution.slug }}/animais/area/zona-australia" aria-label="Zona Austrália" title="Zona Austrália"></a>
         {% endif %}
+        {% if not has_food_area %}<a class="hotspot" style="top:55%;left:57%;" href="{{ url_for('core.alimentacao', slug=institution.slug) }}" aria-label="Praça de alimentação" title="Praça de alimentação"></a>{% endif %}
+        {% if not has_entry_area %}<a class="hotspot" style="top:91%;left:85%;" href="{{ url_for('core.visitar', slug=institution.slug) }}" aria-label="Entrada e informações para visitantes" title="Entrada · endereço, horários e ingressos"></a>{% endif %}
       </div>
     </div>
   </div>
 </div>
 
 <script>
-const slug = "{{ institution.slug }}";
-const AREA_URLS = {
-  {% for area in areas %}
-  "{{ area.slug }}": "/{{ institution.slug }}/animais/area/{{ area.slug }}",
-  {% endfor %}
-  "savana-africana":   "/{{ institution.slug }}/animais/area/savana-africana",
-  "ilha-dos-primatas": "/{{ institution.slug }}/animais/area/ilha-dos-primatas",
-  "aviario":           "/{{ institution.slug }}/animais/area/aviario",
-  "alimentacao":       "/{{ institution.slug }}/alimentacao",
-  "reptil-e-anfibios": "/{{ institution.slug }}/animais/area/reptil-e-anfibios",
-  "fauna-brasileira":  "/{{ institution.slug }}/animais/area/fauna-brasileira",
-  "zona-australia":    "/{{ institution.slug }}/animais/area/zona-australia",
-  "entrada":           "/{{ institution.slug }}/alimentacao",
-};
-function abrirArea(a){ if(AREA_URLS[a]) window.location.href=AREA_URLS[a]; }
-
 (function(){
   const frame=document.getElementById('mapFrame');
   const stage=document.getElementById('mapStage');

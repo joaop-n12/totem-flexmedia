@@ -1,0 +1,21 @@
+{% extends "admin/base.html" %}
+{% set editing = store is not none %}
+{% block title %}{{ 'Editar ponto' if editing else 'Novo ponto de alimentação' }}{% endblock %}
+{% block topbar_title %}{{ 'Editar ponto' if editing else 'Novo ponto de alimentação' }}{% endblock %}
+{% block breadcrumb %}<a href="{{ url_for('admin_institution.food_list', iid=inst.id) }}">Alimentação · {{ inst.name }}</a><span class="sep">/</span> {{ 'Editar' if editing else 'Novo ponto' }}{% endblock %}
+{% block content %}
+<form method="post" enctype="multipart/form-data"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+  <div class="card"><div class="card-body"><div class="form-grid">
+    <div class="form-group"><label class="form-label">Nome *</label><input class="form-control" name="name" required value="{{ store.name if editing else '' }}" placeholder="Ex.: Café Central"></div>
+    <div class="form-group"><label class="form-label">Tipo / categoria</label><input class="form-control" name="category" value="{{ store.category if editing else 'Alimentação' }}" placeholder="Ex.: Restaurante, Café, Quiosque"></div>
+    <div class="form-group"><label class="form-label">Piso</label><select class="form-control" name="floor">{% set floor = store.floor if editing else 'Piso 2' %}{% for value in ['Terreo', 'Piso 1', 'Piso 2'] %}<option value="{{ value }}" {% if floor == value %}selected{% endif %}>{{ value|replace('Terreo','Térreo') }}</option>{% endfor %}{% if floor not in ['Terreo', 'Piso 1', 'Piso 2'] %}<option value="{{ floor }}" selected>{{ floor }}</option>{% endif %}</select></div>
+    <div class="form-group"><label class="form-label">Unidade / código</label><input class="form-control" name="unit_code" value="{{ store.unit_code or '' if editing else '' }}" placeholder="Ex.: F-12"></div>
+    <div class="form-group form-full"><label class="form-label">Posição no piso (X e Y, 0 a 100)</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input class="form-control" type="number" name="x_pos" min="0" max="100" step="0.1" value="{{ store.x_pos if editing and store.x_pos is not none else '' }}" placeholder="X %"><input class="form-control" type="number" name="y_pos" min="0" max="100" step="0.1" value="{{ store.y_pos if editing and store.y_pos is not none else '' }}" placeholder="Y %"></div><small class="td-muted">Sem coordenadas, o estabelecimento aparece na busca, sem marcador inventado.</small></div>
+    <div class="form-group"><label class="form-label">Horário</label><input class="form-control" name="hours" value="{{ store.hours if editing else '' }}" placeholder="Ex.: 10h às 22h"></div>
+    <div class="form-group"><label class="form-label">Telefone</label><input class="form-control" name="phone" value="{{ store.phone if editing else '' }}"></div>
+    <div class="form-group form-full"><label class="form-label">Descrição</label><textarea class="form-control" name="description" rows="3" placeholder="Descreva as opções ou serviços">{{ store.description if editing else '' }}</textarea></div>
+    <div class="form-group form-full"><label class="form-label">Logo do estabelecimento</label>{% if editing and store.logo_path %}<img src="{{ url_for('static', filename=store.logo_path) }}" alt="Logo atual de {{ store.name }}" style="display:block;width:88px;height:88px;object-fit:contain;background:#fff;border-radius:8px;padding:6px;margin-bottom:10px;">{% endif %}<input class="form-control" type="file" name="logo" accept=".png,.jpg,.jpeg,.gif,.webp,image/png,image/jpeg,image/gif,image/webp"><small class="td-muted">PNG, JPG, GIF ou WEBP. Deixe vazio para manter a logo atual.</small></div>
+  </div></div></div>
+  <div class="form-actions" style="margin-top:20px"><button class="btn btn-primary" type="submit">{{ 'Salvar' if editing else 'Cadastrar ponto' }}</button><a class="btn btn-secondary" href="{{ url_for('admin_institution.food_list', iid=inst.id) }}">Cancelar</a></div>
+</form>
+{% endblock %}

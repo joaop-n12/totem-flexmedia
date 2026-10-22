@@ -128,6 +128,52 @@ def test_preview_mostra_banner(client, super_admin, inst_id):
 
 # ── Validacao defensiva ──────────────────────────────────────────────────────
 
+def test_preview_cliente_novo_renderiza_sem_persistir(app, client, super_admin):
+    _login_super(client, super_admin)
+    csrf = "c" * 64
+    with client.session_transaction() as sess:
+        sess["_csrf_token"] = csrf
+
+    r = client.post("/admin/platform/institutions/preview-new", data={
+        "_csrf_token": csrf,
+        "name": "Shopping de Teste",
+        "slug": "shopping-teste",
+        "type": "shopping",
+        "primary_color": "#123456",
+        "theme": "light",
+        "modules": ["lojas", "alimentacao"],
+    })
+
+    assert r.status_code == 200
+    assert b"Shopping de Teste" in r.data
+    assert b"#123456" in r.data
+    assert b"PREVIEW" in r.data
+    with app.app_context():
+        assert Institution.query.filter_by(slug="shopping-teste").first() is None
+
+
+def test_formulario_novo_cliente_mostra_acao_de_preview(client, super_admin):
+    _login_super(client, super_admin)
+    r = client.get("/admin/platform/institutions/new")
+    assert r.status_code == 200
+    assert b'id="previewBtn"' in r.data
+    assert b"/admin/platform/institutions/preview-new" in r.data
+
+
+def test_exclusao_cliente_redireciona_para_lista(app, client, super_admin, inst_id):
+    _login_super(client, super_admin)
+    csrf = "d" * 64
+    with client.session_transaction() as sess:
+        sess["_csrf_token"] = csrf
+    r = client.post(
+        f"/admin/platform/institutions/{inst_id}/delete",
+        data={"_csrf_token": csrf},
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    assert b"Clientes" in r.data
+
+
 def test_preview_descarta_cor_invalida(client, super_admin, inst_id, app):
     """Hex invalido cai pra cor persistida — entrada lixo nao quebra layout."""
     _login_super(client, super_admin)

@@ -96,11 +96,16 @@ Acesse `/admin/login`. Suporta **2FA via TOTP** (Google Authenticator, Authy, 1P
 |-------|--------|
 | `super_admin` | Global: instituições, usuários, dispositivos, logs de auditoria, IA |
 | `client_admin` | Restrito à própria instituição: conteúdo + logs de IA |
+| `operational` | Somente selecionar um cliente/Totem e iniciar o modo Totem |
 
 - Super admin é criado **uma única vez** via `.env` na primeira execução.
 - Demais admins são criados em `/admin/platform/users` (super admin).
 - Senhas temporárias forçam troca no primeiro login (`must_change_password`).
 - Cada `client_admin` enxerga apenas dados da sua instituição.
+- O `operational` não carrega dashboard nem menus administrativos. Depois do
+  login, acessa `/operacional/`, seleciona um `TotemDevice` ativo e entra na
+  interface Totem existente. A engrenagem discreta no kiosk permite trocar o
+  equipamento. A seleção fica na sessão assinada por até 8 horas.
 
 ---
 
@@ -137,6 +142,12 @@ Acesse `/admin/login`. Suporta **2FA via TOTP** (Google Authenticator, Authy, 1P
 | `/admin/platform/audit` | Trilha de auditoria |
 | `/admin/platform/logs` | Logs globais de IA |
 | `/admin/institutions/<id>/` | Dashboard client admin |
+
+### Operacional
+| URL | Descrição |
+|-----|-----------|
+| `/operacional/` | Selecionar cliente e Totem ativo |
+| `/operacional/iniciar` | Reabrir o último Totem selecionado |
 
 ### API
 | URL | Método | Descrição |

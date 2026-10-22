@@ -70,6 +70,9 @@ class Store(db.Model):
     name           = db.Column(db.String(150), nullable=False)
     category       = db.Column(db.String(80))
     floor          = db.Column(db.String(50))
+    unit_code      = db.Column(db.String(30))
+    x_pos          = db.Column(db.Float)  # posição percentual opcional na planta do piso
+    y_pos          = db.Column(db.Float)
     description    = db.Column(db.Text)
     logo_path      = db.Column(db.String(255))
     hours          = db.Column(db.String(100))
@@ -134,6 +137,8 @@ class MapArea(db.Model):
     slug           = db.Column(db.String(100))
     name           = db.Column(db.String(150), nullable=False)
     description    = db.Column(db.Text)
+    floor          = db.Column(db.String(50), default="Terreo")
+    category       = db.Column(db.String(80), default="Servicos")
     x_pos          = db.Column(db.Float, default=50.0)   # hotspot % left
     y_pos          = db.Column(db.Float, default=50.0)   # hotspot % top
     icon           = db.Column(db.String(10))

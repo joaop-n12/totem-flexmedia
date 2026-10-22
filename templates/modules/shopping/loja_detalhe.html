@@ -3,6 +3,7 @@
 <div class="detail">
   <div class="detail-info" style="max-width:680px;margin:0 auto;">
     <div class="detail-eyebrow">🛍️ {{ store.category or 'Loja' }}</div>
+    {% if store.logo_path %}<img src="{{ url_for('static', filename=store.logo_path) }}" alt="Logo de {{ store.name }}" style="display:block;width:112px;height:112px;object-fit:contain;border-radius:12px;margin:14px 0;">{% endif %}
     <h1 class="detail-title">{{ store.name }}</h1>
 
     <div class="detail-meta-row">

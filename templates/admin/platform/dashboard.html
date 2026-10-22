@@ -5,34 +5,34 @@
 {% block content %}
 
 <div class="stats-grid">
-  <div class="stat-card">
+  <a class="stat-card" href="{{ url_for('admin_platform.institution_list') }}" style="color:inherit;text-decoration:none;">
     <div class="stat-icon blue">🏛</div>
     <div class="stat-info">
       <div class="stat-value">{{ stats.institutions }}</div>
       <div class="stat-label">Clientes</div>
     </div>
-  </div>
-  <div class="stat-card">
+  </a>
+  <a class="stat-card" href="{{ url_for('admin_platform.user_list') }}" style="color:inherit;text-decoration:none;">
     <div class="stat-icon green">👥</div>
     <div class="stat-info">
       <div class="stat-value">{{ stats.users }}</div>
       <div class="stat-label">Usuários admin</div>
     </div>
-  </div>
-  <div class="stat-card">
+  </a>
+  <a class="stat-card" href="{{ url_for('admin_platform.log_list', log_type='ai') }}" style="color:inherit;text-decoration:none;">
     <div class="stat-icon cyan">📋</div>
     <div class="stat-info">
       <div class="stat-value">{{ stats.logs }}</div>
       <div class="stat-label">Interações IA</div>
     </div>
-  </div>
-  <div class="stat-card">
+  </a>
+  <a class="stat-card" href="{{ url_for('admin_platform.log_list', log_type='auth') }}" style="color:inherit;text-decoration:none;">
     <div class="stat-icon amber">🔐</div>
     <div class="stat-info">
       <div class="stat-value">{{ stats.auth_fails }}</div>
       <div class="stat-label">Falhas de login</div>
     </div>
-  </div>
+  </a>
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">

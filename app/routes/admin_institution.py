@@ -1,6 +1,8 @@
 """Admin institution: CRUD de conteúdo por tenant (animais, eventos, lojas, produtos, FAQs, logs)."""
+import unicodedata
+
 from flask import (
-    Blueprint, flash, redirect, render_template,
+    Blueprint, abort, flash, redirect, render_template,
     request, url_for,
 )
 from flask_login import current_user
@@ -12,13 +14,196 @@ from app.helpers import (
 )
 from app.models import (
     Animal, Event, FAQ, Institution, InteractionLog,
-    Product, QuizQuestion, Store,
+    MapArea, Product, QuizQuestion, Store,
 )
 from app.models.quiz import (
     MAX_OPTIONS, MIN_OPTIONS, MAX_OPTION_LEN, MAX_QUESTION_LEN,
 )
 
 admin_institution_bp = Blueprint("admin_institution", __name__)
+
+
+def _is_food_store(store):
+    text = unicodedata.normalize("NFKD", " ".join((store.name or "", store.category or "", store.description or "")).lower())
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    return any(word in text for word in ("aliment", "restaurante", "food", "praca", "lanchonete", "cafe", "cafeteria", "sorvete", "pizza", "hamburguer", "burger", "doces", "acai", "suco"))
+
+
+def _save_store_logo(store, inst):
+    logo = request.files.get("logo")
+    if logo and logo.filename and allowed_file(logo.filename):
+        ext = logo.filename.rsplit(".", 1)[1].lower()
+        store.logo_path = save_upload(
+            logo, f"{inst.slug}/stores/{store.slug}", f"logo.{ext}"
+        )
+
+
+def _map_coordinate(raw):
+    raw = (raw or "").strip().replace(",", ".")
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        return "invalid"
+    return value if 0 <= value <= 100 else "invalid"
+
+
+def _store_map_fields(store):
+    x_pos = _map_coordinate(request.form.get("x_pos"))
+    y_pos = _map_coordinate(request.form.get("y_pos"))
+    if x_pos == "invalid" or y_pos == "invalid" or ((x_pos is None) != (y_pos is None)):
+        flash("Informe as duas coordenadas entre 0 e 100, ou deixe ambas vazias.", "error")
+        return False
+    store.floor = (request.form.get("floor") or "Terreo").strip()
+    store.unit_code = (request.form.get("unit_code") or "").strip() or None
+    store.x_pos, store.y_pos = x_pos, y_pos
+    return True
+
+
+@admin_institution_bp.route("/institutions/<int:iid>/map-points")
+@client_admin_required
+def map_point_list(iid):
+    inst = Institution.query.get_or_404(iid)
+    points = MapArea.query.filter_by(institution_id=iid).order_by(MapArea.floor, MapArea.category, MapArea.name).all()
+    return render_template("admin/institution/map_points.html", inst=inst, points=points)
+
+
+@admin_institution_bp.route("/institutions/<int:iid>/map-points/new", methods=["GET", "POST"])
+@client_admin_required
+def map_point_new(iid):
+    inst = Institution.query.get_or_404(iid)
+    if request.method == "POST":
+        validate_csrf_token()
+        x_pos, y_pos = _map_coordinate(request.form.get("x_pos")), _map_coordinate(request.form.get("y_pos"))
+        if x_pos == "invalid" or y_pos == "invalid" or x_pos is None or y_pos is None:
+            flash("Informe a posição X e Y entre 0 e 100 para o ponto.", "error")
+        else:
+            point = MapArea(institution_id=iid, name=request.form["name"].strip(),
+                            description=request.form.get("description", "").strip(),
+                            floor=(request.form.get("floor") or "Terreo").strip(),
+                            category=(request.form.get("category") or "Servicos").strip(),
+                            icon=(request.form.get("icon") or "•").strip()[:10],
+                            x_pos=x_pos, y_pos=y_pos)
+            point.generate_slug()
+            db.session.add(point)
+            bump_content_version(iid)
+            db.session.commit()
+            flash("Ponto de interesse cadastrado.", "success")
+            return redirect(url_for("admin_institution.map_point_list", iid=iid))
+    return render_template("admin/institution/map_point_form.html", inst=inst, point=None)
+
+
+@admin_institution_bp.route("/institutions/<int:iid>/map-points/<int:mid>/edit", methods=["GET", "POST"])
+@client_admin_required
+def map_point_edit(iid, mid):
+    inst = Institution.query.get_or_404(iid)
+    point = tenant_get_or_404(MapArea, mid, iid)
+    if request.method == "POST":
+        validate_csrf_token()
+        x_pos, y_pos = _map_coordinate(request.form.get("x_pos")), _map_coordinate(request.form.get("y_pos"))
+        if x_pos == "invalid" or y_pos == "invalid" or x_pos is None or y_pos is None:
+            flash("Informe a posição X e Y entre 0 e 100 para o ponto.", "error")
+        else:
+            point.name = request.form["name"].strip()
+            point.description = request.form.get("description", "").strip()
+            point.floor = (request.form.get("floor") or "Terreo").strip()
+            point.category = (request.form.get("category") or "Servicos").strip()
+            point.icon = (request.form.get("icon") or "•").strip()[:10]
+            point.x_pos, point.y_pos = x_pos, y_pos
+            point.generate_slug()
+            bump_content_version(iid)
+            db.session.commit()
+            flash("Ponto de interesse atualizado.", "success")
+            return redirect(url_for("admin_institution.map_point_list", iid=iid))
+    return render_template("admin/institution/map_point_form.html", inst=inst, point=point)
+
+
+@admin_institution_bp.route("/institutions/<int:iid>/map-points/<int:mid>/delete", methods=["POST"])
+@client_admin_required
+def map_point_delete(iid, mid):
+    validate_csrf_token()
+    point = tenant_get_or_404(MapArea, mid, iid)
+    db.session.delete(point)
+    bump_content_version(iid)
+    db.session.commit()
+    flash("Ponto de interesse removido.", "warning")
+    return redirect(url_for("admin_institution.map_point_list", iid=iid))
+
+
+@admin_institution_bp.route("/institutions/<int:iid>/food")
+@client_admin_required
+def food_list(iid):
+    inst = Institution.query.get_or_404(iid)
+    stores = Store.query.filter_by(institution_id=iid).order_by(Store.name).all()
+    food_stores = [store for store in stores if _is_food_store(store)]
+    return render_template("admin/institution/food_list.html", inst=inst, stores=food_stores)
+
+
+@admin_institution_bp.route("/institutions/<int:iid>/food/new", methods=["GET", "POST"])
+@client_admin_required
+def food_new(iid):
+    inst = Institution.query.get_or_404(iid)
+    if request.method == "POST":
+        validate_csrf_token()
+        store = Store(institution_id=iid, name=request.form["name"].strip(),
+                      category=request.form.get("category", "Alimentacao").strip() or "Alimentacao",
+                      floor=request.form.get("floor", "Piso 2"),
+                      description=request.form.get("description", "").strip(),
+                      hours=request.form.get("hours", "").strip(),
+                      phone=request.form.get("phone", "").strip())
+        if not _store_map_fields(store):
+            return render_template("admin/institution/food_form.html", inst=inst, store=store)
+        store.generate_slug()
+        _save_store_logo(store, inst)
+        db.session.add(store)
+        bump_content_version(iid)
+        db.session.commit()
+        flash(f"Ponto de alimentacao '{store.name}' adicionado.", "success")
+        return redirect(url_for("admin_institution.food_list", iid=iid))
+    return render_template("admin/institution/food_form.html", inst=inst, store=None)
+
+
+@admin_institution_bp.route("/institutions/<int:iid>/food/<int:sid>/edit", methods=["GET", "POST"])
+@client_admin_required
+def food_edit(iid, sid):
+    inst = Institution.query.get_or_404(iid)
+    store = tenant_get_or_404(Store, sid, iid)
+    if not _is_food_store(store):
+        from flask import abort
+        abort(404)
+    if request.method == "POST":
+        validate_csrf_token()
+        store.name = request.form["name"].strip()
+        store.category = request.form.get("category", "Alimentacao").strip() or "Alimentacao"
+        store.floor = request.form.get("floor", "Piso 2")
+        store.description = request.form.get("description", "").strip()
+        store.hours = request.form.get("hours", "").strip()
+        store.phone = request.form.get("phone", "").strip()
+        if not _store_map_fields(store):
+            return render_template("admin/institution/food_form.html", inst=inst, store=store)
+        store.generate_slug()
+        _save_store_logo(store, inst)
+        bump_content_version(iid)
+        db.session.commit()
+        flash(f"Ponto de alimentacao '{store.name}' atualizado.", "success")
+        return redirect(url_for("admin_institution.food_list", iid=iid))
+    return render_template("admin/institution/food_form.html", inst=inst, store=store)
+
+
+@admin_institution_bp.route("/institutions/<int:iid>/food/<int:sid>/delete", methods=["POST"])
+@client_admin_required
+def food_delete(iid, sid):
+    validate_csrf_token()
+    store = tenant_get_or_404(Store, sid, iid)
+    if not _is_food_store(store):
+        from flask import abort
+        abort(404)
+    db.session.delete(store)
+    bump_content_version(iid)
+    db.session.commit()
+    flash("Ponto de alimentacao removido.", "warning")
+    return redirect(url_for("admin_institution.food_list", iid=iid))
 
 
 # ── Root redirect ──────────────────────────────────────────────────────────────
@@ -30,6 +215,8 @@ def index():
         return redirect(url_for("auth.login"))
     if current_user.is_super_admin:
         return redirect(url_for("admin_platform.dashboard"))
+    if current_user.is_operational:
+        return redirect(url_for("operational.select_totem"))
     return redirect(url_for("admin_institution.dashboard",
                             iid=current_user.institution_id))
 
@@ -241,8 +428,12 @@ def store_new(iid):
             on_promotion = "on_promotion" in request.form,
             promo_text   = request.form.get("promo_text", ""),
         )
+        if not _store_map_fields(s):
+            return render_template("admin/institution/store_form.html", inst=inst, store=s)
         s.generate_slug()
+        _save_store_logo(s, inst)
         db.session.add(s)
+        bump_content_version(iid)
         db.session.commit()
         flash(f"Loja '{s.name}' adicionada.", "success")
         return redirect(url_for("admin_institution.store_list", iid=iid))
@@ -265,7 +456,10 @@ def store_edit(iid, sid):
         store.phone        = request.form.get("phone", "")
         store.on_promotion = "on_promotion" in request.form
         store.promo_text   = request.form.get("promo_text", "")
+        if not _store_map_fields(store):
+            return render_template("admin/institution/store_form.html", inst=inst, store=store)
         store.generate_slug()
+        _save_store_logo(store, inst)
         bump_content_version(iid)
         db.session.commit()
         flash(f"Loja '{store.name}' atualizada.", "success")

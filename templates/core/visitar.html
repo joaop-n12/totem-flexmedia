@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .visit-page{--visit-ink:#e5f0ec;--visit-muted:#a6bbb3;--visit-gold:#f0bc62;max-width:1120px;margin:0 auto 34px}
+  .visit-hero{position:relative;overflow:hidden;padding:clamp(26px,5vw,52px);border:1px solid rgba(240,188,98,.2);border-radius:24px;background:radial-gradient(ellipse at 85% 8%,rgba(61,130,123,.24),transparent 40%),linear-gradient(140deg,#152c2c,#0c1b24 72%);box-shadow:0 20px 48px rgba(0,0,0,.24)}
+  .visit-eyebrow{color:var(--visit-gold);font-size:11px;font-weight:850;letter-spacing:.16em;text-transform:uppercase}
+  .visit-hero h1{max-width:720px;margin:12px 0 10px;color:#f4f7ef;font-size:clamp(30px,5vw,48px);line-height:1.08;letter-spacing:-.045em}
+  .visit-hero p{max-width:650px;margin:0;color:#b9cbc4;font-size:15px;line-height:1.65}
+  .visit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin-top:16px}
+  .visit-card{min-height:180px;padding:23px;border:1px solid rgba(205,228,213,.14);border-radius:18px;background:linear-gradient(160deg,rgba(22,43,48,.94),rgba(11,25,33,.98));box-shadow:0 12px 30px rgba(0,0,0,.17)}
+  .visit-card-head{display:flex;align-items:center;gap:12px;margin-bottom:15px}
+  .visit-icon{display:grid;place-items:center;width:40px;height:40px;border:1px solid rgba(240,188,98,.2);border-radius:12px;background:rgba(240,188,98,.09);color:var(--visit-gold);font-size:18px}
+  .visit-card h2{margin:0;color:#f0f5ef;font-size:18px;letter-spacing:-.02em}
+  .visit-card p{margin:0;color:var(--visit-muted);font-size:14px;line-height:1.65;overflow-wrap:anywhere}
+  .visit-card .visit-primary{color:#e7eee8;font-size:15px;font-weight:700}
+  .visit-note{margin-top:10px!important;color:#8fa99e!important;font-size:12px!important}
+  .visit-faq{padding:12px 0;border-top:1px solid rgba(205,228,213,.12)}.visit-faq:first-of-type{padding-top:0;border-top:0}.visit-faq strong{display:block;margin-bottom:5px;color:#e9f0e9;font-size:13px}.visit-faq p{font-size:13px}
+  .visit-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+  @media(max-width:640px){.visit-grid{grid-template-columns:1fr}.visit-card{min-height:0;padding:20px}.visit-hero{border-radius:18px}}
+</style>
+
+<main class="visit-page">
+  <section class="visit-hero">
+    <div class="visit-eyebrow">Planeje sua visita</div>
+    <h1>Informações para visitar o {{ institution.name }}</h1>
+    <p>Confira como chegar, o horário de funcionamento e as informações disponíveis sobre a bilheteria e os ingressos.</p>
+  </section>
+
+  <div class="visit-grid">
+    <section class="visit-card">
+      <div class="visit-card-head"><span class="visit-icon" aria-hidden="true">⌖</span><h2>Endereço</h2></div>
+      {% if institution.address %}<p class="visit-primary">{{ institution.address }}</p>{% else %}<p>Endereço ainda não informado.</p><p class="visit-note">A administração pode cadastrar o endereço nos dados da instituição.</p>{% endif %}
+      {% if institution.phone %}<p class="visit-note">Informações: <a href="tel:{{ institution.phone|replace(' ','')|replace('(','')|replace(')','')|replace('-','') }}" style="color:inherit">{{ institution.phone }}</a></p>{% endif %}
+    </section>
+
+    <section class="visit-card">
+      <div class="visit-card-head"><span class="visit-icon" aria-hidden="true">◷</span><h2>Funcionamento</h2></div>
+      {% if institution.opening_hours %}<p class="visit-primary">{{ institution.opening_hours }}</p>
+      {% elif hours_faqs %}{% for faq in hours_faqs %}<div class="visit-faq"><strong>{{ faq.question }}</strong><p>{{ faq.answer }}</p></div>{% endfor %}
+      {% else %}<p>Horários ainda não informados.</p>{% endif %}
+    </section>
+
+    <section class="visit-card">
+      <div class="visit-card-head"><span class="visit-icon" aria-hidden="true">▣</span><h2>Bilheteria</h2></div>
+      {% if office_faqs %}{% for faq in office_faqs %}<div class="visit-faq"><strong>{{ faq.question }}</strong><p>{{ faq.answer }}</p></div>{% endfor %}
+      {% else %}<p>Consulte a equipe do zoológico na entrada para informações sobre atendimento e compra de ingressos.</p>{% endif %}
+    </section>
+
+    <section class="visit-card">
+      <div class="visit-card-head"><span class="visit-icon" aria-hidden="true">R$</span><h2>Ingressos e valores</h2></div>
+      {% if ticket_faqs %}{% for faq in ticket_faqs %}<div class="visit-faq"><strong>{{ faq.question }}</strong><p>{{ faq.answer }}</p></div>{% endfor %}
+      {% else %}<p>Os valores atuais não estão cadastrados na plataforma. Consulte a bilheteria antes da visita.</p>{% endif %}
+      <p class="visit-note">Tarifas, gratuidades e condições especiais podem ser atualizadas pela administração nas perguntas frequentes do zoológico.</p>
+    </section>
+  </div>
+
+  <nav class="visit-actions" aria-label="Mais informações">
+    <a class="btn ghost" href="{{ url_for('core.mapa', slug=institution.slug) }}">Voltar ao mapa</a>
+    {% if institution.has_module('alimentacao') %}<a class="btn" href="{{ url_for('core.alimentacao', slug=institution.slug) }}">Alimentação</a>{% endif %}
+  </nav>
+</main>
+{% endblock %}

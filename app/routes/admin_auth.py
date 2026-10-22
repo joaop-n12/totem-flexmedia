@@ -47,6 +47,8 @@ def _redirect_by_role(user: User):
     """Redireciona o usuario para o painel correto conforme sua role."""
     if user.is_super_admin:
         return redirect(url_for("admin_platform.dashboard"))
+    if user.is_operational:
+        return redirect(url_for("operational.select_totem"))
     return redirect(url_for("admin_institution.dashboard", iid=user.institution_id))
 
 
@@ -174,12 +176,17 @@ def login():
             )
             db.session.commit()
             login_user(user, remember=False)
+            # Mantem a selecao do equipamento entre reinicios do navegador/Pi.
+            # A sessao assinada armazena apenas o ID do totem, nunca credenciais.
+            session.permanent = user.is_operational
             session["_login_at"] = datetime.utcnow().isoformat()
 
             if user.must_change_password:
                 flash("Voce precisa definir uma nova senha antes de continuar.", "warning")
                 return redirect(url_for("auth.change_password"))
 
+            if user.is_operational:
+                return _redirect_by_role(user)
             return _next_url_safe(_redirect_by_role(user))
         else:
             if user:
@@ -380,6 +387,7 @@ def totp_challenge():
             next_url = session.get("_pending_2fa_next") or ""
             _clear_pending_2fa()
             login_user(user, remember=False)
+            session.permanent = user.is_operational
             session["_login_at"] = datetime.utcnow().isoformat()
 
             if used_backup and user.remaining_backup_codes() <= 2:
@@ -394,7 +402,8 @@ def totp_challenge():
                 return redirect(url_for("auth.change_password"))
 
             # Reaproveita _next_url_safe simulando ?next=
-            if next_url and next_url.startswith("/admin") and not next_url.startswith("//"):
+            if (not user.is_operational and next_url
+                    and next_url.startswith("/admin") and not next_url.startswith("//")):
                 return redirect(next_url)
             return _redirect_by_role(user)
 
