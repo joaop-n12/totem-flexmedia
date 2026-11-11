@@ -15,6 +15,24 @@ A arquitetura **Multi-Tenant** permite que diferentes instituições compartilhe
 
 A solução também foi preparada para operação em hardware de baixo custo, incluindo Raspberry Pi.
 
+## 📸 Demonstração
+
+### Hardware
+![Login administrativo](screenshots/login-painel-admin.png)
+
+### Painel administrativo
+![Painel administrativo](screenshots/painel-admin.png)
+
+### Tela inicial
+![Tela inicial do Totem](screenshots/tela-inicial.png)
+
+### Mapa interativo
+![Mapa interativo](screenshots/mapa-interativo.png)
+
+### Assistente de IA
+![Assistente de IA](screenshots/assistente-ia.png)
+
+
 ## ✨ Funcionalidades
 
 - **Assistente com IA:** interação por voz e texto para responder dúvidas e orientar visitantes.
