@@ -17,7 +17,7 @@ A solução também foi preparada para operação em hardware de baixo custo, in
 
 ## 📸 Demonstração
 
-### Hardware
+### Login painel administrativo
 ![Login administrativo](screenshots/login-painel-admin.png)
 
 ### Painel administrativo
