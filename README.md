@@ -1,346 +1,476 @@
 # Totem FlexMedia — Plataforma White Label Multi-Instituições
 
-> Projeto desenvolvido para o **Challenge FIAP** em parceria com a empresa **Flexmedia**.
-> Plataforma de totem interativo multi-tenant com IA por voz e texto.
+Plataforma de totens interativos inteligentes, desenvolvida para o **Challenge FIAP em parceria com a FlexMedia**.
+
+Uma solução white label, multi-instituições, que combina inteligência artificial, interação por voz e texto, mapas interativos e gerenciamento centralizado de conteúdo.
 
 ---
 
 ## Sobre o projeto
 
-O **Totem FlexMedia** é uma plataforma white label que permite operar totens interativos em múltiplas instituições — zoológicos, shoppings, farmácias, museus, aquários e parques — com uma única base de código.
+O **Totem FlexMedia** é uma plataforma desenvolvida para transformar totens convencionais em pontos de atendimento e informação inteligentes.
 
-Cada instituição tem tema visual próprio, módulos configuráveis e um assistente de IA contextualizado com seu conteúdo (animais, lojas, produtos, eventos e FAQs).
+A solução permite atender diferentes tipos de estabelecimentos utilizando uma única base de código, com identidade visual, conteúdos e funcionalidades configuráveis para cada instituição.
+
+Entre os cenários de aplicação estão:
+
+- Shopping centers;
+- Zoológicos e aquários;
+- Museus e parques;
+- Farmácias;
+- Centros comerciais e instituições.
+
+Cada instituição possui seu próprio ambiente, com módulos específicos e um assistente de inteligência artificial contextualizado com seus conteúdos.
+
+O sistema foi desenvolvido com arquitetura multi-tenant, permitindo administrar diferentes instituições, usuários e dispositivos de forma centralizada.
+
+## Principais funcionalidades
+
+### Experiência do visitante
+- Interface interativa adaptada à identidade visual de cada instituição.
+- Assistente de IA com interação por voz e texto.
+- Reconhecimento de fala utilizando OpenAI Whisper.
+- Respostas inteligentes utilizando GPT-4o-mini.
+- Conversão de respostas em áudio com OpenAI TTS.
+- Mapas interativos para localização de estabelecimentos e pontos de interesse.
+- Filtros por andar e categorias de conteúdo.
+- Catálogos de animais, lojas, produtos e eventos.
+- Quiz educativo com validação de respostas no servidor.
+- Avaliação da experiência do visitante.
+- Suporte a diferentes idiomas.
+- Interface preparada para operação em telas touchscreen.
+
+### Painel administrativo
+- Gerenciamento centralizado de instituições.
+- Cadastro e gerenciamento de usuários.
+- Controle de dispositivos e totens.
+- Gerenciamento de conteúdos por instituição.
+- Visualização de métricas e registros de interação.
+- Controle de permissões por perfil de usuário.
+- Autenticação com segundo fator (2FA).
+- Trilha de auditoria para ações administrativas.
+
+### Operação dos totens
+- Seleção do cliente e dispositivo pelo operador.
+- Inicialização da interface específica do equipamento.
+- Execução em modo kiosk, com navegação em tela cheia.
+- Comunicação com servidor para sincronização de conteúdo.
+- Monitoramento de disponibilidade por heartbeat.
+- Integração com sensores físicos para detecção de presença e telemetria.
+- Possibilidade de operação em diferentes ambientes e dispositivos.
 
 ---
 
-## Como funciona a IA
+## Inteligência Artificial
 
-1. O visitante toca no botão e **fala** sua pergunta (ou digita)
-2. O áudio é transcrito pelo **OpenAI Whisper**
-3. A pergunta é processada pelo **GPT-4o-mini** com contexto da instituição
-4. A resposta volta em fala via **OpenAI TTS**
-5. O totem responde em voz com animação visual sincronizada
+A plataforma integra serviços da OpenAI para proporcionar uma experiência conversacional por voz e texto.
 
----
+### Fluxo de interação por voz
 
-## Tecnologias
+1. O visitante toca no botão de interação e faz uma pergunta.
+2. O áudio é enviado para transcrição pelo OpenAI Whisper.
+3. A pergunta é processada pelo GPT-4o-mini, considerando o contexto da instituição.
+4. A resposta é convertida em áudio pelo OpenAI TTS.
+5. O visitante recebe a resposta em voz, acompanhada de elementos visuais da interface.
 
-| Camada | Tecnologia |
-|--------|-----------|
-| Backend | Python, Flask, Flask-SQLAlchemy, Flask-Migrate, Flask-Login, Flask-Limiter |
-| Auth | Werkzeug scrypt, **TOTP 2FA** (`pyotp` + `qrcode`), códigos de backup |
-| IA STT / Chat / TTS | OpenAI Whisper · GPT-4o-mini · OpenAI TTS |
-| Tradução | OpenAI (`gpt-4o-mini`) · cache Redis · PT/EN/ES/FR (`app/services/translation.py`) |
-| i18n da UI | Catálogo puro Python PT/EN (`app/services/i18n.py`) — sem Babel |
-| Banco | SQLite (dev) · PostgreSQL via `psycopg[binary]` (prod) |
-| Cache / Rate limit | Redis (loopback) |
-| Frontend | HTML, CSS e JavaScript vanilla |
-| Servidor produção | Gunicorn + Nginx + systemd + Let's Encrypt **ou** Cloudflare Tunnel |
-| HTTPS público (frota) | **Cloudflare Tunnel** (`deploy/install_cloudflared.sh`) — sem IP público, sem cert próprio, microfone/câmera funcionam em qualquer rede |
-| Sensores físicos | **DHT11/DHT22** (ambiente) + **HC-SR04** (presença/distância) via daemon systemd separado (`totem-sensors.service`) |
-| Hardware alvo | **Raspberry Pi 3 B/B+** (piloto) — Pi 4 também suportado |
-| Kiosk | Chromium fullscreen + watchdog + unclutter (`install_totem.sh`) ou Fully Kiosk Browser (Android) |
+Também existe a possibilidade de interação exclusivamente por texto.
+
+### Tradução e internacionalização
+
+- Tradução dinâmica de conteúdo utilizando OpenAI.
+- Suporte a português, inglês, espanhol e francês na tradução de conteúdo.
+- Interface com catálogo de internacionalização em português e inglês.
+- Cache de traduções para reduzir chamadas externas.
 
 ---
 
-## Início rápido (desenvolvimento)
+## Tecnologias utilizadas
+
+| Camada | Tecnologias |
+|---|---|
+| Backend | Python, Flask |
+| ORM e banco | Flask-SQLAlchemy, SQLite, PostgreSQL |
+| Migrações | Flask-Migrate, Alembic |
+| Autenticação | Flask-Login, Werkzeug, TOTP 2FA |
+| Inteligência Artificial | OpenAI Whisper, GPT-4o-mini, OpenAI TTS |
+| Tradução | OpenAI API, Redis |
+| Frontend | HTML5, CSS3, JavaScript |
+| Segurança | CSRF, Fernet, HMAC SHA-256, rate limiting |
+| Infraestrutura | Gunicorn, Nginx, systemd |
+| Acesso externo | Cloudflare Tunnel |
+| Hardware | Raspberry Pi 3 B/B+ e Raspberry Pi 4 |
+| Sensores | DHT11/DHT22 e HC-SR04 |
+| Navegador kiosk | Chromium e Fully Kiosk Browser |
+| Testes | Pytest |
+
+---
+
+## Arquitetura da solução
+
+A aplicação foi organizada para separar a experiência pública, a administração da plataforma e a operação dos equipamentos.
+
+| Perfil | Responsabilidade |
+|---|---|
+| `super_admin` | Administração global de instituições, usuários, dispositivos, métricas e auditoria. |
+| `client_admin` | Gerenciamento de conteúdos e informações da própria instituição. |
+| `operational` | Seleção do cliente e do equipamento e inicialização da interface do totem. |
+| Visitante | Utilização dos módulos públicos e interação com a inteligência artificial. |
+
+### Arquitetura multi-tenant
+
+Cada instituição possui configurações e conteúdos próprios, permitindo personalizar a experiência sem precisar manter uma aplicação independente para cada cliente.
+
+A separação de permissões também impede que administradores de uma instituição acessem os dados de outra.
+
+---
+
+## Implantação em hardware real
+
+Um dos diferenciais do projeto é sua preparação para execução em equipamentos físicos.
+
+O piloto foi configurado em um **Raspberry Pi 3 B**, utilizando Debian 13 (Trixie), com execução da aplicação e interface em modo kiosk.
+
+### Ambiente de implantação
+
+- Raspberry Pi 3 B.
+- Debian 13.
+- Python e Flask.
+- Banco de dados SQLite no ambiente piloto.
+- Fully Kiosk Browser para execução da interface.
+- Cloudflare Tunnel para disponibilização de acesso HTTPS externo.
+- systemd para gerenciamento de serviços.
+- Daemon independente para integração com sensores físicos.
+
+### Acesso externo com Cloudflare Tunnel
+
+A integração com Cloudflare Tunnel permite disponibilizar a aplicação por HTTPS sem necessidade de expor diretamente o endereço IP da rede local.
+
+Essa configuração também permite utilizar recursos do navegador que dependem de contexto seguro, como microfone e câmera, respeitando as permissões concedidas pelo navegador.
+
+### Operação do equipamento
+
+O sistema possui uma estrutura para inicialização e gerenciamento do totem, incluindo:
+
+- Inicialização automática dos serviços.
+- Execução da interface em modo kiosk.
+- Comunicação entre o equipamento e o servidor.
+- Monitoramento periódico de disponibilidade.
+- Sincronização de conteúdo.
+- Integração com sensores.
+
+---
+
+## Início rápido — Ambiente de desenvolvimento
+
+### 1. Clonar o repositório
 
 ```bash
-# 1. Ambiente virtual
-python -m venv venv
-venv\Scripts\activate          # Windows
-# source venv/bin/activate     # Linux/macOS
-
-# 2. Dependências
-pip install -r requirements.txt
-
-# 3. Configuração
-cp .env.example .env           # editar SECRET_KEY, OPENAI_API_KEY, SUPERADMIN_*
-
-# 4. Banco e seed
-flask --app run.py db upgrade  # aplica migrations
-python run.py                  # cria seed na primeira execução
+git clone https://github.com/SEU-USUARIO/SEU-REPOSITORIO.git
+cd totem_flexmedia
 ```
 
-Acesse `http://localhost:5000`.
+### 2. Criar ambiente virtual
 
-> Para guia detalhado (Raspberry Pi, VM Debian, troubleshooting) veja **[INSTALACAO.md](INSTALACAO.md)**.
+**Windows:**
+
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
+
+**Linux/macOS:**
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 3. Instalar dependências
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Configurar variáveis de ambiente
+
+```bash
+cp .env.example .env
+```
+
+Configure as credenciais necessárias, incluindo a chave da OpenAI e as configurações de segurança.
+
+### 5. Preparar o banco de dados
+
+```bash
+flask --app run.py db upgrade
+```
+
+### 6. Executar a aplicação
+
+```bash
+python run.py
+```
+
+Acesse:
+
+```text
+http://localhost:5000
+```
+
+Para instalação em Raspberry Pi, configuração do Cloudflare Tunnel e operação em produção, consulte `INSTALACAO.md` e `docs/OPERACAO.md`.
 
 ---
 
 ## Variáveis de ambiente
 
-| Variável | Obrig. | Descrição |
-|----------|--------|-----------|
-| `SECRET_KEY` | sim | Chave Flask (`python -c "import secrets; print(secrets.token_hex(32))"`) |
-| `FIELD_ENCRYPTION_KEY` | sim em prod | Fernet — cifra TOTP secret e `device.api_key_secret` (`Fernet.generate_key()`) |
-| `OPENAI_API_KEY` | sim | Chave OpenAI |
-| `SUPERADMIN_EMAIL` | sim | E-mail do primeiro super admin (seed) |
-| `SUPERADMIN_PASSWORD` | sim | Senha (mín. 12 caracteres) |
-| `DATABASE_URL` | não | Ex: `postgresql+psycopg://user:pw@host/flexmedia` (default: SQLite) |
-| `INTERACTION_LOG_RETENTION_DAYS` | não | Retenção LGPD — default 90 |
-| `REDIS_URL` | não | Para Flask-Limiter e cache de tradução em produção (default: memória) |
-| `TOTEM_PUBLIC_URL` | não | URL HTTPS pública (preenchido automaticamente por `install_cloudflared.sh`) |
-| `TOTEM_WAKE_SECRET` | sim no Pi | Segredo loopback do `/api/local/wake` (daemon de sensores ↔ Flask) |
-| `TOTEM_DISABLE_SENSORS` | não | `1` força sensores em mock no próprio Pi (e suprime overlay) |
-| `DHT_MODEL` | não | `DHT11` ou `DHT22` — default `DHT22` |
-| `REQUIRE_TOTP_FOR_SUPERADMIN` | não | `1` (default) obriga 2FA em super admins |
+| Variável | Descrição |
+|---|---|
+| `SECRET_KEY` | Chave de segurança da aplicação Flask. |
+| `FIELD_ENCRYPTION_KEY` | Chave Fernet para criptografia de dados sensíveis. |
+| `OPENAI_API_KEY` | Chave de acesso à API da OpenAI. |
+| `SUPERADMIN_EMAIL` | E-mail do administrador principal. |
+| `SUPERADMIN_PASSWORD` | Senha inicial do administrador. |
+| `DATABASE_URL` | URL de conexão com o banco de dados. |
+| `REDIS_URL` | Configuração do Redis para cache e rate limiting. |
+| `TOTEM_PUBLIC_URL` | Endereço HTTPS público da aplicação. |
+| `TOTEM_WAKE_SECRET` | Segredo de comunicação com o daemon de sensores. |
+| `TOTEM_DISABLE_SENSORS` | Desativa a integração com sensores físicos. |
+| `DHT_MODEL` | Modelo do sensor de temperatura e umidade. |
+| `REQUIRE_TOTP_FOR_SUPERADMIN` | Define a obrigatoriedade de 2FA para super administradores. |
+
+Consulte `.env.example` para verificar os valores e configurações esperados.
 
 ---
 
-## Painel administrativo
+## Principais rotas
 
-Acesse `/admin/login`. Suporta **2FA via TOTP** (Google Authenticator, Authy, 1Password) com códigos de backup.
+### Interface pública
 
-| Papel | Acesso |
-|-------|--------|
-| `super_admin` | Global: instituições, usuários, dispositivos, logs de auditoria, IA |
-| `client_admin` | Restrito à própria instituição: conteúdo + logs de IA |
-| `operational` | Somente selecionar um cliente/Totem e iniciar o modo Totem |
+| Rota | Descrição |
+|---|---|
+| `/` | Redirecionamento inicial. |
+| `/selector` | Seleção de instituição. |
+| `/<slug>/` | Página inicial da instituição. |
+| `/<slug>/mapa` | Mapa interativo. |
+| `/<slug>/programacao` | Programação e eventos. |
+| `/<slug>/animais/especies` | Catálogo de animais. |
+| `/<slug>/lojas` | Catálogo de lojas. |
+| `/<slug>/produtos` | Catálogo de produtos. |
+| `/<slug>/ia` | Assistente de inteligência artificial. |
+| `/<slug>/quiz` | Quiz educativo. |
+| `/<slug>/rating` | Avaliação da experiência. |
+| `/privacidade` | Aviso de privacidade e LGPD. |
 
-- Super admin é criado **uma única vez** via `.env` na primeira execução.
-- Demais admins são criados em `/admin/platform/users` (super admin).
-- Senhas temporárias forçam troca no primeiro login (`must_change_password`).
-- Cada `client_admin` enxerga apenas dados da sua instituição.
-- O `operational` não carrega dashboard nem menus administrativos. Depois do
-  login, acessa `/operacional/`, seleciona um `TotemDevice` ativo e entra na
-  interface Totem existente. A engrenagem discreta no kiosk permite trocar o
-  equipamento. A seleção fica na sessão assinada por até 8 horas.
+### Administração
 
----
-
-## URLs principais
-
-### Totem (público)
-| URL | Descrição |
-|-----|-----------|
-| `/` | Redireciona para o seletor |
-| `/selector` | Seleção de instituição |
-| `/<slug>/` | Home |
-| `/<slug>/mapa` | Mapa interativo |
-| `/<slug>/programacao` | Eventos |
-| `/<slug>/animais/especies` | Catálogo (zoo) |
-| `/<slug>/lojas` | Lojas (shopping) |
-| `/<slug>/produtos` | Produtos (farmácia) |
-| `/<slug>/ia` | Assistente IA |
-| `/<slug>/quiz` | Quiz educativo (gabarito server-side) |
-| `/<slug>/rating` | Avaliação anônima (estrelas + comentário) |
-| `/privacidade` | Aviso LGPD |
-| `/offline` · `/sw.js` | Modo offline + service worker |
-| `POST /api/locale` | Toggle de idioma da UI (PT/EN) |
-
-### Admin
-| URL | Descrição |
-|-----|-----------|
-| `/admin/login` · `/admin/logout` | Login com 2FA opcional |
-| `/admin/totp/setup` | Cadastro do segundo fator |
-| `/admin/totp/backup-codes` | Códigos de recuperação |
-| `/admin/platform/` | Dashboard super admin |
-| `/admin/platform/institutions/` | CRUD instituições |
-| `/admin/platform/users/` | CRUD usuários |
-| `/admin/platform/devices/` | CRUD totens (API key + heartbeat) |
-| `/admin/platform/audit` | Trilha de auditoria |
-| `/admin/platform/logs` | Logs globais de IA |
-| `/admin/institutions/<id>/` | Dashboard client admin |
+| Rota | Descrição |
+|---|---|
+| `/admin/login` | Autenticação administrativa. |
+| `/admin/platform/` | Painel global. |
+| `/admin/platform/institutions/` | Gerenciamento de instituições. |
+| `/admin/platform/users/` | Gerenciamento de usuários. |
+| `/admin/platform/devices/` | Gerenciamento de dispositivos. |
+| `/admin/platform/audit` | Registros de auditoria. |
+| `/admin/platform/logs` | Logs globais de IA. |
+| `/admin/institutions/<id>/` | Painel da instituição. |
 
 ### Operacional
-| URL | Descrição |
-|-----|-----------|
-| `/operacional/` | Selecionar cliente e Totem ativo |
-| `/operacional/iniciar` | Reabrir o último Totem selecionado |
+
+| Rota | Descrição |
+|---|---|
+| `/operacional/` | Seleção de cliente e dispositivo. |
+| `/operacional/iniciar` | Inicialização do último equipamento selecionado. |
 
 ### API
-| URL | Método | Descrição |
-|-----|--------|-----------|
-| `/api/voice` | POST | Áudio → resposta em áudio |
-| `/api/chat` | POST | Texto → texto |
-| `/<slug>/api/translate` | POST | Tradução PT/EN/ES/FR (cache Redis) |
-| `/api/translate/languages` | GET | Lista pública de idiomas suportados |
-| `/<slug>/api/quiz/answer` | POST | Valida resposta (gabarito server-side) + curiosidade |
-| `/<slug>/api/rating` | POST | Avaliação anônima (sem PII) |
-| `/<slug>/api/sync/version` | GET | Versão do conteúdo (polling do kiosk) |
-| `/api/sync/snapshot` | GET | Snapshot completo (HMAC + ETag/304) |
-| `/api/heartbeat` | POST | Pulso do totem (HMAC + API key + anti-replay) |
-| `/api/local/wake` | POST | Daemon de sensores → Flask local (loopback + secret) |
-| `/api/local/wake-stream` | GET | SSE consumido pelo kiosk para reagir a presença |
-| `/api/session/state` | GET | Snapshot da máquina de estados (kiosk polla) |
-| `/health` | GET | Liveness / readiness |
+
+| Rota | Método | Descrição |
+|---|---|---|
+| `/api/voice` | POST | Processamento de áudio e resposta em voz. |
+| `/api/chat` | POST | Interação por texto. |
+| `/<slug>/api/translate` | POST | Tradução de conteúdo. |
+| `/api/translate/languages` | GET | Idiomas suportados. |
+| `/<slug>/api/quiz/answer` | POST | Validação de respostas do quiz. |
+| `/<slug>/api/rating` | POST | Registro de avaliações. |
+| `/<slug>/api/sync/version` | GET | Verificação da versão do conteúdo. |
+| `/api/sync/snapshot` | GET | Sincronização de conteúdo. |
+| `/api/heartbeat` | POST | Monitoramento do dispositivo. |
+| `/api/local/wake` | POST | Comunicação local com sensores. |
+| `/api/session/state` | GET | Estado da sessão do totem. |
+| `/health` | GET | Verificação de disponibilidade. |
 
 ---
 
 ## Módulos disponíveis
 
-| Slug | Nome | Ícone |
-|------|------|-------|
-| `home` | Home | ⊞ |
-| `animais` | Catálogo de Animais | 🐾 |
-| `mapa` | Mapa Interativo | 🗺️ |
-| `programacao` | Programação | 📅 |
-| `alimentacao` | Praça de Alimentação | 🍽️ |
-| `ia` | Assistente IA | 💬 |
-| `lojas` | Lojas | 🛍️ |
-| `produtos` | Produtos | 💊 |
+| Módulo | Funcionalidade |
+|---|---|
+| Home | Página inicial personalizada. |
+| Animais | Catálogo de espécies e informações educativas. |
+| Mapa | Localização de pontos de interesse. |
+| Programação | Eventos e atividades. |
+| Alimentação | Praça de alimentação. |
+| IA | Assistente inteligente. |
+| Lojas | Catálogo de estabelecimentos. |
+| Produtos | Catálogo de produtos. |
+
+Os módulos são configuráveis de acordo com o segmento e as necessidades de cada instituição.
 
 ---
 
-## Estrutura do projeto
+## Sensores físicos
 
-Visão de alto nível — para a árvore completa e regras de cada arquivo,
-ver [CLAUDE.md](CLAUDE.md).
+A plataforma possui integração com sensores para ampliar a interação entre o visitante e o equipamento.
 
-```
-totem_flexmedia/
-├── app/
-│   ├── __init__.py              # App factory + CLI (seed, init-db, purge-logs, security-upgrade)
-│   ├── extensions.py            # db, migrate, login_manager, limiter
-│   ├── crypto.py                # Fernet helpers (FIELD_ENCRYPTION_KEY) — dual-key
-│   ├── helpers.py               # CSRF, decoradores, tenant_get_or_404, build_ai_context, save_upload
-│   ├── twofa.py                 # TOTP + códigos de backup (hashados)
-│   ├── seed.py                  # Seed inicial (zoo demo + super admin)
-│   ├── models/                  # Institution, User, Device, Animal/Event/Store/Product/FAQ,
-│   │                            # InteractionLog, AdminAuditLog, QuizQuestion, ExperienceRating
-│   ├── routes/
-│   │   ├── core.py              # Totem público + /api/locale + service worker
-│   │   ├── zoo.py · shopping.py · pharmacy.py
-│   │   ├── voice.py             # IA voz/chat (rate-limit + quota + erros OpenAI)
-│   │   ├── translate.py         # POST /<slug>/api/translate (PT/EN/ES/FR)
-│   │   ├── quiz.py · rating.py  # Quiz com gabarito server-side + rating anônimo
-│   │   ├── sync.py              # /<slug>/api/sync/version + /api/sync/snapshot (HMAC + ETag)
-│   │   ├── admin_auth.py        # Login, 2FA, troca de senha, backup codes
-│   │   ├── admin_platform.py    # super_admin (instituições, usuários, devices, métricas, audit)
-│   │   ├── admin_institution.py # client_admin (conteúdo da própria instituição)
-│   │   ├── devices.py           # CRUD totens + /api/heartbeat + /api/local/wake(-stream) + /api/session/state
-│   │   └── health.py
-│   ├── services/                # Integrações plugáveis (registry pattern)
-│   │   ├── integrations.py      # Protocol + registry com health-check
-│   │   ├── translation.py       # OpenAI gpt-4o-mini + cache Redis
-│   │   ├── metrics.py           # Agregações de InteractionLog por instituição
-│   │   └── i18n.py              # Catálogo PT/EN puro Python — t(), get_locale, set_locale
-│   └── sensors/                 # Drivers físicos (Pi-only; mock automático fora do Pi)
-│       ├── base.py · dht22.py · hcsr04.py
-│       └── daemon.py            # SensorDaemon (threads + heartbeat HMAC + post local wake)
-├── templates/                   # Layout + módulos (zoo/shopping/pharmacy/quiz/rating) + admin
-├── static/                      # CSS, sw.js, images, uploads (gitignored)
-├── migrations/                  # Alembic — sempre via flask db migrate
-├── tests/                       # 14 suites: smoke, voice, 2fa, security, heartbeat, sensors,
-│                                # translation, metrics, tenant_isolation, sync, preview, quiz,
-│                                # i18n, rating
-├── scripts/
-│   ├── totem_sensor_daemon.py   # Entry point do daemon (systemd: totem-sensors.service)
-│   ├── simular_sensores.sh      # Simulador HC-SR04 + DHT (Linux/Pi)
-│   ├── simular_sensores.ps1     # Mesma coisa para Windows/dev
-│   └── teste_dht11.py           # Teste rápido isolado do DHT
-├── deploy/
-│   ├── install_production.sh    # Nginx + Gunicorn + Let's Encrypt + cron
-│   ├── install_cloudflared.sh   # Cloudflare Tunnel (HTTPS público)
-│   ├── rotate_secrets.sh        # Rotação assistida (SECRET_KEY, WAKE_SECRET, FIELD_ENCRYPTION_KEY)
-│   ├── backup.sh                # Backup diário com retenção 14 dias
-│   ├── nginx.conf.template
-│   ├── totem-flexmedia.service
-│   └── totem-sensors.service    # systemd unit do daemon de sensores
-├── docs/
-│   ├── OPERACAO.md              # Manual operacional (Pi 3 piloto)
-│   └── AUDITORIA_SEGURANCA.md   # Auditoria de hardening (histórico)
-├── data/                        # Seeds JSON
-├── instance/                    # SQLite + uploads (gitignored)
-├── logs/                        # Rotativo (gitignored)
-├── install_totem.sh             # Configura Pi como kiosk (prompt: TOTEM_DISABLE_SENSORS)
-├── INSTALACAO.md                # Guia passo a passo
-├── CLAUDE.md                    # Mapa completo + regras de engenharia
-├── config.py · run.py · wsgi.py · gunicorn.conf.py · pytest.ini
-├── requirements.txt · requirements-dev.txt · requirements-pi.txt
-└── .env.example
-```
+| Sensor | GPIO | Funcionalidade |
+|---|---|---|
+| HC-SR04 | TRIG 23 / ECHO 24 | Detecção de aproximação e presença. |
+| DHT11/DHT22 | DATA 4 | Monitoramento de temperatura e umidade. |
+
+O processamento dos sensores é executado por um daemon independente do servidor Flask, gerenciado pelo systemd.
+
+Também existem simuladores para testar os fluxos sem necessidade de conexão com o hardware físico.
 
 ---
 
-## Segurança
+## Segurança e LGPD
 
-- **Senhas** Werkzeug scrypt; política mínima de 10 caracteres validada em `validate_password_strength`.
-- **2FA TOTP** opcional para todos os admins (obrigatório para super admins via `REQUIRE_TOTP_FOR_SUPERADMIN`); códigos de backup hashados.
-- **CSRF** em todos os formulários POST (`generate_csrf_token` + `validate_csrf_token`).
-- **Lockout** progressivo após falhas de login + log em `AuthLog`.
-- **Login timing-safe** (mitiga enumeração de usuários).
-- **Rate limit** Flask-Limiter: login 20/min · voice 10/min · chat 20/min.
-- **Headers** `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Cache-Control: no-store` no admin.
-- **Cookies** `SESSION_COOKIE_SECURE=True` em prod, `HttpOnly`, `SameSite=Lax`.
-- **Tenant isolation** — `client_admin` não acessa outra instituição.
-- **Auditoria** — toda ação sensível (criar/editar/excluir, login, 2FA, devices) grava em `AdminAuditLog`.
-- **Heartbeat de totem** — HMAC SHA-256 com timestamp anti-replay (janela 5 min, comparado com `time.time()` Unix epoch — independente de timezone do host) + API key rotacionável.
-- **Sensores físicos isolados** — `totem-sensors.service` roda fora do worker Gunicorn; `/api/local/wake` exige loopback + `X-Wake-Secret` (fail-closed sem segredo).
-- **Cifragem em repouso** — `User.totp_secret` e `TotemDevice.api_key_secret` cifrados via Fernet (`FIELD_ENCRYPTION_KEY`), com rotação dual-key suportada.
+A plataforma possui mecanismos de proteção e controle de acesso:
 
----
+- Senhas protegidas com hash Werkzeug scrypt.
+- Autenticação de dois fatores (TOTP).
+- Códigos de recuperação armazenados com hash.
+- Proteção CSRF em formulários.
+- Limitação de requisições (rate limiting).
+- Controle de acesso por perfil.
+- Isolamento de dados entre instituições.
+- Auditoria de operações administrativas.
+- Comunicação autenticada entre dispositivos e servidor.
+- Criptografia Fernet para dados sensíveis.
+- Retenção configurável de registros de interação.
+- Aviso de privacidade e consentimento para utilização do microfone.
 
-## LGPD e experiência offline
-
-- `/privacidade` — aviso de coleta, uso da OpenAI, retenção e direitos do titular.
-- Modal de consentimento antes do primeiro uso do microfone.
-- Service worker (`static/js/sw.js`) cacheia estáticos e serve `/offline` quando a rede cai.
-- `InteractionLog` com retenção configurável (default 90 dias). Agende `flask purge-logs` no cron.
+A integração com serviços externos de IA também é considerada na política de privacidade da aplicação.
 
 ---
 
-## Quota de IA por instituição
+## Experiência offline
 
-Cada `Institution` tem `daily_ai_quota`. `voice.py` incrementa `ai_calls_today` e, ao estourar, retorna **429 "limite diário"** sem chamar a OpenAI — protegendo custo e disponibilidade.
+A aplicação possui suporte a recursos de funcionamento offline por meio de Service Worker.
 
-| Erro OpenAI | HTTP | Mensagem |
-|-------------|------|----------|
-| `APIConnectionError` / `APITimeoutError` | 503 | "offline" |
-| `RateLimitError` | 429 | "muita gente" |
-| `AuthenticationError` | 503 | "indisponível" + log ERROR |
-| Quota tenant estourada | 429 | "limite diário" |
+- Cache de arquivos estáticos.
+- Página específica para indisponibilidade de conexão.
+- Estrutura de sincronização de conteúdo.
+- Verificação periódica de atualização dos dados.
+
+As funcionalidades que dependem da API da OpenAI ou de comunicação com o servidor exigem conectividade.
 
 ---
 
 ## Testes
 
+Para instalar as dependências de desenvolvimento:
+
 ```bash
 pip install -r requirements-dev.txt
+```
+
+Executar os testes:
+
+```bash
 pytest
 ```
 
-OpenAI é sempre **mockada** — nunca bate na API real em testes.
+As chamadas à OpenAI são simuladas nos testes para evitar consumo de API e dependência de serviços externos.
 
 ---
 
-## Deploy e operação
+## Estrutura do projeto
 
-Documentação operacional completa em **[docs/OPERACAO.md](docs/OPERACAO.md)** (instalação Pi 3, troca de chaves, restauração de backup, nova instituição).
-
-| Script | Função |
-|--------|--------|
-| `install_totem.sh` | Setup do Pi como kiosk (venv, .env, banco, systemd, Chromium fullscreen, prompt de sensores) |
-| `deploy/install_cloudflared.sh` | HTTPS público via Cloudflare Tunnel (resolve bloqueio de microfone) |
-| `deploy/install_production.sh` | Alternativa on-prem: Nginx + Gunicorn + Let's Encrypt + cron |
-| `deploy/rotate_secrets.sh` | Rotação assistida de `SECRET_KEY`, `TOTEM_WAKE_SECRET`, `FIELD_ENCRYPTION_KEY` |
-| `deploy/backup.sh` | Backup diário (retenção 14 dias) |
-| `scripts/simular_sensores.{sh,ps1}` | Simulador de HC-SR04 + DHT (testar overlay/áudio sem hardware) |
-| `scripts/totem_sensor_daemon.py` | Entry point do daemon de sensores (rodado via `totem-sensors.service`) |
+```text
+totem_flexmedia/
+├── app/
+│   ├── __init__.py
+│   ├── extensions.py
+│   ├── crypto.py
+│   ├── helpers.py
+│   ├── twofa.py
+│   ├── seed.py
+│   ├── models/
+│   ├── routes/
+│   │   ├── core.py
+│   │   ├── zoo.py
+│   │   ├── shopping.py
+│   │   ├── pharmacy.py
+│   │   ├── voice.py
+│   │   ├── translate.py
+│   │   ├── quiz.py
+│   │   ├── rating.py
+│   │   ├── sync.py
+│   │   ├── admin_auth.py
+│   │   ├── admin_platform.py
+│   │   ├── admin_institution.py
+│   │   ├── devices.py
+│   │   └── health.py
+│   ├── services/
+│   │   ├── integrations.py
+│   │   ├── translation.py
+│   │   ├── metrics.py
+│   │   └── i18n.py
+│   └── sensors/
+│       ├── base.py
+│       ├── dht22.py
+│       ├── hcsr04.py
+│       └── daemon.py
+├── templates/
+├── static/
+├── migrations/
+├── tests/
+├── scripts/
+├── deploy/
+├── docs/
+├── data/
+├── instance/
+├── logs/
+├── install_totem.sh
+├── INSTALACAO.md
+├── CLAUDE.md
+├── config.py
+├── run.py
+├── wsgi.py
+├── requirements.txt
+├── requirements-dev.txt
+├── requirements-pi.txt
+└── .env.example
+```
 
 ---
 
-## Sensores físicos (piloto Pi 3)
+## Documentação complementar
 
-Dois sensores integrados via daemon systemd separado do Flask:
+| Arquivo | Conteúdo |
+|---|---|
+| `INSTALACAO.md` | Instalação e configuração do ambiente. |
+| `docs/OPERACAO.md` | Operação do Raspberry Pi, manutenção e backups. |
+| `docs/AUDITORIA_SEGURANCA.md` | Histórico de auditoria e segurança. |
+| `CLAUDE.md` | Arquitetura, estrutura e regras de engenharia. |
 
-| Sensor | GPIO padrão | Função |
-|---|---|---|
-| **HC-SR04** (ultrassônico) | TRIG=23, ECHO=24 | Detecta aproximação → muda estado da sessão (IDLE → ACTIVE) → toca áudio de boas-vindas |
-| **DHT11 / DHT22** | DATA=GPIO 4 | Telemetria de temperatura/umidade — alimenta widgets TEMP/UMID na home e heartbeat para o painel admin |
+### Scripts de implantação
 
-Características:
-- **Daemon isolado** (`totem-sensors.service`) — não roda no worker Gunicorn.
-- **Mock automático** fora do Pi (laptop, CI, servidor remoto).
-- **`TOTEM_DISABLE_SENSORS=1`** força mock no próprio Pi e suprime o overlay de proximidade.
-- **Sem PIR** — presença detectada apenas pelo HC-SR04 (evita falsos positivos com passantes distantes).
-- **Simuladores** em `scripts/simular_sensores.{sh,ps1}` para testar fluxo completo sem hardware.
-
-Detalhes técnicos de cada driver em `app/sensors/` (cada arquivo tem docstring explicativa).
+| Script | Finalidade |
+|---|---|
+| `install_totem.sh` | Preparação do Raspberry Pi para operação kiosk. |
+| `deploy/install_cloudflared.sh` | Configuração do Cloudflare Tunnel. |
+| `deploy/install_production.sh` | Instalação com Nginx e Gunicorn. |
+| `deploy/rotate_secrets.sh` | Rotação de chaves e segredos. |
+| `deploy/backup.sh` | Backup e retenção de dados. |
+| `scripts/totem_sensor_daemon.py` | Inicialização do daemon de sensores. |
+| `scripts/simular_sensores.sh` | Simulação de sensores no Linux. |
+| `scripts/simular_sensores.ps1` | Simulação de sensores no Windows. |
 
 ---
 
 ## Licença
 
-Projeto acadêmico (Challenge FIAP × Flexmedia). Uso restrito conforme acordo entre as partes.
+Projeto acadêmico desenvolvido para o **Challenge FIAP em parceria com a FlexMedia**.
+
+Uso restrito conforme os termos e acordos estabelecidos entre as partes.
